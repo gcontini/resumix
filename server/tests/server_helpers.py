@@ -29,7 +29,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Lisbon, Portugal",
                 "dates": "March 2022 -- Present",
                 "project_name": "Freight tracking",
-                "bullet_points": ["Owned the **event ingestion** architecture."],
+                "duties": ["Owned the **event ingestion** architecture."],
             },
             {
                 "title": "Senior SRE",
@@ -37,7 +37,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Barcelona, Spain",
                 "dates": "August 2018 -- February 2022",
                 "project_name": None,
-                "bullet_points": ["Designed multi-region failover."],
+                "duties": ["Designed multi-region failover."],
             },
             {
                 "title": "Backend Engineer",
@@ -45,7 +45,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Berlin, Germany",
                 "dates": "May 2014 -- July 2018",
                 "project_name": None,
-                "bullet_points": ["Built a Go query engine."],
+                "duties": ["Built a Go query engine."],
             },
         ],
     )

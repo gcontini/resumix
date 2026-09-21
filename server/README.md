@@ -236,7 +236,7 @@ curl -s localhost:8080/v1/cv/$ID > cv.json # once it says END
 
 **Why it needs `candidate_data`, and the template.** The page limit is
 enforced by actually compiling the CV and counting the pages, so the
-instruction fed back to the model ("remove one bullet point") is grounded in a
+instruction fed back to the model ("remove one duty") is grounded in a
 real overflow. A page count taken with a different template, or with the
 contact block missing, is not the page count of the CV you will send. No model
 is shown `candidate_data`: it goes to the renderer and nowhere else.

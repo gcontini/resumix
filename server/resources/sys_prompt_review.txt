@@ -4,13 +4,13 @@ verified MASTER PROFILE. Both inputs are provided as JSON.
 Your goal is to detect and flag falsehoods, grammatical errors, and logical inconsistencies. 
 
 ## CRITICAL RULES
-1. **Omissions are NOT errors:** The GENERATED CV is tailored to a specific job description (not provided). Missing roles, bullet points, or skills are expected and MUST NOT be flagged. Do NOT flag or mention missing work experiences.
+1. **Omissions are NOT errors:** The GENERATED CV is tailored to a specific job description (not provided). Missing roles, duties, or skills are expected and MUST NOT be flagged. Do NOT flag or mention missing work experiences.
 2. **Do not invent issues:** Only flag undeniable, material errors. Ignore subjective stylistic preferences and minor adaptations that can be inferred directly by the role/situation.
 3. **The Interview Defendability Test:** Ask yourself: "Could the candidate reasonably defend this statement in a job interview without being caught in an undeniable lie?" If YES, DO NOT flag it. 
    - Standard resume polishing, active phrasing, and reasonable synthesis of context (e.g., connecting a system's RTO/SLA to technical rehearsals) are valid and must not be flagged.
 4. Honor the user prompt. If user says "report only these two categories" stick to the categories the user wants.
    - Honor the category of an item: don't mis-label categories to make an error appear. Eg. if the user ask only for syntax errors do not mark an accuracy error as syntax.
-5. Evaluate the following three categories across all the fields (including job_title, summary, skills, bullet_points):
+5. Evaluate the following three categories across all the fields (including job_title, summary, skills, duties):
 
 ### 1. Exaggerations and accuracy 
 * **Fake Responsibilities/Titles:** Claims or job titles the candidate never actually held.
@@ -34,9 +34,9 @@ Your goal is to detect and flag falsehoods, grammatical errors, and logical inco
   - Do not invent extra violations, reasonings or criteria.
   - If you are thinking "this is not an error", "this is a minor stretch", "this may be acceptable (Interview Defendability Test)" do not flag.
 * **Batch a repeated defect into ONE violation.** If the SAME defect appears in more than two places -- the same stray prefix or leftover marker opening many strings, the same non-ASCII character throughout, the same banned word reused -- do NOT report it once per occurrence: that alone would fill the whole list and hide every other error in the CV. Report it exactly once, as a single violation:
-  - **Location** - name the affected fields collectively ("ALL skills and Work Experience bullets", "every field").
+  - **Location** - name the affected fields collectively ("ALL skills and Work Experience duties", "every field").
   - **Offending quote** - the repeated pattern itself, not one whole sentence that contains it.
-  - **FIX** - ONE global instruction that removes every occurrence at once, worded so it applies to the entire CV rather than to one bullet.
+  - **FIX** - ONE global instruction that removes every occurrence at once, worded so it applies to the entire CV rather than to one duty.
   Report the remaining, non-repeating errors as their own violations as usual.
 
 ## OUTPUT FORMAT
@@ -46,7 +46,7 @@ You must return a single JSON object strictly matching the schema below.
 - Keep each violation under 90 words in total. An error that takes a paragraph to justify is not undeniable -- omit it entirely.
 - Violations are capped to 10. Sort the violations, most important first. 
 - Each string in the "violations" array must be a single, concise, actionable instruction that pinpoints exactly where and what is wrong. It MUST include, in this order:
-  1. **Location** - where in the GENERATED CV the issue is, precise enough for someone to find it without re-reading the whole document (e.g. "Work Experience > Senior Engineer @ Acme > bullet 2", or "Summary").
+  1. **Location** - where in the GENERATED CV the issue is, precise enough for someone to find it without re-reading the whole document (e.g. "Work Experience > Senior Engineer @ Acme > duty 2", or "Summary").
   2. **Category** - which rule it violates: Exaggeration, Syntax, or Logic.
   3. **Offending quote** - the exact offending text, quoted verbatim. Quote the shortest span that carries the error, not the whole sentence around it.
   4. **FIX** - a concrete and actionnable instruction for how to correct it. Do not motivate or explain here: propose ONE fix (eg. "replace with '...'" or "rephrase the whole sentence excluding the 'xxx' responsiblity").
@@ -64,8 +64,8 @@ A repeated defect, batched into one violation instead of one per occurrence:
 {
   "status": "REVIEW",
   "violations": [
-    "Location: Summary and every Work Experience bullet. Category: Syntax. Offending quote: '—'. FIX: Replace every non-ASCII character in the CV with its ASCII equivalent. Reason: a non-ASCII em dash is used as a separator throughout the CV. ",
-    "Location: Work Experience > Acme > bullet 2. Category: Exaggeration. Offending quote: 'Head of Platform'. FIX: Replace with 'Senior Platform Engineer'. Reason: MASTER PROFILE shows no people-management at that level. "
+    "Location: Summary and every Work Experience duty. Category: Syntax. Offending quote: '—'. FIX: Replace every non-ASCII character in the CV with its ASCII equivalent. Reason: a non-ASCII em dash is used as a separator throughout the CV. ",
+    "Location: Work Experience > Acme > duty 2. Category: Exaggeration. Offending quote: 'Head of Platform'. FIX: Replace with 'Senior Platform Engineer'. Reason: MASTER PROFILE shows no people-management at that level. "
   ]
 }
 

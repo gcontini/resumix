@@ -38,7 +38,7 @@ def no_latex(monkeypatch):
 
     def fake_render(self, cv_data, stem):
         return RenderResult(tex="", pdf=b"%PDF", pages=pages["n"],
-                            advice="length OK" if pages["n"] <= 2 else "REMOVE 1 bullet point.")
+                            advice="length OK" if pages["n"] <= 2 else "REMOVE 1 duty.")
 
     monkeypatch.setattr(CVGenerator, "_render", fake_render)
     return pages
@@ -109,7 +109,7 @@ def test_an_overlong_pdf_reports_the_condense_instruction(
               progress=lambda status, detail: steps.append((status, detail))).generate("JD")
 
     _, detail = next(s for s in steps if s[0] == "re-generate")
-    assert detail == "page check failed: 3 page(s)\nREMOVE 1 bullet point."
+    assert detail == "page check failed: 3 page(s)\nREMOVE 1 duty."
 
 
 def test_the_prompt_carries_the_system_prompt_schema_profile_and_jd(

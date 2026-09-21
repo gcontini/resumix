@@ -14,17 +14,17 @@ Follow these strict rules:
     * skills: Select EXACTLY 6 skills total from the MASTER PROFILE or those clearly evidenced in my experience that best align with the JD requirements.
     * certifications: From MASTER PROFILE's certifications list, select AT MOST 5 -- the ones most relevant to the JD, breaking ties in favor of the most recent. Do not invent certifications not present in MASTER PROFILE. Preserve each selected certification's date and name exactly as given, ordered most relevant/recent first.
     * experiences: 
-      - Select, adapt, or merge experiences under the same company.
+      - Select, adapt, or merge experiences and duties under the same company.
       - Omit roles irrelevant to the target JD.
       - Focus on concrete achievements, technical scope, and quantified results.
 
-2. STRICT LENGTH & BULLET BUDGET
-   * Character Limit: Keep EVERY bullet point under ~180 characters.
+2. STRICT LENGTH & DUTY BUDGET
+   * Character Limit: Keep EVERY duty under ~180 characters.
    * Format Strategy: Select ONE of the following distribution strategies based on work experience relevance to the JD:
-     - Strategy A (4 work experiences): Allocation of 3-6 bullets per role, MAX 20 bullets overall across the entire CV.
-     - Strategy B (3 work experiences): Allocation of 4-8 bullets per role, MAX 25 bullets overall across the entire CV.
-     - Strategy C (5 work experiences): Allocation of 2-4 bullets per role, MAX 16 bullets overall across the entire CV.
-   * Total Bullet Cap NO Override: The maximum total bullet cap for your chosen strategy is an absolute limit. Never exceed the global cap.
+     - Strategy A (4 work experiences): Allocation of 3-6 duties per role, MAX 20 duties overall across the entire CV.
+     - Strategy B (3 work experiences): Allocation of 4-8 duties per role, MAX 25 duties overall across the entire CV.
+     - Strategy C (5 work experiences): Allocation of 2-4 duties per role, MAX 16 duties overall across the entire CV.
+   * Total Duty Cap NO Override: The maximum total duty cap for your chosen strategy is an absolute limit. Never exceed the global cap.
 
 3. TONE, LANGUAGE & AGENCY
    * Tone: Natural, grounded, professional, and hyper-concrete. No fabrications or exaggerations.
@@ -32,9 +32,9 @@ Follow these strict rules:
    * Banned Words: Eliminate AI clichés ("spearheaded", "seasoned professional", "passionate", "dynamic", "significantly impact", "exceptional", "go-to").
    * Agency: The candidate (or a team/role they owned) must be the grammatical subject performing the action. A tool, framework, API, or system must NEVER be the subject of an action verb. Use ownership frames: "The library I managed...", "A JNI bridge I engineered...", "My architecture...".
    * VARY SENTENCE OPENINGS: In EACH work experience entry, observe these variance rules:
-     - AT MOST ONE bullet starting with a Past-Tense Action Verb ("Led", "Delivered", "Engineered").
-     - AT MOST ONE bullet starting with "I + Past-Tense Action Verb" ("I led", "I delivered", "I implemented").
-     - Start ALL OTHER bullets using diverse patterns:
+     - AT MOST ONE duty starting with a Past-Tense Action Verb ("Led", "Delivered", "Engineered").
+     - AT MOST ONE duty starting with "I + Past-Tense Action Verb" ("I led", "I delivered", "I implemented").
+     - Start ALL OTHER duties using diverse patterns:
        a) Result-first: "Cut infrastructure costs by 30% by..."
        b) Noun-phrase subject: "My team of four engineers delivered..."
        c) Context clause: "When traffic doubled, I scaled the platform to..."

@@ -29,7 +29,7 @@
         "location": "Milan, Italy",
         "dates": "February 2021 {}-- Present",
         "project_name": "Winter Olympics {}-- Organizing Committee",
-        "bullet_points": [
+        "duties": [
           "Cut spend by **30%** while scaling to 100+ nodes (a^b notation, 50% uptime SLA).",
           "Ran a \\team of 12; owned the {roadmap} and the [backlog].",
           "Migrated ~200 workloads to *hybrid* cloud."
@@ -41,7 +41,7 @@
         "location": "Lisbon, Portugal",
         "dates": "March 2018 {}-- January 2021",
         "project_name": null,
-        "bullet_points": [
+        "duties": [
           "Consolidated 4 data centres into 2.",
           "Introduced SRE practice & on-call rotation."
         ]
@@ -52,7 +52,7 @@
         "location": "Porto, Portugal",
         "dates": "June 2012 {}-- February 2018",
         "project_name": null,
-        "bullet_points": ["Automated provisioning for 300 servers."]
+        "duties": ["Automated provisioning for 300 servers."]
       }
     ],
     "certifications": [

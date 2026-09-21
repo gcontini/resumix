@@ -189,9 +189,9 @@ def test_page_check_escalates_its_advice(monkeypatch, tmp_path):
                             lambda p: FakeReader([FakePage(n) for n in counts]))
 
     reader_with(0, 0, 1)
-    assert "REMOVE 1 bullet point" in check_pdf_pages(tmp_path / "x.pdf")["description"]
+    assert "REMOVE 1 duty" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0, 6)
-    assert "REMOVE 3 bullet points" in check_pdf_pages(tmp_path / "x.pdf")["description"]
+    assert "REMOVE 3 duties" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0, 30)
     assert "EXTREMELY long" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0)

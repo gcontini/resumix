@@ -2,8 +2,8 @@
 
 The loop is generate -> review -> render -> measure -> condense, and the
 render in the middle is the point: the two-page limit is checked against a
-real compiled PDF, so the instruction fed back to the model ("remove 1 bullet
-point") is grounded in what actually overflowed rather than a guess. The PDF
+real compiled PDF, so the instruction fed back to the model ("remove 1
+duty") is grounded in what actually overflowed rather than a guess. The PDF
 produced along the way is thrown out with the scratch directory; the caller
 merges in its own candidate data and renders the result when it wants the
 file.

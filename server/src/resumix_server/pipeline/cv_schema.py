@@ -24,6 +24,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class WorkExperienceItem(BaseModel):
     model_config = ConfigDict(extra="allow")
 
+    id: Optional[int] = Field(
+        None,
+        description="Numeric id copied as-is from the matching experience in the candidate's MASTER PROFILE.",
+    )
     title: str = Field(description="Job title in this specific job experience")
     company: str = Field(description="Company name")
     location: str = Field(description="Location: City, Country")
@@ -34,8 +38,8 @@ class WorkExperienceItem(BaseModel):
         None,
         description="Project Description eg. 'Milano Winter Olympics -- Organizing Committee'",
     )
-    bullet_points: List[str] = Field(
-        description="Tailored achievements/responsibilities matching the master profile."
+    duties: List[str] = Field(
+        description="Tailored achievements/responsibilities/duties matching the master profile."
     )
 
 

@@ -59,7 +59,7 @@ def document() -> dict:
         "experiences": [
             {"title": "Engineer", "company": "Initech", "location": "Rome, Italy",
              "dates": "2020 -- 2024", "project_name": None,
-             "bullet_points": ["Did a thing."]}
+             "duties": ["Did a thing."]}
             for _ in range(3)
         ],
     }

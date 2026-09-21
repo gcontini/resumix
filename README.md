@@ -6,13 +6,13 @@
 Turn a job description and your unstructured experiences into a tailored, two-page LaTeX CV and a cover letter, using any OpenAI-compatible model.
 
 <details>
-<summary>**CV Preview**</summary>
+<summary><b>CV Preview</b></summary>
+[**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
 
 ![CV Preview](doc/images/cv.png)
-
-[**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
 </details>
 
+Features:
 - **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).
 - **Writes** a CV tailored to the posting, reviewed against your profile for
   invented claims, condensed until it fits two pages, with matching keywords

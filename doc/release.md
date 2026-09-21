@@ -6,8 +6,8 @@ machine.
 
 `.github/workflows/release.yml` writes that number into the three
 `pyproject.toml` files and `uv.lock`, commits it, tags `v0.3.0`, and builds
-everything from that tag: one `.tar.gz` on the release page, the server image
-on Docker Hub, and this site under its own version.
+everything from that tag: `.tar.gz` and `.zip` archives on the release page,
+the server image on Docker Hub, and this site under its own version.
 
 ## Before the first one
 
@@ -108,7 +108,7 @@ is published.
 
 | Artifact | Where | Name |
 |---|---|---|
-| both executables and the files beside them | the release page | `resumix-x.y.z.tar.gz` |
+| both executables and the files beside them | the release page | `resumix-x.y.z.tar.gz` and `resumix-x.y.z.zip` |
 | the server image | Docker Hub | `lmstch/resumix:x.y.z` and `:latest` |
 | this site | GitHub Pages, from `gh-pages` | `/x.y.z/`, and `/latest/` which `/` redirects to |
 

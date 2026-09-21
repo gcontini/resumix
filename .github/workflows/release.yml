@@ -269,6 +269,12 @@ jobs:
             candidate_profile.json candidate_data.json candidate_preferences.md \
             candidate_signature.png posting.txt
           tar -tzvf "resumix-$VERSION.tar.gz"
+          # Also create a zip archive for Windows users.
+          zip -q -j "resumix-$VERSION.zip" \
+            package/resumix package/resumix.exe package/README.md package/resumix.toml \
+            package/candidate_profile.json package/candidate_data.json package/candidate_preferences.md \
+            package/candidate_signature.png package/posting.txt
+          unzip -l "resumix-$VERSION.zip"
 
       - name: Publish the release
         env:
@@ -276,5 +282,5 @@ jobs:
           VERSION: ${{ inputs.version }}
         # --verify-tag: without it, gh would happily invent the tag from the
         # default branch tip if the tag job had not made one.
-        run: gh release create "v$VERSION" "resumix-$VERSION.tar.gz"
+        run: gh release create "v$VERSION" "resumix-$VERSION.tar.gz" "resumix-$VERSION.zip"
              --verify-tag --generate-notes

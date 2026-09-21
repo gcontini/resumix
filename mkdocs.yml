@@ -22,6 +22,10 @@ theme:
   # so a wrong one here is a 404 on every page and a green build.
   logo: images/resumix-icon-128.png
   favicon: images/favicon.ico
+  # Without this, Material's default repo icon is a generic git logo, not
+  # the recognizable GitHub mark, even though repo_url already links there.
+  icon:
+    repo: fontawesome/brands/github
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

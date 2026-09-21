@@ -65,34 +65,23 @@ and the output layout.
 
 ## Architecture
 
-```
-  you copy a posting
-          │
-          ▼
-   ┌────────────┐   is this a job description? ──▶┌──────────────────────┐
-   │   client   │   analyse it ──────────────────▶│        server        │
-   │            │   write the CV ────────────────▶│  models + pdflatex   │
-   │ your data  │   render the PDF ──────────────▶│   your data: never   │
-   │ your files │◀── document, PDF, request ids ──│   kept after the     │
-   └────────────┘                                 │   request ends       │
-          │                                       └──────────────────────┘
-          ▼
-   cv/26-01-15/Acme_Corp_Head_of_IT/
-       cv_you.pdf  cv_you.tex  cv_you.json  analysis.json  jd.txt  log.log
+The data flow, coarsely:
+
+```mermaid
+flowchart LR
+    CP["candidate_profile"] --> LLM["llm"]
+    JD["job description"] --> LLM
+    LLM --> DOC["tailored CV data"]
+    CD["candidate data"] --> DOC
+    DOC --> JE["jinja engine"]
+    TPL["jinja template<br/>resume.tex.jinja"] --> JE
+    JE --> TEX[".tex"]
+    TEX --> LATEX["LaTeX engine"]
+    LATEX --> PDF["PDF"]
 ```
 
-| | |
-|---|---|
-| **[`client/`](client/README.md)** | The executable. Watches your clipboard or a folder, keeps your CV data local, files every result in a dated folder. No Python, no API key, no LaTeX. |
-| **[`server/`](server/README.md)** | The container. Holds the model API keys and the LaTeX toolchain; writes the CV, compiles the PDF, analyses postings. Keeps a directory per request — its log, and a CV job's state and result — and nothing else. |
-| [`contracts/`](contracts/src/resumix_contracts/) | The shapes both sides agree on — the one thing each side imports, so neither imports the other. |
-
-Writing a CV takes minutes, so `POST /v1/cv` answers at once with a job id;
-the client polls `/v1/cv/{id}/status` every four seconds, prints each new step
-as it happens, and collects the JSON, the LaTeX and the PDF in one call at the
-end. `GET /logs/{request_id}` fetches what any request did, including the
-token spend of every model call; the client folds that into `log.log` next to
-each CV.
+Package boundaries, what crosses the wire, and the async job model are in
+[doc/architecture.md](doc/architecture.md).
 
 ## Development
 

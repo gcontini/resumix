@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
@@ -276,14 +277,24 @@ class CVGenerator:
         """
         return parse_model_json(response.choices[0].message.content, TailoredCVData)
 
-    @staticmethod
-    def _extract_review_result(response) -> ReviewResult:
+    _VIOLATION_CATEGORY_RE = re.compile(r"Category:\s*([A-Za-z]+)", re.IGNORECASE)
+
+    @classmethod
+    def _extract_review_result(
+        cls, response, excluded_categories: frozenset = frozenset()
+    ) -> ReviewResult:
         """Parse the reviewer's response content into a :class:`ReviewResult`.
 
         Raises ``ValueError`` (incl. ``json.JSONDecodeError``) or
         ``ValidationError`` when the content is missing or does not conform to
         the schema.
         patch the model return in case.
+
+        ``excluded_categories`` is a hard backstop for the "flag only these
+        categories" instruction in the review prompt: that instruction is a
+        request, not a guarantee, so violations whose declared ``Category:``
+        is excluded are dropped here regardless of whether the model honored
+        it.
         """
 
         review_result = parse_model_json(
@@ -291,8 +302,16 @@ class CVGenerator:
             ReviewResult,
             empty="Reviewer returned empty content",
         )
-        #remove empty and too short violations
-        review_result.violations[:] = [x for x in review_result.violations if len(x)>15] 
+
+        def category(violation: str) -> str:
+            m = cls._VIOLATION_CATEGORY_RE.search(violation)
+            return m.group(1).lower() if m else ""
+
+        #remove empty and too short violations, and any excluded category
+        review_result.violations[:] = [
+            x for x in review_result.violations
+            if len(x) > 15 and category(x) not in excluded_categories
+        ]
         review_result.status = "OK" if len(review_result.violations) == 0 else "REVIEW"
         return review_result
 
@@ -451,12 +470,19 @@ class CVGenerator:
         attempts a warning is printed and an ``OK`` (no violations) result is
         returned so the unvalidated CV proceeds through the pipeline.
         """
-        
+
         review_request = ("Review the GENERATED CV below against the candidate MASTER "
-            "PROFILE.\n") 
+            "PROFILE.\n")
         if attempt > 0:
-             review_request += ("The GENERATED CV has already been reviewed before."
-                                "Flag only Syntax and Logic issues.")
+            # The accuracy check is closed after the first round. Naming the
+            # profile explicitly here because "no Exaggeration issues" alone
+            # was read as a labelling rule: the reviewer kept comparing
+            # against the profile and filing the mismatches it found as
+            # "Logic".
+            review_request += ("The GENERATED CV has already been reviewed against the "
+                               "MASTER PROFILE. Flag only MAJOR Syntax and Logic issues. "
+                               "No Exaggeration issues, and nothing that needs the MASTER "
+                               "PROFILE to judge, under any category.\n")
         review_request += (
             "--------------------------------------------\n"
             "MASTER PROFILE:\n"
@@ -489,7 +515,8 @@ class CVGenerator:
             )
 
             try:
-                return self._extract_review_result(resp)
+                excluded = frozenset({"exaggeration"}) if attempt > 0 else frozenset()
+                return self._extract_review_result(resp, excluded)
             except (ValueError, ValidationError) as e:
                 logger.error(
                     "  ✗ Review response invalid (retry %d): %s: %s\n"
@@ -589,6 +616,19 @@ class CVGenerator:
                 mark = self._mark()
                 with stage("cv.review"):
                     review = self._review_cv_data(cv_data, attempt)
+
+                if review.status == "REVIEW" and attempt + 1 >= self.max_attempts:
+                    # Out of attempts: fall through to render like the page
+                    # check does when it never gets under the limit, rather
+                    # than failing a job that produced a usable CV.
+                    logger.warning(
+                        "  ⚠ Content reviewer still rejects the CV after %d "
+                        "attempt(s) — proceeding with the unreviewed CV",
+                        self.max_attempts,
+                    )
+                    for violation in review.violations:
+                        logger.info("      - %s", violation)
+                    review.status = "OK"
 
                 if review.status == "REVIEW":
                     # Print the violations the reviewer requested so they are

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +30,8 @@ from resumix_contracts import (
     RequestLog,
     ServerStatus,
 )
+
+from . import __version__
 
 #: One multipart part: the field name, then the file name, bytes and type.
 Part = Tuple[str, Tuple[str, Any, str]]
@@ -192,11 +195,14 @@ class HttpApi:
 
     # --- plumbing -----------------------------------------------------------
     def _ensure_healthy(self) -> None:
-        """Before the first real call: make sure the server is up.
+        """Before the first real call: make sure the server is up and speaks
+        a version of the protocol this client understands.
 
         A freshly started server can take a moment to become reachable, so
         this knocks on ``/healthz`` a few times rather than failing on the
         first refused connection. Checked once per client, not once per call.
+        A version mismatch is not a connectivity problem, so it is not
+        retried — a major mismatch fails immediately.
         """
         if self._health_checked:
             return
@@ -205,18 +211,35 @@ class HttpApi:
             if self.verbose:
                 print(f"spinning up the server attempt {attempt}/{HEALTH_ATTEMPTS}")
             try:
-                self._get("/healthz", ServerStatus)
-                self._health_checked = True
-                return
+                envelope = self._get("/healthz", ServerStatus)
             except ResumixError as exc:
                 last_error = exc
                 if attempt < HEALTH_ATTEMPTS:
                     time.sleep(HEALTH_RETRY_DELAY)
+                continue
+            self._check_server_version(envelope.data.version)
+            self._health_checked = True
+            return
         raise ResumixError(
             f"the resumix server at {self.base_url} did not come up after "
             f"{HEALTH_ATTEMPTS} attempts: {last_error}",
             status=last_error.status if last_error else 0,
         )
+
+    def _check_server_version(self, server_version: str) -> None:
+        """Warn on a minor mismatch, refuse to talk to a different major one."""
+        compat = version_compat(__version__, server_version)
+        if compat == "stop":
+            raise ResumixError(
+                f"client is v{__version__}, server at {self.base_url} is "
+                f"v{server_version} — major versions differ, refusing to talk to it"
+            )
+        if compat == "warn":
+            print(
+                f"⚠ client is v{__version__}, server at {self.base_url} is "
+                f"v{server_version} — minor versions differ, continuing anyway",
+                file=sys.stderr, flush=True,
+            )
 
     def _get(self, path: str, payload: type, *, request_id: Optional[str] = None) -> Envelope:
         return self._send("GET", path, payload, request_id=request_id)
@@ -278,6 +301,34 @@ def _clean(values: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in values.items() if v is not None}
 
 
+def version_compat(client_version: str, server_version: str) -> str:
+    """'ok', 'warn' (minor differs) or 'stop' (major differs).
+
+    A version that does not parse as ``MAJOR.MINOR[.PATCH]`` — ``"unknown"``,
+    a source tree that was never installed — is not a real version to compare
+    against, so it is always 'ok'.
+    """
+    client = _major_minor(client_version)
+    server = _major_minor(server_version)
+    if client is None or server is None:
+        return "ok"
+    if client[0] != server[0]:
+        return "stop"
+    if client[1] != server[1]:
+        return "warn"
+    return "ok"
+
+
+def _major_minor(version: str) -> Optional[Tuple[int, int]]:
+    parts = version.split(".")
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
+
+
 def read_bytes(path: Optional[Path]) -> Optional[bytes]:
     return path.read_bytes() if path is not None else None
 
@@ -286,4 +337,4 @@ def read_text(path: Optional[Path]) -> Optional[str]:
     return path.read_text(encoding="utf-8") if path is not None else None
 
 
-__all__ = ["ResumixApi", "HttpApi", "ResumixError", "read_bytes", "read_text"]
+__all__ = ["ResumixApi", "HttpApi", "ResumixError", "read_bytes", "read_text", "version_compat"]

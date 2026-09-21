@@ -98,6 +98,23 @@ def test_a_rejected_review_reports_re_generate_with_the_violations(
     assert detail.endswith("- invented a job at NASA")
 
 
+def test_a_review_that_never_passes_still_produces_a_cv(
+    bundle, candidate, tmp_path, no_latex
+):
+    """Consistent with the page-check loop: running out of attempts is not a
+    reason to fail a job that produced a usable CV."""
+    model = FakeSelector(
+        cv_json(),
+        '{"status": "REVIEW", "violations": ["invented a job at NASA"]}',
+        cv_json(job_title="Second"),
+        '{"status": "REVIEW", "violations": ["still invented a job at NASA"]}',
+    )
+    document, *_ = build(
+        bundle, candidate, tmp_path, model, max_attempts=2
+    ).generate("JD")
+    assert document["job_title"] == "Second"
+
+
 def test_an_overlong_pdf_reports_the_condense_instruction(
     bundle, candidate, tmp_path, no_latex
 ):
@@ -216,6 +233,37 @@ def test_review_without_violations_is_treated_as_a_pass(bundle, candidate, tmp_p
     model = FakeSelector(cv_json(), '{"status": "REVIEW", "violations": []}')
     document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
     assert document["job_title"] == "Staff Platform Engineer"
+
+
+def test_a_second_round_exaggeration_violation_is_dropped(bundle, candidate, tmp_path, no_latex):
+    """Round 2's prompt asks the reviewer to flag only Syntax and Logic, but
+    that is a request, not a guarantee -- a model that reports an
+    Exaggeration violation anyway must not stall the loop on it."""
+    model = FakeSelector(
+        cv_json(),
+        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
+        'Offending quote: q. FIX: f. Reason: r."]}',
+        cv_json(job_title="Rewritten"),
+        '{"status": "REVIEW", "violations": ["Location: X. Category: Exaggeration. '
+        'Offending quote: q. FIX: f. Reason: r."]}',
+    )
+    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
+    assert document["job_title"] == "Rewritten"
+
+
+def test_a_second_round_logic_violation_still_regenerates(bundle, candidate, tmp_path, no_latex):
+    model = FakeSelector(
+        cv_json(),
+        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
+        'Offending quote: q. FIX: f. Reason: r."]}',
+        cv_json(job_title="Second"),
+        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
+        'Offending quote: still bad. FIX: f. Reason: r."]}',
+        cv_json(job_title="Third"),
+        OK_REVIEW,
+    )
+    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
+    assert document["job_title"] == "Third"
 
 
 def test_highlighting_failure_keeps_the_unhighlighted_cv(bundle, candidate, tmp_path, no_latex):

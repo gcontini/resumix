@@ -57,7 +57,7 @@ other installed locally — the client talks to the server over HTTP.
 ```bash
 docker run -d -p 8080:8080 \
   -e MODEL_API_KEY=... \
-  gcontini/resumix-server:latest
+  lmstch/resumix:latest
 ```
 
 Any OpenAI-compatible provider works — see

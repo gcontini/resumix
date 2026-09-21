@@ -77,7 +77,7 @@ cd server && docker compose up --build
 The published image is on Docker Hub:
 
 ```bash
-docker run -d -p 8080:8080 -e MODEL_API_KEY=... gcontini/resumix-server:latest
+docker run -d -p 8080:8080 -e MODEL_API_KEY=... lmstch/resumix:latest
 ```
 
 `:latest` and `:x.y.z` are pushed by the release workflow, not by hand — see

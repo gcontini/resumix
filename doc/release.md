@@ -16,7 +16,7 @@ Actions*:
 
 | Secret | What it is |
 |---|---|
-| `DOCKERHUB_USERNAME` | The Docker Hub account that owns `gcontini/resumix-server`. |
+| `DOCKERHUB_USERNAME` | The Docker Hub account that owns `lmstch/resumix`. |
 | `DOCKERHUB_TOKEN` | An access token for it, not the account password. |
 
 Without them the `image` job fails at `docker login`, after the image has been
@@ -101,7 +101,7 @@ is published.
 | Artifact | Where | Name |
 |---|---|---|
 | both executables and the files beside them | the release page | `resumix-x.y.z.tar.gz` |
-| the server image | Docker Hub | `gcontini/resumix-server:x.y.z` and `:latest` |
+| the server image | Docker Hub | `lmstch/resumix:x.y.z` and `:latest` |
 | this site | GitHub Pages, from `gh-pages` | `/x.y.z/`, and `/latest/` which `/` redirects to |
 
 The archive is flat on purpose:

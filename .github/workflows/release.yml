@@ -130,8 +130,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: DOCKER_BUILDKIT=0 docker build
-             -t "gcontini/resumix-server:$VERSION"
-             -t gcontini/resumix-server:latest .
+             -t "lmstch/resumix:$VERSION"
+             -t lmstch/resumix:latest .
 
       # CI's healthz check, plus the version: the image installs from the lock
       # with --no-editable, so this is what proves the lock was regenerated.
@@ -142,7 +142,7 @@ jobs:
           set -eux
           docker run -d --name api -p 8080:8080 \
             -e MODEL_API_KEY=ci -e MODEL_BASE_URL=http://invalid/v1 \
-            "gcontini/resumix-server:$VERSION"
+            "lmstch/resumix:$VERSION"
           for i in $(seq 1 30); do
             curl -fsS localhost:8080/healthz && break || sleep 2
           done
@@ -161,8 +161,8 @@ jobs:
         run: |
           set -eu
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-          docker push "gcontini/resumix-server:$VERSION"
-          docker push gcontini/resumix-server:latest
+          docker push "lmstch/resumix:$VERSION"
+          docker push lmstch/resumix:latest
 
   # The doc/ site, one build per release, kept on the gh-pages branch under a
   # version selector. mike owns that branch entirely — nothing else writes it.

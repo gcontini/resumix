@@ -7,6 +7,10 @@ Turn a job description and your unstructured experiences into a tailored, two-pa
 
 [**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
 
+<div style="height: 150px; overflow-y: auto;">
+  <img src="doc/images/cv.png" alt="CV Preview" style="display: block; width: 874px; height: 549px; border: 2px solid gray;" />
+</div>
+
 - **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).
 - **Writes** a CV tailored to the posting, reviewed against your profile for
   invented claims, condensed until it fits two pages, with matching keywords
@@ -65,20 +69,27 @@ and the output layout.
 
 ## Architecture
 
-The data flow, coarsely:
+Below how the data you provide is merged to create the final CV:
 
 ```mermaid
 flowchart LR
-    CP["candidate_profile"] --> LLM["llm"]
-    JD["job description"] --> LLM
-    LLM --> DOC["tailored CV data"]
-    CD["candidate data"] --> DOC
-    DOC --> JE["jinja engine"]
-    TPL["jinja template<br/>resume.tex.jinja"] --> JE
-    JE --> TEX[".tex"]
-    TEX --> LATEX["LaTeX engine"]
-    LATEX --> PDF["PDF"]
+    CP["candidate_profile.json"] --> LLM["LLM<br/>Model Calls"]
+    JD["job_description.txt"] --> LLM
+    LLM --> DOC(("+"))
+    CD["candidate_data.json"] --> DOC
+    DOC -->|"tailored CV data<br/>.json"| JE["template engine"]
+    TPL["cv template"] -->|resume.tex.jinja| JE
+    RES["cv images"] --> JE
+    JE -->|"cv.tex"| LATEX["LaTeX engine"]
+    LATEX -->|"cv.pdf"| PDF(["Your CV"])
+
+    classDef data fill:#E3F2FD,stroke:#1565C0,color:#0D47A1;
+    classDef code fill:#FFF3E0,stroke:#E65100,color:#7A3E00;
+    class CP,JD,CD,TPL,PDF,RES data;
+    class LLM,JE,LATEX,DOC code;
 ```
+
+You can download `"tailored CV data.json"` and `cv.tex` toghether with the final pdf, in case you want to modify something manually and resubmit them for rendering via the client.
 
 Package boundaries, what crosses the wire, and the async job model are in
 [doc/architecture.md](doc/architecture.md).

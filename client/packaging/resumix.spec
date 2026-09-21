@@ -12,6 +12,8 @@
 
 from pathlib import Path
 
+from PyInstaller.utils.hooks import copy_metadata
+
 # SPECPATH is where this file lives: <repo>/client/packaging.
 CLIENT = Path(SPECPATH).parent
 SOURCES = CLIENT / "src"
@@ -21,9 +23,11 @@ a = Analysis(
     pathex=[str(SOURCES)],
     binaries=[],
     # The spreadsheet template ships inside the binary; everything else the
-    # client needs it reads from beside the binary at runtime.
+    # client needs it reads from the folder you run it in. The .dist-info goes
+    # in because `resumix version` reads importlib.metadata, and a frozen
+    # application has no metadata unless it is copied in.
     datas=[(str(SOURCES / "resumix_client" / "resources" / "applications.xlsx"),
-            "resumix_client/resources")],
+            "resumix_client/resources")] + copy_metadata("resumix-client"),
     hiddenimports=[],
     # Nothing here belongs in a client: they are the server's dependencies,
     # and excluding them keeps the binary small if one is ever pulled in

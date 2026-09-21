@@ -1,6 +1,6 @@
 # The client
 
-One executable, six modes. It keeps your CV data on your machine and sends it,
+One executable, seven modes. It keeps your CV data on your machine and sends it,
 per request, to a server that holds the model API keys and the LaTeX
 toolchain. No Python, no API key and no LaTeX install of your own.
 
@@ -128,6 +128,20 @@ that request's server-side log — each model call with its duration and token
 counts, and the error that ended it. The server keeps the last couple of
 hundred requests, so ask reasonably soon; a pruned id gives `404`.
 
+### `version` — which build is this
+
+```bash
+resumix version
+```
+
+Prints `version x.y.z` and exits. It reads no configuration and talks to no
+server, so it answers even when `resumix.toml` is wrong. Every `--verbose` run
+prints the same line at startup, which is what you want in a bug report.
+
+The number comes from the package metadata bundled into the executable, so it
+is the version the release workflow built — there is no string in the source to
+forget to bump.
+
 ## Options
 
 ### Global
@@ -141,7 +155,7 @@ hundred requests, so ask reasonably soon; a pruned id gives `404`.
 | `--config FILE` | Use this `resumix.toml` instead of searching for one. |
 | `--data-dir DIR` | Look for your files here before the current folder. |
 | `-d`, `--debug` | Fetch the server's log after **every** call and fold it into `log.log`. Without it, only failures are fetched. |
-| `-v`, `--verbose` | Print what the server reports about each finished step — tokens, thinking tokens, elapsed, and the reviewer's or the page check's own words — plus the request id and the `/healthz` attempts. |
+| `-v`, `--verbose` | Print `version x.y.z` at startup, then what the server reports about each finished step — tokens, thinking tokens, elapsed, and the reviewer's or the page check's own words — plus the request id and the `/healthz` attempts. |
 
 ### Per mode
 

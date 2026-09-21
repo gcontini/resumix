@@ -146,6 +146,15 @@ Every failure names a request id. This prints that request's server-side log
 ended it. The server keeps the last couple of hundred requests, so ask
 reasonably soon; an id that has been dropped gives `404`.
 
+### `version` — which build is this
+
+```bash
+resumix version
+```
+
+Prints `version x.y.z` and exits. No configuration, no server — it answers even
+when `resumix.toml` is wrong. Every `-v` run prints the same line at startup.
+
 ### Switches
 
 | Flag | Applies to | What it does |
@@ -160,7 +169,7 @@ reasonably soon; an id that has been dropped gives `404`.
 | `--pages N` | clipboard, watch, submit, submit-raw | Page limit the CV must fit. Default: 2. |
 | `--config FILE`, `--data-dir DIR` | all | Use a specific config, or look for your files somewhere else. |
 | `-d`, `--debug` | all | Fetch the server's log after **every** call and fold it into `log.log`. Without it only failures are fetched. |
-| `-v`, `--verbose` | all | While a CV is being written, print what the server reports about each step it finishes — tokens, thinking tokens, elapsed, and the reviewer's or the page check's own words. |
+| `-v`, `--verbose` | all | Print `version x.y.z` at startup; while a CV is being written, print what the server reports about each step it finishes — tokens, thinking tokens, elapsed, and the reviewer's or the page check's own words. |
 
 Both work on either side of the mode name: `resumix -v submit posting.txt
 --out ~/applications` and `resumix submit -v …` do the same thing.

@@ -90,10 +90,17 @@ def create_app(
         )
         yield
 
+    from importlib.metadata import version
+
+    try:
+        server_version = version("resumix-server")
+    except Exception:  # running from a source tree that was never installed
+        server_version = "unknown"
+
     app = FastAPI(
         title="resumix",
         summary="Turn a job description into tailored CV data and a compiled LaTeX PDF.",
-        version="0.2.0",
+        version=server_version,
         lifespan=lifespan,
     )
     app.add_middleware(RequestContextMiddleware)

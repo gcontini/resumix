@@ -1,0 +1,248 @@
+name: Release
+
+# One version for the whole repository. You type it here; this writes it into
+# the three pyprojects and the lock, tags it, and builds both halves from that
+# tag. See doc/release.md.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "MAJOR.MINOR.PATCH, no leading v"
+        required: true
+        type: string
+
+# Pushing the bump commit, the tag, and creating the release. The repository
+# default for GITHUB_TOKEN is read-only, so this has to ask.
+permissions:
+  contents: write
+
+# Two releases must never interleave. No cancel-in-progress: a half-cancelled
+# release is the one state worth avoiding.
+concurrency: release
+
+jobs:
+  # The version becomes a commit and a tag. Everything after this builds from
+  # that tag, so a binary cannot claim a version it was not built at.
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The push below is a fast-forward of one commit; a shallow clone is
+          # one more thing that can refuse it. This repository is small.
+          fetch-depth: 0
+
+      - name: Check the version and the branch
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            || { echo "version must be MAJOR.MINOR.PATCH, got '$VERSION'"; exit 1; }
+          [ "$GITHUB_REF" = refs/heads/main ] \
+            || { echo "release from main only, dispatched from $GITHUB_REF"; exit 1; }
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "v$VERSION already exists"; exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Write the version everywhere
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          sed -i "s/^version = \".*\"$/version = \"$VERSION\"/" \
+            contracts/pyproject.toml server/pyproject.toml client/pyproject.toml
+          # uv.lock records each member's version too. Leaving it stale would
+          # commit a lock that disagrees with the manifests, and `uv lock
+          # --check` and `uv sync --locked` both refuse that.
+          uv lock
+          grep -H '^version = ' \
+            contracts/pyproject.toml server/pyproject.toml client/pyproject.toml
+
+      - name: Commit, tag and push
+        id: push
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add contracts/pyproject.toml server/pyproject.toml client/pyproject.toml uv.lock
+          git commit -m "release v$VERSION"
+          git tag "v$VERSION"
+          # --atomic: the branch and the tag land together, or neither does.
+          git push --atomic origin HEAD:main "refs/tags/v$VERSION"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  # PyInstaller does not cross-compile: one runner per OS. Both check out the
+  # tagged commit by sha — main would give a binary one version behind.
+  build:
+    needs: tag
+    strategy:
+      # Unlike CI, a release stops at the first failure: there is nothing to
+      # learn from the second binary once the first one is wrong.
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --frozen
+      - run: uv run --with pyinstaller pyinstaller --noconfirm client/packaging/resumix.spec
+
+      # The one thing this job exists to prove. -F because Windows prints CRLF
+      # and because a version string is not a regex.
+      - name: Check it reports the version being released
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: ./dist/resumix version | grep -qF "version $VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.os }}
+          path: dist/resumix*
+          if-no-files-found: error
+
+  # The server image, from the same commit. Classic builder, linux/amd64,
+  # plain docker push — see AGENTS.md.
+  image:
+    needs: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+
+      - name: Build it
+        env:
+          VERSION: ${{ inputs.version }}
+        run: DOCKER_BUILDKIT=0 docker build
+             -t "gcontini/resumix-server:$VERSION"
+             -t gcontini/resumix-server:latest .
+
+      # CI's healthz check, plus the version: the image installs from the lock
+      # with --no-editable, so this is what proves the lock was regenerated.
+      - name: Start it and check what it reports
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          docker run -d --name api -p 8080:8080 \
+            -e MODEL_API_KEY=ci -e MODEL_BASE_URL=http://invalid/v1 \
+            "gcontini/resumix-server:$VERSION"
+          for i in $(seq 1 30); do
+            curl -fsS localhost:8080/healthz && break || sleep 2
+          done
+          curl -fsS localhost:8080/healthz > health.json
+          cat health.json
+          grep -q '"pdflatex":true' health.json
+          grep -qF "\"version\":\"$VERSION\"" health.json
+
+      # Login last: a broken image never reaches the registry, and the
+      # credentials are not sitting on the runner during the long build.
+      - name: Push it
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker push "gcontini/resumix-server:$VERSION"
+          docker push gcontini/resumix-server:latest
+
+  # The doc/ site, one build per release, kept on the gh-pages branch under a
+  # version selector. mike owns that branch entirely — nothing else writes it.
+  docs:
+    needs: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+          # mike commits onto gh-pages and needs the real history of it, not
+          # the single commit a shallow clone would give it.
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Publish this version of the site
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --update-aliases moves `latest` off whatever held it before.
+          uv run --group docs mike deploy --push --update-aliases "$VERSION" latest
+          # Idempotent, and it is what makes / redirect to latest. Running it
+          # every time means the first release needs no manual setup.
+          uv run --group docs mike set-default --push latest
+
+  # One archive, both binaries, everything flat: the client finds its files by
+  # name in the folder you run it in, so extract, cd in, and it works. Last,
+  # and behind the image, so the release never announces a server version that
+  # is not on Docker Hub.
+  package:
+    needs: [tag, build, image, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.tag.outputs.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: binary-*
+          merge-multiple: true
+          path: package
+
+      - name: Assemble the download
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          cp client/README.md package/
+          cp client/resumix.toml.example package/resumix.toml
+          cp examples/candidate/* package/
+          cp examples/posting.txt package/
+          # The README is written for the repository. Here there is no server/,
+          # and the fictional candidate set is already in this folder.
+          sed -i 's|(\.\./server/README\.md)|(https://github.com/${{ github.repository }}/blob/main/server/README.md)|' package/README.md
+          sed -i 's|Start from the fictional set in \[`examples/candidate/`\](\.\./examples/candidate)|The fictional set is already in this folder — edit it in place.|' package/README.md
+          sed -i '/^   — copy them into your current folder and edit\.$/d' package/README.md
+          sed -i '/^   cd examples$/d' package/README.md
+          # The artifact service hands every file back as 644; tar stores the
+          # mode it is given and tar xzf restores it.
+          chmod +x package/resumix
+          # An explicit list, so a missing file fails the step instead of
+          # silently shipping a smaller archive.
+          tar -czf "resumix-$VERSION.tar.gz" -C package \
+            resumix resumix.exe README.md resumix.toml \
+            candidate_profile.json candidate_data.json candidate_preferences.md \
+            candidate_signature.png posting.txt
+          tar -tzvf "resumix-$VERSION.tar.gz"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        # --verify-tag: without it, gh would happily invent the tag from the
+        # default branch tip if the tag job had not made one.
+        run: gh release create "v$VERSION" "resumix-$VERSION.tar.gz"
+             --verify-tag --generate-notes

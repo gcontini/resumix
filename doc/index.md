@@ -76,3 +76,11 @@ uv run --group docs mkdocs build    # static HTML into site/ (gitignored)
 To add a page: put the Markdown in `doc/` and add it to the `nav:` in
 `mkdocs.yml`. A page that is not in the nav still builds, but nothing links to
 it.
+
+The published site is versioned. Each release deploys its own copy with
+[mike](https://github.com/jimporter/mike), and the selector in the header
+switches between them — so the docs you are reading match the version you
+downloaded, not whatever `main` says today. Locally you still just run
+`mkdocs`; the version selector is the one thing that will not appear, because
+it is built from a `versions.json` that only exists on the published site. See
+[Cutting a release](release.md).

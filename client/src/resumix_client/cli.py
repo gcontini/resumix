@@ -11,6 +11,7 @@ import argparse
 from pathlib import Path
 from typing import List, Optional
 
+from . import __version__
 from .config import COVER_LETTER_MODES, ConfigError, load_config
 from .modes import clipboard as clipboard_mode
 from .modes import logs as logs_mode
@@ -132,11 +133,20 @@ def build_parser() -> argparse.ArgumentParser:
     logs = modes.add_parser("logs", help="Print a past request's server log.",
                             parents=[common])
     logs.add_argument("request_id", help="The request id an envelope or an error reported.")
+
+    # No parents=[common]: it reads no configuration and takes no options.
+    modes.add_parser("version", help="Print the version and exit.")
     return parser
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    # Before load_config: which build you are holding is the one question a
+    # broken resumix.toml must not stop you answering.
+    if args.mode == "version":
+        print(f"version {__version__}")
+        return 0
+
     flag = lambda name: getattr(args, name, None)  # noqa: E731 — SUPPRESS defaults
     try:
         config = load_config(
@@ -154,6 +164,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         )
     except (ConfigError, FileNotFoundError) as exc:
         fail(str(exc))
+
+    if config.verbose:
+        print(f"version {__version__}")
 
     try:
         if args.mode == "logs":

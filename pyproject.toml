@@ -23,7 +23,9 @@ resumix-contracts = { workspace = true }
 dev = ["pytest>=8"]
 # The doc/ site. Material 9 is the last line that works with MkDocs 1.x, and
 # MkDocs 2.0 drops the plugin system it is built on, so both are capped.
-docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10"]
+# mike keeps one built site per release on the gh-pages branch, under a
+# version selector; the same cap applies to it, it is a plugin.
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5,<10", "mike>=2.1,<3"]
 
 [tool.pytest.ini_options]
 testpaths = ["contracts/tests", "server/tests", "client/tests", "tests"]

@@ -9,6 +9,8 @@
 site_name: resumix
 site_description: Turn a job description into a tailored LaTeX CV, with any OpenAI-compatible model.
 repo_url: https://github.com/gcontini/resumix
+# Where the built site lives. mike needs it for the version selector's links.
+site_url: https://gcontini.github.io/resumix/
 docs_dir: doc
 
 # A broken internal link fails the build rather than shipping.
@@ -16,8 +18,10 @@ strict: true
 
 theme:
   name: material
-  logo: icons/resumix-icon-128.png
-  favicon: icons/favicon.ico
+  # doc/images/, not doc/icons/ — strict mode checks links, not asset paths,
+  # so a wrong one here is a 404 on every page and a green build.
+  logo: images/resumix-icon-128.png
+  favicon: images/favicon.ico
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -28,6 +32,15 @@ theme:
   features:
     - navigation.sections
     - content.code.copy
+
+# The version selector in the header. mike publishes one built site per
+# release to the gh-pages branch and maintains the versions.json this reads;
+# `alias: true` is what makes the `latest` chip show next to the number.
+# See doc/release.md.
+extra:
+  version:
+    provider: mike
+    alias: true
 
 markdown_extensions:
   - toc: {permalink: true}
@@ -50,3 +63,4 @@ nav:
       - The HTTP API: protocol.md
       - Building the server: build-server.md
       - Building the client: build-client.md
+      - Cutting a release: release.md

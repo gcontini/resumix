@@ -7,6 +7,7 @@ virtualenv, no install step.
 uv sync
 uv run --with pyinstaller pyinstaller --noconfirm client/packaging/resumix.spec
 ./dist/resumix --help
+./dist/resumix version
 ```
 
 That produces `dist/resumix` (or `dist/resumix.exe` on Windows).
@@ -20,9 +21,11 @@ That produces `dist/resumix` (or `dist/resumix.exe` on Windows).
   top-level module, where `__main__.py`'s relative import has no package to
   resolve against.
 - **Bundled data**: `applications.xlsx`, the empty spreadsheet copied on first
-  use. Everything else the client needs — your profile, your template, your
-  images — it reads from beside the binary at runtime, which is the whole
-  point.
+  use, and the package's own `.dist-info` via `copy_metadata`. `resumix
+  version` reads `importlib.metadata`, and a frozen application has no metadata
+  unless it is copied in — without it the binary prints `version unknown`.
+  Everything else the client needs — your profile, your template, your images —
+  it reads from the folder you run it in at runtime, which is the whole point.
 - **Excludes**: `fastapi`, `uvicorn`, `starlette`, `openai`, `jinja2`,
   `pypdf`, `resumix_server`, `tkinter`, `pytest`. None of them belong in a
   client; excluding them keeps the binary small if one is ever pulled in
@@ -37,7 +40,7 @@ still needs an interpreter and a launcher around them, so it does not produce
 the single file this is for. Nuitka would, and is the fallback if start-up
 time or source opacity ever matters more than build simplicity.
 
-## The release pipeline
+## In CI
 
 ```mermaid
 flowchart TB
@@ -45,10 +48,9 @@ flowchart TB
         direction TB
         U["uv sync --frozen"] --> CACHE["restore the PyInstaller<br/>analysis cache<br/><i>key: uv.lock + the spec</i>"]
         CACHE --> BUILD["pyinstaller resumix.spec"]
-        BUILD --> HELP["./dist/resumix --help"]
+        BUILD --> HELP["./dist/resumix --help<br/>./dist/resumix version"]
         HELP --> SMOKE["Linux only:<br/>start resumix-api from source,<br/>render smoke.tex through it,<br/>assert the file starts with %PDF"]
-        SMOKE --> PKG["assemble package/"]
-        PKG --> ART["upload-artifact"]
+        SMOKE --> ART["upload-artifact<br/>the bare binary"]
     end
 ```
 
@@ -64,24 +66,9 @@ scratch on each run.
 
 ## What a user downloads
 
-CI assembles more than the binary, because a binary alone cannot run:
-
-```text
-package/
-├── resumix[.exe]           the executable
-├── README.md                 the client README, links rewritten for this layout
-├── resumix.toml.example    rename it and point it at your server
-└── examples/
-    ├── candidate/            a fictional profile, data, preferences, signature
-    └── posting.txt           something to try it on
-```
-
-The README's links are rewritten during assembly: in the repository they point
-at `../examples/candidate` and `../server/README.md`, and in the download
-`examples/` sits beside the README and there is no `server/`.
-
-Releases are published from those artifacts as `resumix-linux-x86_64` and
-`resumix-windows-x86_64`.
+A release is one flat `.tar.gz` holding both binaries and the files the client
+looks for by name. How it is assembled, and how to cut one, is in
+[Cutting a release](release.md).
 
 ## Running from source instead
 

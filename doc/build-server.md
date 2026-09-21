@@ -80,6 +80,10 @@ The published image is on Docker Hub:
 docker run -d -p 8080:8080 -e MODEL_API_KEY=... gcontini/resumix-server:latest
 ```
 
+`:latest` and `:x.y.z` are pushed by the release workflow, not by hand — see
+[Cutting a release](release.md). Pin the version tag if you want the server to
+stay where the client you handed out expects it.
+
 ## Configure it
 
 ### The provider
@@ -199,3 +203,10 @@ that goes back to a client.
 `DOCKER_BUILDKIT=0`, starts the container with a deliberately invalid provider
 endpoint, and asserts `/healthz` reports `"pdflatex":true` — the image is
 checked for the toolchain, not for a model.
+
+`.github/workflows/release.yml` builds it the same way — classic builder,
+`linux/amd64` — and adds one assertion before it pushes: that `/healthz`
+reports the version being released. The server reads its version from the
+installed package metadata, which the image builds with `--no-editable`, so
+that check is what proves the number on the Docker Hub tag is the number the
+container will report.

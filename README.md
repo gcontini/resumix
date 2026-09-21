@@ -7,9 +7,12 @@ Turn a job description and your unstructured experiences into a tailored, two-pa
 
 [**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
 
-<div style="height: 150px; overflow-y: auto;">
-  <img src="doc/images/cv.png" alt="CV Preview" style="display: block; width: 874px; height: 549px; border: 2px solid gray;" />
-</div>
+<details>
+<summary>Preview</summary>
+
+![CV Preview](doc/images/cv.png)
+
+</details>
 
 - **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).
 - **Writes** a CV tailored to the posting, reviewed against your profile for

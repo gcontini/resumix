@@ -11,8 +11,9 @@ Produces an honest CV that you can actually defend in a job interview.
 <summary><b>CV Preview</b></summary>
 
 ![CV Preview](doc/images/cv.png)
-</details>
+
 [**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
+</details>
 
 Features:
 - **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).
@@ -32,9 +33,18 @@ You need to provide:
 
 ## Will it work for me?
 
-It started as my own personal lab to learn AI assisted coding. It's not tested across
-different cv formats and sizes. It's sized for a well established professional with 
-lots of experiences. I tried to make it "tunable", so you can fit your experiences.
+It started as my own personal lab to learn AI assisted coding and to pass the ATS with flying colors. It's not tested across
+different cv formats and sizes. It's sized for a well established professional with >10 
+years of experience and 3-6 working experiences. 
+
+If it doesn't work for you "out of the box" check for options, it is extremely *tunable* but you may need some investment. Ask on the [forum](https://github.com/gcontini/resumix/discussions) for help or open an issue.
+
+It took me a couple of weeks to get it to work well. If you do on your own the points you're going to spend time on are:
+
+* prepare the templates for your cv
+* the models will continue exaggerate your experiences and to pass the lenght limits until you put in place a review step.
+* the review process has to be tuned (temperature=0...) or it will not converge.
+* the models need to be tuned or they will consume all your token plan with no added benefit.
 
 ## Download and run
 

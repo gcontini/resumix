@@ -7,7 +7,7 @@ Turn a job description and your unstructured experiences into a tailored, two-pa
 
 <details>
 <summary><b>CV Preview</b></summary>
-[**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
+![**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
 
 ![CV Preview](doc/images/cv.png)
 </details>

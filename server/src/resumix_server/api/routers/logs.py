@@ -9,7 +9,7 @@ wants all of them. The request id in every response — and in the
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from jobstitch_contracts import Envelope, RequestLog
+from resumix_contracts import Envelope, RequestLog
 
 from ...jobstore import LOG
 from ..deps import envelope_for, get_state

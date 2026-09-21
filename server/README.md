@@ -1,6 +1,6 @@
-# jobstitch server
+# resumix server
 
-The compute half of jobstitch: it turns a job description into tailored CV
+The compute half of resumix: it turns a job description into tailored CV
 data, compiles LaTeX into a PDF, analyses postings and writes cover letters.
 
 It holds your provider API keys and a set of default prompts. Everything
@@ -9,7 +9,7 @@ arrives with each request and is thrown away when it ends. There is no
 database and no user accounts.
 
 It does keep one thing, on the filesystem: a directory per request under
-`JOBSTITCH_WORK_DIR`, holding that request's log and, for a CV job, its state
+`RESUMIX_WORK_DIR`, holding that request's log and, for a CV job, its state
 and its finished PDF. Writing a CV takes minutes, so `POST /v1/cv` answers
 immediately and the client polls for the rest; that directory is where the
 answer waits. The newest 200 are kept and the rest are dropped.
@@ -19,8 +19,8 @@ answer waits. The newest 200 are kept and the rest are dropped.
 ## Run it
 
 ```bash
-docker build -t jobstitch-server .
-docker run --rm -p 8080:8080 --env-file .env jobstitch-server
+docker build -t resumix-server .
+docker run --rm -p 8080:8080 --env-file .env resumix-server
 curl localhost:8080/healthz
 ```
 
@@ -28,7 +28,7 @@ Or, from a checkout:
 
 ```bash
 uv sync
-uv run jobstitch-api
+uv run resumix-api
 ```
 
 The image is ~780 MB, almost all of it the LaTeX toolchain. It runs as any
@@ -36,7 +36,7 @@ uid, needs no volume, and works with a read-only root filesystem as long as
 `/tmp` is writable (`docker run --read-only --tmpfs /tmp:exec`). `exec` on
 that tmpfs is required: `pdflatex` writes and then reads back its font cache
 there. A tmpfs also means finished CVs do not survive a restart — mount a
-volume at `JOBSTITCH_WORK_DIR` if you want them to.
+volume at `RESUMIX_WORK_DIR` if you want them to.
 
 `docker compose up --build` from this directory does the same with the
 settings below already wired.
@@ -47,7 +47,7 @@ settings below already wired.
 
 ### API keys
 
-The server calls three models, all through one provider (jobstitch assumes a
+The server calls three models, all through one provider (resumix assumes a
 single API key). The endpoint is declared once, in the `[provider]` table of
 `resources/models.toml`; the key itself comes from the
 environment:
@@ -77,13 +77,13 @@ output mode) can also be overridden per role with an env var, without editing
 `models.toml` — handy for a Docker deployment:
 
 ```bash
-JOBSTITCH_CV_MODEL=qwen-max
-JOBSTITCH_CV_TEMPERATURE=0.2
-JOBSTITCH_CV_THINKING=off
-JOBSTITCH_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_MODEL=qwen-max
+RESUMIX_CV_TEMPERATURE=0.2
+RESUMIX_CV_THINKING=off
+RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 ```
 
-The pattern is `JOBSTITCH_<ROLE>_<FIELD>` for `SUMMARY`, `CV` and
+The pattern is `RESUMIX_<ROLE>_<FIELD>` for `SUMMARY`, `CV` and
 `HIGHLIGHT`; see `.env.example` for the full list.
 
 ### Environment
@@ -92,28 +92,28 @@ The pattern is `JOBSTITCH_<ROLE>_<FIELD>` for `SUMMARY`, `CV` and
 |---|---|---|
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where uvicorn listens |
 | `WEB_CONCURRENCY` | `1` | uvicorn worker processes |
-| `JOBSTITCH_API_TOKEN` | unset | Bearer token clients must send. **Unset means no auth.** |
-| `JOBSTITCH_RESOURCES` | baked in | Directory of replacement prompts/template/`models.toml` |
-| `JOBSTITCH_WORK_DIR` | system temp | One directory per request: its scratch space, its log, and a CV job's state and result |
-| `JOBSTITCH_MAX_CONCURRENT_JOBS` | `10` | Requests in flight; the rest get `429` |
-| `JOBSTITCH_LATEX_TIMEOUT` | `120` | Seconds before a compile is killed |
-| `JOBSTITCH_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
-| `JOBSTITCH_MAX_ATTEMPTS` | `4` | Generate → review → page check rounds |
-| `JOBSTITCH_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
-| `JOBSTITCH_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
-| `JOBSTITCH_LOG_LEVEL` | `INFO` | Logging level |
+| `RESUMIX_API_TOKEN` | unset | Bearer token clients must send. **Unset means no auth.** |
+| `RESUMIX_RESOURCES` | baked in | Directory of replacement prompts/template/`models.toml` |
+| `RESUMIX_WORK_DIR` | system temp | One directory per request: its scratch space, its log, and a CV job's state and result |
+| `RESUMIX_MAX_CONCURRENT_JOBS` | `10` | Requests in flight; the rest get `429` |
+| `RESUMIX_LATEX_TIMEOUT` | `120` | Seconds before a compile is killed |
+| `RESUMIX_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
+| `RESUMIX_MAX_ATTEMPTS` | `4` | Generate → review → page check rounds |
+| `RESUMIX_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
+| `RESUMIX_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
+| `RESUMIX_LOG_LEVEL` | `INFO` | Logging level |
 
 ### Prompts and the template
 
 The four prompts and `resume.tex.jinja` ship inside the image. To change
 them permanently, mount a directory with your versions and set
-`JOBSTITCH_RESOURCES`; anything missing there falls back to the built-in copy.
+`RESUMIX_RESOURCES`; anything missing there falls back to the built-in copy.
 To change them for one request, upload them as parts — that is what the client
 does when it finds them next to its executable.
 
 ### Auth
 
-Set `JOBSTITCH_API_TOKEN` and every `/v1/...` call must send
+Set `RESUMIX_API_TOKEN` and every `/v1/...` call must send
 `Authorization: Bearer <token>`. `/healthz` stays open so a platform probe
 works. With no token set the server is open to anyone who can reach it, which
 is only reasonable on a private network.
@@ -168,7 +168,7 @@ curl localhost:8080/logs/b510f8dff047
               "message": "  [cv] qwen-max 12.4s | prompt=7100, completion=1850"}]}}
 ```
 
-The log lives in the request's own directory under `JOBSTITCH_WORK_DIR`, so a
+The log lives in the request's own directory under `RESUMIX_WORK_DIR`, so a
 CV job still running answers with what it has said so far, and a restart does
 not lose it. The newest 200 directories are kept. An id that has been pruned,
 that never did any work (a `400`, `401`, `413` or `429` fails before the
@@ -307,7 +307,7 @@ rejects the flag falls back to writing without it.
 A CV job runs for minutes after the request that started it has been
 answered. That is the one thing to plan around.
 
-- **`JOBSTITCH_WORK_DIR` is state now.** A job's status, its result and every
+- **`RESUMIX_WORK_DIR` is state now.** A job's status, its result and every
   request's log live there. The default is the system temp directory, which on
   most container platforms is RAM-backed and empty again after a redeploy —
   fine, because the client collects its CV within the minute. Mount a volume
@@ -318,7 +318,7 @@ answered. That is the one thing to plan around.
   a sibling's live jobs.
 - **Request timeouts no longer matter much.** Every call now returns in
   seconds; only `/v1/cv/render` waits on a compile. What must still outlast
-  `JOBSTITCH_REQUEST_BUDGET_SECONDS` is the client's willingness to keep
+  `RESUMIX_REQUEST_BUDGET_SECONDS` is the client's willingness to keep
   polling.
 - **Concurrency.** Ten jobs in flight is the default; each is mostly idle
   waiting on the provider, but each also compiles LaTeX several times. Size
@@ -348,10 +348,10 @@ the LaTeX log before it goes back.
 
 | What you see | What it means |
 |---|---|
-| `401` with `WWW-Authenticate: Bearer` | `JOBSTITCH_API_TOKEN` is set on the server and the request had no matching token |
-| `413` | A part exceeded `JOBSTITCH_MAX_PART_BYTES` |
+| `401` with `WWW-Authenticate: Bearer` | `RESUMIX_API_TOKEN` is set on the server and the request had no matching token |
+| `413` | A part exceeded `RESUMIX_MAX_PART_BYTES` |
 | `422` `latex_compile [compile]` | The template or the `.tex` does not compile. `GET /logs/{request_id}` has the TeX log tail, which says where |
-| `429` with `Retry-After` | All job slots are busy — retry, or raise `JOBSTITCH_MAX_CONCURRENT_JOBS` |
+| `429` with `Retry-After` | All job slots are busy — retry, or raise `RESUMIX_MAX_CONCURRENT_JOBS` |
 | `502` `model_output [cv.generate]` from a status poll | The job failed: the model never produced valid output. `GET /logs/{request_id}` shows each failed attempt |
 | `404` `unknown_request` | The id was pruned, never did any work, or another instance served it |
 | `409` `job_not_ready` from `GET /v1/cv/{id}` | The job is still running — poll `/status` until it says `END` |
@@ -373,5 +373,5 @@ in the suite calls a model: `server/tests/server_helpers.py` wires a real
 `ModelSelector` to a fake HTTP client, so request assembly, structured-output
 negotiation and usage logging are all the production code paths.
 
-The layout is described in `src/jobstitch_server/__init__.py`; the rules the
+The layout is described in `src/resumix_server/__init__.py`; the rules the
 code follows are in `AGENTS.md` at the repository root.

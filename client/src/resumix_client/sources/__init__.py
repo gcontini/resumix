@@ -18,7 +18,7 @@ class JDCandidate:
 
     ``origin`` is the file it arrived as, already claimed into ``working/``
     when there is one; the clipboard has none, so its text is written out
-    later under :data:`~jobstitch_client.workspace.JD_FILENAME`.
+    later under :data:`~resumix_client.workspace.JD_FILENAME`.
     """
 
     text: str

@@ -1,7 +1,7 @@
 """Fixtures for the client tests.
 
 The client is tested against :class:`FakeApi` — an in-memory
-:class:`~jobstitch_client.api.JobstitchApi` — so every test runs with no
+:class:`~resumix_client.api.ResumixApi` — so every test runs with no
 server, no network and no model. One test file goes the other way and drives
 the real server in-process; see ``tests/test_integration.py``.
 """
@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from jobstitch_contracts import (
+from resumix_contracts import (
     CoverLetter,
     CVStatus,
     Envelope,
@@ -24,10 +24,10 @@ from jobstitch_contracts import (
     RequestLog,
 )
 
-from jobstitch_client.api import JobstitchError
-from jobstitch_client.config import Config
-from jobstitch_client.ui import Decision
-from jobstitch_client.workspace import Workspace
+from resumix_client.api import ResumixError
+from resumix_client.config import Config
+from resumix_client.ui import Decision
+from resumix_client.workspace import Workspace
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_CANDIDATE = REPO_ROOT / "examples" / "candidate"
@@ -95,7 +95,7 @@ class FakeApi:
     def _record(self, name):
         self.calls.append(name)
         if self.fail_on == name:
-            raise JobstitchError(f"model_output [{name}]: {name} failed", status=502,
+            raise ResumixError(f"model_output [{name}]: {name} failed", status=502,
                                  request_id="failed-request")
 
     def logs(self, request_id):
@@ -178,8 +178,8 @@ def api() -> FakeApi:
 
 @pytest.fixture
 def runner(api, workspace, config):
-    from jobstitch_client.runner import JobRunner
-    from jobstitch_client.tracking import build_tracker
+    from resumix_client.runner import JobRunner
+    from resumix_client.tracking import build_tracker
 
     return JobRunner(
         api=api, workspace=workspace, config=config,
@@ -191,4 +191,4 @@ def runner(api, workspace, config):
 @pytest.fixture(autouse=True)
 def no_polling_delay(monkeypatch):
     """The fake answers instantly; waiting 4s between polls proves nothing."""
-    monkeypatch.setattr("jobstitch_client.cvjob.POLL_SECONDS", 0)
+    monkeypatch.setattr("resumix_client.cvjob.POLL_SECONDS", 0)

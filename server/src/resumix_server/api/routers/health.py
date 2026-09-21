@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from jobstitch_contracts import Envelope, ServerStatus
+from resumix_contracts import Envelope, ServerStatus
 
 from ..deps import envelope_of, get_state
 
@@ -21,7 +21,7 @@ async def healthz(request: Request) -> dict:
     from importlib.metadata import version
 
     try:
-        server_version = version("jobstitch-server")
+        server_version = version("resumix-server")
     except Exception:  # running from a source tree that was never installed
         server_version = "unknown"
 

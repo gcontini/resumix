@@ -1,8 +1,8 @@
 """The four things the client does.
 
 Each mode is thin on purpose: pick a source, build the runner, drain the
-source. Everything else lives in :mod:`jobstitch_client.runner` and
-:mod:`jobstitch_client.workspace`, so adding a fifth source would not touch
+source. Everything else lives in :mod:`resumix_client.runner` and
+:mod:`resumix_client.workspace`, so adding a fifth source would not touch
 the pipeline.
 """
 
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
-from ..api import HttpApi, JobstitchApi
+from ..api import HttpApi, ResumixApi
 from ..config import Config
 from ..runner import JobRunner, Outcome
 from ..sources import JDSource
@@ -27,7 +27,7 @@ class Session:
 
     config: Config
     workspace: Workspace
-    api: JobstitchApi
+    api: ResumixApi
     runner: JobRunner
 
     @classmethod

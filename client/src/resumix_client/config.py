@@ -1,6 +1,6 @@
 """Settings, from four places with one order of precedence.
 
-    command line  >  environment  >  jobstitch.toml  >  file found in the
+    command line  >  environment  >  resumix.toml  >  file found in the
     current folder  >  the server's own default
 
 Nothing here reads the network or the job folders; it only answers "what did
@@ -20,7 +20,7 @@ from .discovery import discover_files, discover_images, find_config
 #: What --cover-letter accepts.
 COVER_LETTER_MODES = ("no", "yes", "letter_only")
 
-#: What a [files] entry is called in jobstitch.toml, and the file it names.
+#: What a [files] entry is called in resumix.toml, and the file it names.
 #: Short keys because TOML reads ``candidate_profile.json = "x"`` as a dotted
 #: key (a table named ``candidate_profile``), which is not what anyone means.
 CONFIG_KEYS = {
@@ -80,7 +80,7 @@ class Config:
         if path is None:
             raise ConfigError(
                 f"{name} is required but was not found. Put it in the current "
-                f"folder, or name it in {self.config_path or 'jobstitch.toml'}."
+                f"folder, or name it in {self.config_path or 'resumix.toml'}."
             )
         return path
 
@@ -146,8 +146,8 @@ def load_config(
     env_changes = {
         key: value
         for key, value in (
-            ("server_url", os.getenv("JOBSTITCH_API_URL")),
-            ("token", os.getenv("JOBSTITCH_API_TOKEN")),
+            ("server_url", os.getenv("RESUMIX_API_URL")),
+            ("token", os.getenv("RESUMIX_API_TOKEN")),
         )
         if value
     }

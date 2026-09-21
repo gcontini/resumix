@@ -1,11 +1,11 @@
 [project]
-name = "jobstitch-server"
+name = "resumix-server"
 version = "0.2.0"
-description = "jobstitch HTTP API: turn a job description into tailored CV data and a compiled LaTeX PDF."
+description = "resumix HTTP API: turn a job description into tailored CV data and a compiled LaTeX PDF."
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "jobstitch-contracts",
+    "resumix-contracts",
     # Web layer. uvicorn plain, not [standard]: no uvloop/httptools/websockets.
     "fastapi>=0.115",
     "uvicorn>=0.30",
@@ -22,10 +22,10 @@ dependencies = [
 ]
 
 [project.scripts]
-jobstitch-api = "jobstitch_server.server:main"
+resumix-api = "resumix_server.server:main"
 
 [tool.uv.sources]
-jobstitch-contracts = { workspace = true }
+resumix-contracts = { workspace = true }
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -35,14 +35,14 @@ build-backend = "setuptools.build_meta"
 # package-dir entry and an explicit packages list (packages.find only scans
 # "where").
 [tool.setuptools]
-package-dir = { "" = "src", "jobstitch_server.resources" = "resources" }
+package-dir = { "" = "src", "resumix_server.resources" = "resources" }
 packages = [
-    "jobstitch_server",
-    "jobstitch_server.api",
-    "jobstitch_server.api.routers",
-    "jobstitch_server.pipeline",
-    "jobstitch_server.resources",
+    "resumix_server",
+    "resumix_server.api",
+    "resumix_server.api.routers",
+    "resumix_server.pipeline",
+    "resumix_server.resources",
 ]
 
 [tool.setuptools.package-data]
-"jobstitch_server.resources" = ["*.txt", "*.toml", "*.jinja", "*.png"]
+"resumix_server.resources" = ["*.txt", "*.toml", "*.jinja", "*.png"]

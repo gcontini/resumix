@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from jobstitch_contracts import Envelope, JDAnalysis, JDDetection
+from resumix_contracts import Envelope, JDAnalysis, JDDetection
 
 from ...bundle import CandidateInputs
 from ...pipeline.jd_validator import JDValidator

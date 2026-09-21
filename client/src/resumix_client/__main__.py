@@ -1,4 +1,4 @@
-"""``python -m jobstitch_client`` and the frozen executable's entry point."""
+"""``python -m resumix_client`` and the frozen executable's entry point."""
 
 from .cli import main
 

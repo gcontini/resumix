@@ -13,14 +13,14 @@ interactive OpenAPI page FastAPI generates is at `/docs`.
 plain field (`-F jd_text=...`); the file wins if you send both. JSON parts
 (`candidate_profile`, `candidate_data`, `document`, `analysis`) must be files,
 must parse, and must be JSON *objects*. A UTF-8 BOM is stripped. Any single
-part over `JOBSTITCH_MAX_PART_BYTES` (2 MB) is refused with `413` before it is
+part over `RESUMIX_MAX_PART_BYTES` (2 MB) is refused with `413` before it is
 read.
 
 **Images.** The `images` part is repeatable, at most 10 per request. Each
 part's **file name** is the name the template includes it under — that is the
 whole interface. Path components are stripped.
 
-**Auth.** If `JOBSTITCH_API_TOKEN` is set, every `/v1/...` call and
+**Auth.** If `RESUMIX_API_TOKEN` is set, every `/v1/...` call and
 `/logs/...` must send `Authorization: Bearer <token>`; `/healthz` stays open so
 a platform probe works. With no token set, the server is open to anyone who
 can reach it, which is only reasonable on a private network.
@@ -114,12 +114,12 @@ curl -F jd=@JD.txt localhost:8080/v1/jd/detect
 |---|---|---|
 | `jd` / `jd_text` | required | The text to check |
 
-Structural checks run first — length band (`JOBSTITCH_JD_MIN_CHARS` …
+Structural checks run first — length band (`RESUMIX_JD_MIN_CHARS` …
 `_MAX_CHARS`, 1000–10000 by default), no binary payload — and only if they
 pass does it cost one small model call. The answer is
 `{"is_job_description": true|false}`; why it was rejected is in the request's
 log, not in the reply. The same structural check ships in
-`jobstitch_contracts.static_jd_guess`, so a client can run it before spending
+`resumix_contracts.static_jd_guess`, so a client can run it before spending
 the call at all.
 
 ## `POST /v1/jd/analysis`
@@ -314,10 +314,10 @@ saying what went wrong, its kind and its stage:
 | Status | Kind | Means |
 |---|---|---|
 | `400` | `bad_request`, `missing_part`, `bad_part` | A required part is absent, empty, not UTF-8, not JSON, not an object, or mutually exclusive parts were both sent |
-| `401` | `unauthorized` | `JOBSTITCH_API_TOKEN` is set and the request had no matching token. Answers with `WWW-Authenticate: Bearer` |
+| `401` | `unauthorized` | `RESUMIX_API_TOKEN` is set and the request had no matching token. Answers with `WWW-Authenticate: Bearer` |
 | `404` | `unknown_request` | The id was pruned, never did any work, or another instance served it |
 | `409` | `job_not_ready` | The CV job is still running — poll `/status` until it says `END` |
-| `413` | `part_too_large` | A part exceeded `JOBSTITCH_MAX_PART_BYTES` |
+| `413` | `part_too_large` | A part exceeded `RESUMIX_MAX_PART_BYTES` |
 | `422` | `latex_compile` | The template or the `.tex` does not compile. The TeX log tail is in `/logs/{id}` |
 | `422` | `validation_error` | An uploaded document does not match the expected schema |
 | `429` | `too_many_jobs` | All job slots are busy. Answers with `Retry-After: 30` |
@@ -332,12 +332,12 @@ failed one, with its token cost — fetch `GET /logs/{request_id}`.
 
 ## The wire format as a package
 
-`jobstitch_contracts` is the same set of pydantic models the server answers
+`resumix_contracts` is the same set of pydantic models the server answers
 with, published as its own package so a client can import it instead of
 hand-rolling the shapes:
 
 ```python
-from jobstitch_contracts import (
+from resumix_contracts import (
     Envelope, CVStatus, RenderedCV, CoverLetter, ServerStatus,
     JDAnalysis, JDDetection, RequestLog, LogEntry, static_jd_guess,
 )

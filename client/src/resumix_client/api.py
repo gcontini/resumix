@@ -1,6 +1,6 @@
 """The only module that knows the server exists.
 
-Everything else in the client talks to :class:`JobstitchApi`, the protocol
+Everything else in the client talks to :class:`ResumixApi`, the protocol
 below, which is why the modes can be tested without a server and why swapping
 transport would touch one file.
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Protocol, Tuple
 
 import httpx
-from jobstitch_contracts import (
+from resumix_contracts import (
     CoverLetter,
     CVStatus,
     Envelope,
@@ -43,7 +43,7 @@ HEALTH_ATTEMPTS = 3
 HEALTH_RETRY_DELAY = 2.0
 
 
-class JobstitchError(RuntimeError):
+class ResumixError(RuntimeError):
     """A call the server refused, or could not be made at all."""
 
     def __init__(
@@ -59,8 +59,8 @@ class JobstitchError(RuntimeError):
         self.request_id = request_id
 
 
-class JobstitchApi(Protocol):
-    """What the client needs a jobstitch server to do."""
+class ResumixApi(Protocol):
+    """What the client needs a resumix server to do."""
 
     def logs(self, request_id: str) -> Envelope[RequestLog]: ...
 
@@ -95,7 +95,7 @@ class JobstitchApi(Protocol):
 
 @dataclass
 class HttpApi:
-    """:class:`JobstitchApi` over HTTP."""
+    """:class:`ResumixApi` over HTTP."""
 
     base_url: str
     token: Optional[str] = None
@@ -200,7 +200,7 @@ class HttpApi:
         """
         if self._health_checked:
             return
-        last_error: Optional[JobstitchError] = None
+        last_error: Optional[ResumixError] = None
         for attempt in range(1, HEALTH_ATTEMPTS + 1):
             if self.verbose:
                 print(f"spinning up the server attempt {attempt}/{HEALTH_ATTEMPTS}")
@@ -208,12 +208,12 @@ class HttpApi:
                 self._get("/healthz", ServerStatus)
                 self._health_checked = True
                 return
-            except JobstitchError as exc:
+            except ResumixError as exc:
                 last_error = exc
                 if attempt < HEALTH_ATTEMPTS:
                     time.sleep(HEALTH_RETRY_DELAY)
-        raise JobstitchError(
-            f"the jobstitch server at {self.base_url} did not come up after "
+        raise ResumixError(
+            f"the resumix server at {self.base_url} did not come up after "
             f"{HEALTH_ATTEMPTS} attempts: {last_error}",
             status=last_error.status if last_error else 0,
         )
@@ -234,15 +234,15 @@ class HttpApi:
             # A network error (e.g. a timeout) means no response came back to
             # read a request_id from, so the id already known to the caller
             # (a job being polled) is the only one there is to report.
-            raise JobstitchError(
-                f"cannot reach the jobstitch server at {self.base_url}: {exc}",
+            raise ResumixError(
+                f"cannot reach the resumix server at {self.base_url}: {exc}",
                 request_id=request_id,
             ) from exc
 
         try:
             body = response.json()
         except ValueError as exc:
-            raise JobstitchError(
+            raise ResumixError(
                 f"{path} returned {response.status_code} and not JSON "
                 f"({response.text[:200]!r})",
                 status=response.status_code,
@@ -253,7 +253,7 @@ class HttpApi:
         if response.is_success and envelope.ok:
             return envelope
 
-        raise JobstitchError(
+        raise ResumixError(
             envelope.error or f"{path} failed with {response.status_code}",
             status=response.status_code,
             request_id=envelope.request_id,
@@ -286,4 +286,4 @@ def read_text(path: Optional[Path]) -> Optional[str]:
     return path.read_text(encoding="utf-8") if path is not None else None
 
 
-__all__ = ["JobstitchApi", "HttpApi", "JobstitchError", "read_bytes", "read_text"]
+__all__ = ["ResumixApi", "HttpApi", "ResumixError", "read_bytes", "read_text"]

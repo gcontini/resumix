@@ -1,6 +1,6 @@
-# Job Stitch
+# Resumix
 
-[![build](https://github.com/gcontini/jobstitch/actions/workflows/ci.yml/badge.svg)](https://github.com/gcontini/jobstitch/actions/workflows/ci.yml)
+[![build](https://github.com/gcontini/resumix/actions/workflows/ci.yml/badge.svg)](https://github.com/gcontini/resumix/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Turn a job description and your unstructured experiences into a tailored, two-page LaTeX CV and a cover letter, using any OpenAI-compatible model.
@@ -30,7 +30,7 @@ lots of experiences. I tried to make it "tunable", so you can fit your experienc
 
 ## Download and run
 
-jobstitch is two pieces: a server that holds the model keys and the LaTeX
+resumix is two pieces: a server that holds the model keys and the LaTeX
 toolchain, and a client executable you run on your machine. Neither needs the
 other installed locally — the client talks to the server over HTTP.
 
@@ -39,7 +39,7 @@ other installed locally — the client talks to the server over HTTP.
 ```bash
 docker run -d -p 8080:8080 \
   -e MODEL_API_KEY=... \
-  gcontini/jobstitch-server:latest
+  gcontini/resumix-server:latest
 ```
 
 Any OpenAI-compatible provider works — see
@@ -47,16 +47,16 @@ Any OpenAI-compatible provider works — see
 environment table. `curl localhost:8080/healthz` should report `pdflatex: true`.
 
 **2. Download the client** — a single executable, no Python required, from the
-[releases page](https://github.com/gcontini/jobstitch/releases): pick
-`jobstitch-linux-x86_64` or `jobstitch-windows-x86_64`, unpack it, and put your
+[releases page](https://github.com/gcontini/resumix/releases): pick
+`resumix-linux-x86_64` or `resumix-windows-x86_64`, unpack it, and put your
 own `candidate_profile.json` and `candidate_data.json` beside it (start from
 the fictional set in the download's `examples/candidate/`).
 
 ```bash
-./jobstitch --server http://localhost:8080 clipboard --out ~/applications
+./resumix --server http://localhost:8080 clipboard --out ~/applications
 ```
 
-Copy a job posting to your clipboard; jobstitch checks it, shows you the
+Copy a job posting to your clipboard; resumix checks it, shows you the
 analysis, and on confirmation writes the CV into
 `~/applications/cv/<day>/<Company>_<Title>/`. `watch` and `submit` work the
 same way against files instead of the clipboard —
@@ -85,7 +85,7 @@ and the output layout.
 |---|---|
 | **[`client/`](client/README.md)** | The executable. Watches your clipboard or a folder, keeps your CV data local, files every result in a dated folder. No Python, no API key, no LaTeX. |
 | **[`server/`](server/README.md)** | The container. Holds the model API keys and the LaTeX toolchain; writes the CV, compiles the PDF, analyses postings. Keeps a directory per request — its log, and a CV job's state and result — and nothing else. |
-| [`contracts/`](contracts/src/jobstitch_contracts/) | The shapes both sides agree on — the one thing each side imports, so neither imports the other. |
+| [`contracts/`](contracts/src/resumix_contracts/) | The shapes both sides agree on — the one thing each side imports, so neither imports the other. |
 
 Writing a CV takes minutes, so `POST /v1/cv` answers at once with a job id;
 the client polls `/v1/cv/{id}/status` every four seconds, prints each new step
@@ -99,8 +99,8 @@ each CV.
 ```bash
 uv sync
 uv run pytest                   # all four suites; no API key, no network
-uv run jobstitch-api            # the server, from source
-uv run jobstitch --help         # the client, from source
+uv run resumix-api            # the server, from source
+uv run resumix --help         # the client, from source
 uv run --group docs mkdocs serve  # the documentation site, on :8000
 ```
 
@@ -112,7 +112,7 @@ the code follows are in [AGENTS.md](AGENTS.md).
 - A CV job cannot be cancelled: an abandoned one holds a slot until its own
   budget runs out. See [PLANNED-FEATURES.md](PLANNED-FEATURES.md).
 - A job id only means something to the instance holding its directory, so run
-  one instance per `JOBSTITCH_WORK_DIR`.
+  one instance per `RESUMIX_WORK_DIR`.
 - One template, one language. Bring your own `.tex.jinja` if you want a different shape.
 
 ## License

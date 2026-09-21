@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from jobstitch_contracts import JDAnalysis, static_jd_guess
+from resumix_contracts import JDAnalysis, static_jd_guess
 
-from .api import JobstitchApi, JobstitchError, read_text
+from .api import ResumixApi, ResumixError, read_text
 from .config import LETTER_PROMPT, Config
 from .cvjob import write_cv
 from .joblog import JobLog
@@ -52,7 +52,7 @@ class JobRunner:
     def __init__(
         self,
         *,
-        api: JobstitchApi,
+        api: ResumixApi,
         workspace: Workspace,
         config: Config,
         confirmer: Confirmer,
@@ -94,7 +94,7 @@ class JobRunner:
                 analysis.posting_url = decision.url
                 self._write_analysis(job_dir, analysis)
             return self._produce(job_dir, candidate.text, analysis, log)
-        except JobstitchError as exc:
+        except ResumixError as exc:
             # Nothing has a job folder yet, so the claimed file itself is what
             # gets filed under error/ — never left behind in working/.
             return self._failed(log, exc, candidate=candidate)
@@ -119,7 +119,7 @@ class JobRunner:
             return Outcome("discarded", "skipped", self.workspace.discard(job_dir))
         try:
             return self._produce(job_dir, jd_text, analysis, log)
-        except JobstitchError as exc:
+        except ResumixError as exc:
             return self._failed(log, exc, job_dir=job_dir)
 
     # --- the one place a call is made ---------------------------------------
@@ -140,7 +140,7 @@ class JobRunner:
             return
         try:
             log.server(request_id, self.api.logs(request_id).data.entries)
-        except JobstitchError as exc:
+        except ResumixError as exc:
             log.step(f"⚠ could not fetch the server log for {request_id}: {exc}")
 
     # --- steps --------------------------------------------------------------
@@ -184,7 +184,7 @@ class JobRunner:
                 self._cv(job_dir, jd_text, log)
             if self.config.cover_letter in ("yes", "letter_only"):
                 self._letter(job_dir, jd_text, analysis, log)
-        except JobstitchError as exc:
+        except ResumixError as exc:
             return self._failed(log, exc, job_dir=job_dir)
 
         self._finish_log(job_dir, log)
@@ -256,7 +256,7 @@ class JobRunner:
     def _failed(
         self,
         log: JobLog,
-        exc: JobstitchError,
+        exc: ResumixError,
         *,
         job_dir: Optional[Path] = None,
         candidate: Optional[JDCandidate] = None,
@@ -308,7 +308,7 @@ class JobRunner:
         for path in candidates:
             if path.is_file() and path.name not in (LETTER_FILENAME, LOG_FILENAME):
                 return path.read_text(encoding="utf-8")
-        raise JobstitchError(f"no job description file left in {job_dir.name}")
+        raise ResumixError(f"no job description file left in {job_dir.name}")
 
     def _finish_log(self, job_dir: Path, log: JobLog) -> None:
         log.write(job_dir / LOG_FILENAME)

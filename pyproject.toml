@@ -1,4 +1,4 @@
-# jobstitch — a uv workspace with three members.
+# resumix — a uv workspace with three members.
 #
 #   contracts/  the wire format both sides agree on (pydantic only)
 #   server/     the HTTP API: LLM calls + pdflatex, deployed as a container
@@ -9,15 +9,15 @@
 #
 #     uv sync                 install every member into one .venv
 #     uv run pytest           run all three test suites
-#     uv run jobstitch-api    start the server
-#     uv run jobstitch --help the client
+#     uv run resumix-api    start the server
+#     uv run resumix --help the client
 #     uv run --group docs mkdocs serve   the doc/ site, on localhost:8000
 
 [tool.uv.workspace]
 members = ["contracts", "server", "client"]
 
 [tool.uv.sources]
-jobstitch-contracts = { workspace = true }
+resumix-contracts = { workspace = true }
 
 [dependency-groups]
 dev = ["pytest>=8"]

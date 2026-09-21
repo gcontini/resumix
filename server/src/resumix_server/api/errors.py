@@ -14,7 +14,7 @@ from typing import Tuple
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from jobstitch_contracts import Envelope
+from resumix_contracts import Envelope
 from openai import APIConnectionError, APIError, APITimeoutError
 from pydantic import ValidationError
 

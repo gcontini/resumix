@@ -80,18 +80,18 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         configure_logging()
-        app.state.jobstitch = state or AppState.build(settings)
-        _fail_orphans(app.state.jobstitch)
+        app.state.resumix = state or AppState.build(settings)
+        _fail_orphans(app.state.resumix)
         logger.info(
-            "  \U0001f680 jobstitch-server ready (jobs<=%d, auth %s, pdflatex %s)",
+            "  \U0001f680 resumix-server ready (jobs<=%d, auth %s, pdflatex %s)",
             settings.max_concurrent_jobs,
             "on" if settings.api_token else "off",
-            "yes" if app.state.jobstitch.pdflatex else "NO",
+            "yes" if app.state.resumix.pdflatex else "NO",
         )
         yield
 
     app = FastAPI(
-        title="jobstitch",
+        title="resumix",
         summary="Turn a job description into tailored CV data and a compiled LaTeX PDF.",
         version="0.2.0",
         lifespan=lifespan,

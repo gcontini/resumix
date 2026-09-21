@@ -1,8 +1,8 @@
-# PyInstaller spec for the jobstitch client.
+# PyInstaller spec for the resumix client.
 #
-#     uv run --with pyinstaller pyinstaller client/packaging/jobstitch.spec
+#     uv run --with pyinstaller pyinstaller client/packaging/resumix.spec
 #
-# Produces dist/jobstitch (or dist/jobstitch.exe). Build it on the platform
+# Produces dist/resumix (or dist/resumix.exe). Build it on the platform
 # you are building for — PyInstaller does not cross-compile.
 #
 # Why PyInstaller and not Cython: Cython compiles modules to C extensions but
@@ -22,14 +22,14 @@ a = Analysis(
     binaries=[],
     # The spreadsheet template ships inside the binary; everything else the
     # client needs it reads from beside the binary at runtime.
-    datas=[(str(SOURCES / "jobstitch_client" / "resources" / "applications.xlsx"),
-            "jobstitch_client/resources")],
+    datas=[(str(SOURCES / "resumix_client" / "resources" / "applications.xlsx"),
+            "resumix_client/resources")],
     hiddenimports=[],
     # Nothing here belongs in a client: they are the server's dependencies,
     # and excluding them keeps the binary small if one is ever pulled in
     # transitively.
     excludes=["fastapi", "uvicorn", "starlette", "openai", "jinja2", "pypdf",
-              "jobstitch_server", "tkinter", "pytest"],
+              "resumix_server", "tkinter", "pytest"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
@@ -40,7 +40,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="jobstitch",
+    name="resumix",
     debug=False,
     strip=False,
     upx=False,

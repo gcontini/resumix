@@ -7,7 +7,7 @@ from datetime import date
 import openpyxl
 import pytest
 
-from jobstitch_client.tracking import STATUS_VALUES, NullTracker, XlsxTracker, build_tracker
+from resumix_client.tracking import STATUS_VALUES, NullTracker, XlsxTracker, build_tracker
 
 from conftest import analysis
 

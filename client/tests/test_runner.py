@@ -5,15 +5,15 @@ from __future__ import annotations
 import json
 
 import pytest
-from jobstitch_contracts import JDAnalysis
+from resumix_contracts import JDAnalysis
 
-from jobstitch_client.runner import JobRunner
-from jobstitch_client.sources import JDCandidate
-from jobstitch_client.tracking import build_tracker
-from jobstitch_client.ui import Decision
-from jobstitch_client.workspace import Workspace
+from resumix_client.runner import JobRunner
+from resumix_client.sources import JDCandidate
+from resumix_client.tracking import build_tracker
+from resumix_client.ui import Decision
+from resumix_client.workspace import Workspace
 
-from jobstitch_client.api import JobstitchError
+from resumix_client.api import ResumixError
 
 from conftest import JD_TEXT, FakeApi, ScriptedConfirmer, document
 
@@ -73,7 +73,7 @@ def test_your_candidate_data_is_sent_so_the_page_count_is_real(runner, api):
 def test_each_new_status_is_reported_as_it_happens(runner, api):
     """The wait is minutes long; a silent one is indistinguishable from a
     hung one."""
-    from jobstitch_contracts import CVStatus
+    from resumix_contracts import CVStatus
 
     api.statuses = [
         CVStatus(status="generate", detail=""),
@@ -90,7 +90,7 @@ def test_each_new_status_is_reported_as_it_happens(runner, api):
 def test_verbose_adds_what_the_server_said_about_each_step(api, workspace, config):
     from dataclasses import replace
 
-    from jobstitch_contracts import CVStatus
+    from resumix_contracts import CVStatus
 
     api.statuses = [
         CVStatus(status="review", detail="generation finished, tokens used=99"),
@@ -152,7 +152,7 @@ def test_a_failure_always_fetches_the_server_log(api, workspace, config):
 def test_an_unfetchable_server_log_does_not_mask_the_failure(api, workspace, config):
     class Stubborn(FakeApi):
         def logs(self, request_id):
-            raise JobstitchError("unknown_request: logs are gone", status=404)
+            raise ResumixError("unknown_request: logs are gone", status=404)
 
     api = Stubborn(fail_on="create_cv")
     outcome = build(api, workspace, config).handle(JDCandidate(text=JD_TEXT))

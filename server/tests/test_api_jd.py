@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from jobstitch_contracts import JDAnalysis, static_jd_guess
+from resumix_contracts import JDAnalysis, static_jd_guess
 
 ANALYSIS = {
     "match_percentage": 82, "match_rationale": "Strong overlap.",

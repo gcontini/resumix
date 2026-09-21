@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from jobstitch_client.workspace import (
+from resumix_client.workspace import (
     Artifacts,
     Workspace,
     day,
@@ -40,7 +40,7 @@ def test_intake_claims_the_file_immediately(ws):
 
 
 def test_a_named_file_is_copied_not_consumed(ws):
-    """`jobstitch submit posting.txt` must leave posting.txt where it is."""
+    """`resumix submit posting.txt` must leave posting.txt where it is."""
     source = drop(ws)
     claimed = ws.take_in(source, move=False)
 

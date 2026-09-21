@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from jobstitch_contracts import CoverLetter, Envelope
+from resumix_contracts import CoverLetter, Envelope
 
 from ...pipeline.letter_generator import LetterGenerator
 from ..deps import envelope_of, execute, get_state

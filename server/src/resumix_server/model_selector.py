@@ -1,6 +1,6 @@
 """Centralized LLM model selection.
 
-jobstitch calls exactly three models, one per job, all declared in
+resumix calls exactly three models, one per job, all declared in
 ``resources/models.toml`` and sharing one provider (one API key/endpoint,
 declared once in the ``[provider]`` table):
 
@@ -24,7 +24,7 @@ Nothing here knows about a specific provider — provider quirks are declared as
 capability flags rather than written as ``if name == ...`` branches. The
 fundamental per-role settings (``model``, ``temperature``, ``thinking``,
 ``structured_output``) can each be overridden by an env var named
-``JOBSTITCH_<ROLE>_<FIELD>`` (e.g. ``JOBSTITCH_CV_TEMPERATURE``), so a Docker
+``RESUMIX_<ROLE>_<FIELD>`` (e.g. ``RESUMIX_CV_TEMPERATURE``), so a Docker
 deployment can tune a role without editing ``models.toml``.
 """
 
@@ -49,7 +49,7 @@ logger = logging.getLogger(f"{LOGGER_ROOT}.models")
 
 MODELS_FILE = "models.toml"
 
-#: The three jobs jobstitch has a model for, in the order a run uses them.
+#: The three jobs resumix has a model for, in the order a run uses them.
 MODEL_ROLES = ("summary", "cv", "highlight")
 
 # Fallback used when models.toml omits it. max_tokens has no fallback: when
@@ -79,7 +79,7 @@ THINKING_BUDGET = "thinking_budget"
 class ProviderConfig:
     """The one LLM provider every role calls, as written in ``models.toml``.
 
-    jobstitch assumes a single provider/single API key — there is nothing to
+    resumix assumes a single provider/single API key — there is nothing to
     fall back to, so a missing key is a hard startup error naming this one
     variable rather than a per-role concern.
     """
@@ -196,7 +196,7 @@ _ALLOWED_KEYS = {f.name for f in ModelSpec.__dataclass_fields__.values()} - {"ro
 _PROVIDER_ALLOWED_KEYS = {f.name for f in ProviderConfig.__dataclass_fields__.values()}
 
 #: Per-role fields a Docker deployment can override without editing
-#: models.toml, via JOBSTITCH_<ROLE>_<FIELD> (e.g. JOBSTITCH_CV_TEMPERATURE).
+#: models.toml, via RESUMIX_<ROLE>_<FIELD> (e.g. RESUMIX_CV_TEMPERATURE).
 ENV_OVERRIDABLE_FIELDS = ("model", "temperature", "thinking", "structured_output")
 
 
@@ -204,7 +204,7 @@ def _apply_env_overrides(role: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Per-role env vars win over models.toml for the fundamental settings."""
     body = dict(body)
     for field_name in ENV_OVERRIDABLE_FIELDS:
-        env_var = f"JOBSTITCH_{role.upper()}_{field_name.upper()}"
+        env_var = f"RESUMIX_{role.upper()}_{field_name.upper()}"
         value = os.getenv(env_var)
         if value is None:
             continue
@@ -272,7 +272,7 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     model omits ``model`` — a typo in the config surfaces at startup instead
     of halfway through a job. ``model``, ``temperature``, ``thinking`` and
     ``structured_output`` are read after applying any
-    ``JOBSTITCH_<ROLE>_<FIELD>`` env override (see
+    ``RESUMIX_<ROLE>_<FIELD>`` env override (see
     :data:`ENV_OVERRIDABLE_FIELDS`).
     """
     path = _models_path(resources_dir)
@@ -281,7 +281,7 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     provider_body = raw.get("provider")
     if not provider_body:
         raise ValueError(
-            f"{path}: no [provider] table — jobstitch needs one provider's "
+            f"{path}: no [provider] table — resumix needs one provider's "
             "endpoint, shared by all three models"
         )
     unknown_provider_keys = set(provider_body) - _PROVIDER_ALLOWED_KEYS
@@ -300,7 +300,7 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     unknown_roles = set(declared) - set(MODEL_ROLES)
     if unknown_roles:
         raise ValueError(
-            f"{path}: unknown model role(s) {sorted(unknown_roles)}; jobstitch "
+            f"{path}: unknown model role(s) {sorted(unknown_roles)}; resumix "
             f"uses exactly {list(MODEL_ROLES)}"
         )
     missing_roles = [role for role in MODEL_ROLES if role not in declared]

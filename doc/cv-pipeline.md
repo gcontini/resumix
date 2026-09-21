@@ -4,7 +4,7 @@ What `POST /v1/cv` does with the minutes it takes: writes the CV, reviews it
 against your profile, compiles it, measures it, condenses it until it fits,
 highlights the keywords and renders it for good.
 
-The code is `server/src/jobstitch_server/pipeline/cv_generator.py`
+The code is `server/src/resumix_server/pipeline/cv_generator.py`
 (`CVGenerator.generate`), with the compile and the page count in
 `cv_renderer.py`.
 
@@ -58,12 +58,12 @@ the generator is given next.
 
 | Guard | Limit | Set by | On exhaustion |
 |---|---|---|---|
-| Generate → review → page-check rounds | 4 | `JOBSTITCH_MAX_ATTEMPTS` | `502 model_output` if review never passed; otherwise the last render is kept |
+| Generate → review → page-check rounds | 4 | `RESUMIX_MAX_ATTEMPTS` | `502 model_output` if review never passed; otherwise the last render is kept |
 | Schema-validation retries inside one round | 3 | `max_validation_attempts` | `502 model_output` |
 | Review parse retries | 2 | fixed | a warning; the CV proceeds as if the review passed |
 | Highlight attempts | 2 | fixed | a warning; the un-highlighted CV is returned |
-| Wall clock for the whole run | 1200 s | `JOBSTITCH_REQUEST_BUDGET_SECONDS` | `504`, checked between rounds |
-| One `pdflatex` compile | 120 s | `JOBSTITCH_LATEX_TIMEOUT` | `504 latex_timeout` |
+| Wall clock for the whole run | 1200 s | `RESUMIX_REQUEST_BUDGET_SECONDS` | `504`, checked between rounds |
+| One `pdflatex` compile | 120 s | `RESUMIX_LATEX_TIMEOUT` | `504 latex_timeout` |
 
 The page limit is therefore best-effort and the review is not: a CV that never
 passes review fails the job, while a CV that never fits is delivered at the

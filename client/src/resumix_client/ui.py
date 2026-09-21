@@ -11,7 +11,7 @@ import sys
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from jobstitch_contracts import JDAnalysis
+from resumix_contracts import JDAnalysis
 
 
 @dataclass(frozen=True)

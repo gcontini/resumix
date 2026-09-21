@@ -13,9 +13,9 @@ from typing import Iterator, Set
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = {
-    "contracts": REPO_ROOT / "contracts" / "src" / "jobstitch_contracts",
-    "server": REPO_ROOT / "server" / "src" / "jobstitch_server",
-    "client": REPO_ROOT / "client" / "src" / "jobstitch_client",
+    "contracts": REPO_ROOT / "contracts" / "src" / "resumix_contracts",
+    "server": REPO_ROOT / "server" / "src" / "resumix_server",
+    "client": REPO_ROOT / "client" / "src" / "resumix_client",
 }
 
 
@@ -33,11 +33,11 @@ def imports_of(package: Path) -> Set[str]:
 
 
 def test_the_client_never_imports_the_server():
-    assert "jobstitch_server" not in imports_of(PACKAGES["client"])
+    assert "resumix_server" not in imports_of(PACKAGES["client"])
 
 
 def test_the_server_never_imports_the_client():
-    assert "jobstitch_client" not in imports_of(PACKAGES["server"])
+    assert "resumix_client" not in imports_of(PACKAGES["server"])
 
 
 def test_the_contracts_depend_on_pydantic_and_nothing_else():

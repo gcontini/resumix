@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from jobstitch_server.model_selector import ModelSelector
-from jobstitch_server.pipeline.cv_schema import TailoredCVData
+from resumix_server.model_selector import ModelSelector
+from resumix_server.pipeline.cv_schema import TailoredCVData
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_CANDIDATE = REPO_ROOT / "examples" / "candidate"

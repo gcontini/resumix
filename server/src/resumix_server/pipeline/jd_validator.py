@@ -4,7 +4,7 @@ Two jobs, both the ``summary`` model's:
 
 - :meth:`JDValidator.detect` — is this text a job posting at all? The free
   structural checks run first (see
-  :func:`jobstitch_contracts.static_jd_guess`); the model is only asked when
+  :func:`resumix_contracts.static_jd_guess`); the model is only asked when
   they pass, so a clipboard full of code costs nothing.
 - :meth:`JDValidator.analyze` — score the posting against the candidate
   profile and extract the facts a CV and a cover letter need.
@@ -19,7 +19,7 @@ import json
 import logging
 from typing import List, Optional
 
-from jobstitch_contracts import (
+from resumix_contracts import (
     MAX_JD_CHARS,
     MIN_JD_CHARS,
     JDAnalysis,

@@ -1,4 +1,4 @@
-"""jobstitch client: the CLI that turns job descriptions into CV folders.
+"""resumix client: the CLI that turns job descriptions into CV folders.
 
 It holds your data and does the filing; the server holds the API keys and does
 the writing. Nothing here calls a model.

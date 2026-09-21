@@ -2,7 +2,7 @@
 
 The state is built once at startup and never mutated: three model clients, the
 default resource bundle, and one semaphore. Sharing a
-:class:`~jobstitch_server.model_selector.ModelSelector` across requests is
+:class:`~resumix_server.model_selector.ModelSelector` across requests is
 safe — after construction it is read-only and its HTTP client is thread-safe.
 """
 
@@ -61,7 +61,7 @@ class AppState:
 
 def get_state(request: Request) -> AppState:
     """The app state, for a route to depend on."""
-    return request.app.state.jobstitch
+    return request.app.state.resumix
 
 
 def require_token(
@@ -100,7 +100,7 @@ async def execute(
     """Run one blocking pipeline job off the event loop.
 
     The CV endpoint does not come through here — it answers before its job is
-    done (see :mod:`jobstitch_server.api.jobs`). What is left are the short
+    done (see :mod:`resumix_server.api.jobs`). What is left are the short
     ones, which still want the concurrency limit, the scratch directory and
     their log on disk afterwards.
     """

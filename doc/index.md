@@ -1,9 +1,9 @@
-# jobstitch
+# resumix
 
 Turn a job description and your unstructured experiences into a tailored,
 two-page LaTeX CV and a cover letter, using any OpenAI-compatible model.
 
-jobstitch is two halves that never share a machine by necessity:
+resumix is two halves that never share a machine by necessity:
 
 - a **server** that holds the model API keys, the prompts and the LaTeX
   toolchain, shipped as a container image;

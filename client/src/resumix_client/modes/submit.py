@@ -1,4 +1,4 @@
-"""``jobstitch submit`` — one file, one CV, then exit."""
+"""``resumix submit`` — one file, one CV, then exit."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""``jobstitch submit-raw`` — a job description in, files in this folder out.
+"""``resumix submit-raw`` — a job description in, files in this folder out.
 
 Nothing but the CV: no detection, no analysis, no question before spending,
 no cover letter, no spreadsheet and no folder structure. What you get is what
@@ -11,9 +11,9 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-from jobstitch_contracts import RenderedCV
+from resumix_contracts import RenderedCV
 
-from ..api import HttpApi, JobstitchError
+from ..api import HttpApi, ResumixError
 from ..config import Config
 from ..cvjob import write_cv
 from ..ui import fail
@@ -36,7 +36,7 @@ def run(config: Config, jd_file: Path, outputs: List[Path], *,
         _, rendered = write_cv(
             api, config, jd_file.read_text(encoding="utf-8"), say=_say, resume=resume
         )
-    except JobstitchError as exc:
+    except ResumixError as exc:
         where = f" (request {exc.request_id})" if exc.request_id else ""
         fail(f"{exc}{where}")
 

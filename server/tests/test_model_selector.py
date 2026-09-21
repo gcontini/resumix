@@ -2,7 +2,7 @@
 
 import pytest
 
-from jobstitch_server import model_selector as ms
+from resumix_server import model_selector as ms
 
 TOML = """
 [provider]
@@ -145,10 +145,10 @@ def test_base_url_env_wins_over_literal(config, monkeypatch):
 def test_env_overrides_the_fundamental_settings(tmp_path, monkeypatch):
     # summary has no thinking_budget in the fixture, so overriding thinking
     # away from "on" doesn't collide with it (unlike cv).
-    monkeypatch.setenv("JOBSTITCH_SUMMARY_MODEL", "summary-2")
-    monkeypatch.setenv("JOBSTITCH_SUMMARY_TEMPERATURE", "0.7")
-    monkeypatch.setenv("JOBSTITCH_SUMMARY_THINKING", "off")
-    monkeypatch.setenv("JOBSTITCH_SUMMARY_STRUCTURED_OUTPUT", "json_schema")
+    monkeypatch.setenv("RESUMIX_SUMMARY_MODEL", "summary-2")
+    monkeypatch.setenv("RESUMIX_SUMMARY_TEMPERATURE", "0.7")
+    monkeypatch.setenv("RESUMIX_SUMMARY_THINKING", "off")
+    monkeypatch.setenv("RESUMIX_SUMMARY_STRUCTURED_OUTPUT", "json_schema")
     config = ms.load_model_config(write(tmp_path, TOML))
     summary = config.models["summary"]
     assert summary.model == "summary-2"
@@ -160,8 +160,8 @@ def test_env_overrides_the_fundamental_settings(tmp_path, monkeypatch):
 
 
 def test_a_non_numeric_temperature_override_is_rejected(tmp_path, monkeypatch):
-    monkeypatch.setenv("JOBSTITCH_CV_TEMPERATURE", "hot")
-    with pytest.raises(ValueError, match="JOBSTITCH_CV_TEMPERATURE"):
+    monkeypatch.setenv("RESUMIX_CV_TEMPERATURE", "hot")
+    with pytest.raises(ValueError, match="RESUMIX_CV_TEMPERATURE"):
         ms.load_model_config(write(tmp_path, TOML))
 
 

@@ -17,7 +17,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Any, Callable, Dict, Tuple
 
-from jobstitch_contracts import RenderedCV
+from resumix_contracts import RenderedCV
 
 from ..jobstore import RESULT, STATUS, JobDir
 from ..observability import Run, use_run
@@ -64,7 +64,7 @@ def start(
             # is not, and a client can act on it without racing the worker.
             job.write(STATUS, ending)
 
-    Thread(target=work, name=f"jobstitch-{job.request_id}", daemon=True).start()
+    Thread(target=work, name=f"resumix-{job.request_id}", daemon=True).start()
 
 
 __all__ = ["start"]

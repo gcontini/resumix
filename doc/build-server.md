@@ -7,7 +7,7 @@ uvicorn. It mounts nothing and seeds nothing.
 
 ```bash
 cd <repo root>
-DOCKER_BUILDKIT=0 docker build -t jobstitch-server .
+DOCKER_BUILDKIT=0 docker build -t resumix-server .
 ```
 
 **The `Dockerfile` lives at the repository root, not in `server/`**, because
@@ -21,14 +21,14 @@ way.
 ```mermaid
 flowchart TB
     subgraph s1["stage 1 — build (uv:python3.12-bookworm-slim)"]
-        L1["pyproject.toml · uv.lock<br/>+ the three member pyprojects"] --> L2["uv sync --frozen --no-dev<br/>--package jobstitch-server<br/>--no-install-workspace"]
+        L1["pyproject.toml · uv.lock<br/>+ the three member pyprojects"] --> L2["uv sync --frozen --no-dev<br/>--package resumix-server<br/>--no-install-workspace"]
         L2 --> L3["contracts/src · server/src · server/resources"]
         L3 --> L4["uv sync --frozen --no-dev --no-editable<br/>→ /app/.venv"]
     end
     subgraph s2["stage 2 — runtime (python:3.12-slim-bookworm)"]
         R1["texlive-latex-base + cm-super"] --> R2["vendored fontawesome5<br/>→ TEXMFLOCAL"]
         R2 --> R3["COPY --from=build /app/.venv"]
-        R3 --> R4["entrypoint.sh → jobstitch-api"]
+        R3 --> R4["entrypoint.sh → resumix-api"]
     end
     L4 --> R3
 ```
@@ -51,7 +51,7 @@ The image is ~780 MB, almost all of it that toolchain.
 ## Run it
 
 ```bash
-docker run --rm -p 8080:8080 --env-file .env jobstitch-server
+docker run --rm -p 8080:8080 --env-file .env resumix-server
 curl localhost:8080/healthz          # expect "pdflatex": true
 ```
 
@@ -60,12 +60,12 @@ with a read-only root filesystem as long as `/tmp` is writable **and
 executable**:
 
 ```bash
-docker run --read-only --tmpfs /tmp:exec -p 8080:8080 --env-file .env jobstitch-server
+docker run --read-only --tmpfs /tmp:exec -p 8080:8080 --env-file .env resumix-server
 ```
 
 `exec` on that tmpfs is required: `pdflatex` writes and then reads back its
 font cache there. A tmpfs also means finished CVs do not survive a restart —
-mount a volume at `JOBSTITCH_WORK_DIR` if you want them to.
+mount a volume at `RESUMIX_WORK_DIR` if you want them to.
 
 `server/compose.yaml` does all of the above with the settings already wired:
 
@@ -77,7 +77,7 @@ cd server && docker compose up --build
 The published image is on Docker Hub:
 
 ```bash
-docker run -d -p 8080:8080 -e MODEL_API_KEY=... gcontini/jobstitch-server:latest
+docker run -d -p 8080:8080 -e MODEL_API_KEY=... gcontini/resumix-server:latest
 ```
 
 ## Configure it
@@ -97,14 +97,14 @@ Any OpenAI-compatible `/chat/completions` endpoint works — OpenAI, DeepSeek, a
 local Ollama. Switching providers is replacing those two values; `models.toml`
 names the same two variables and does not need to change.
 
-Per-role overrides need no rebuild either — `JOBSTITCH_<ROLE>_<FIELD>` for
+Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
 `SUMMARY`, `CV` and `HIGHLIGHT`:
 
 ```bash
-JOBSTITCH_CV_MODEL=qwen-max
-JOBSTITCH_CV_TEMPERATURE=0.2
-JOBSTITCH_CV_THINKING=off            # auto | on | off
-JOBSTITCH_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_MODEL=qwen-max
+RESUMIX_CV_TEMPERATURE=0.2
+RESUMIX_CV_THINKING=off            # auto | on | off
+RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 ```
 
 ### Environment
@@ -115,37 +115,37 @@ JOBSTITCH_CV_STRUCTURED_OUTPUT=json_object
 | `MODEL_BASE_URL` | DashScope intl. | The OpenAI-compatible endpoint |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where uvicorn listens |
 | `WEB_CONCURRENCY` | `1` | uvicorn worker processes. **Keep it at 1** per work root |
-| `JOBSTITCH_KEEPALIVE` | `75` | uvicorn keep-alive timeout, seconds |
-| `JOBSTITCH_API_TOKEN` | unset | Bearer token clients must send. **Unset means no auth** |
-| `JOBSTITCH_RESOURCES` | baked in | Directory of replacement prompts / template / `models.toml` |
-| `JOBSTITCH_WORK_DIR` | system temp | One directory per request: scratch, log, and a CV job's state and result |
-| `JOBSTITCH_MAX_CONCURRENT_JOBS` | `10` | Requests in flight; the rest get `429` |
-| `JOBSTITCH_LATEX_TIMEOUT` | `120` | Seconds before a compile is killed |
-| `JOBSTITCH_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
-| `JOBSTITCH_MAX_ATTEMPTS` | `4` | Generate → review → page-check rounds |
-| `JOBSTITCH_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
-| `JOBSTITCH_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
-| `JOBSTITCH_LOG_LEVEL` | `INFO` | Logging level |
+| `RESUMIX_KEEPALIVE` | `75` | uvicorn keep-alive timeout, seconds |
+| `RESUMIX_API_TOKEN` | unset | Bearer token clients must send. **Unset means no auth** |
+| `RESUMIX_RESOURCES` | baked in | Directory of replacement prompts / template / `models.toml` |
+| `RESUMIX_WORK_DIR` | system temp | One directory per request: scratch, log, and a CV job's state and result |
+| `RESUMIX_MAX_CONCURRENT_JOBS` | `10` | Requests in flight; the rest get `429` |
+| `RESUMIX_LATEX_TIMEOUT` | `120` | Seconds before a compile is killed |
+| `RESUMIX_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
+| `RESUMIX_MAX_ATTEMPTS` | `4` | Generate → review → page-check rounds |
+| `RESUMIX_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
+| `RESUMIX_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
+| `RESUMIX_LOG_LEVEL` | `INFO` | Logging level |
 
 ### Prompts and the template
 
 The five prompts and `resume.tex.jinja` ship inside the image. To change them
 permanently, mount a directory with your versions and set
-`JOBSTITCH_RESOURCES`; anything missing there falls back to the built-in copy.
+`RESUMIX_RESOURCES`; anything missing there falls back to the built-in copy.
 To change them for one request, upload them as parts — that is what the client
 does when it finds them next to its executable.
 
 ```bash
 docker run -p 8080:8080 --env-file .env \
-  -v "$PWD/my-resources:/resources:ro" -e JOBSTITCH_RESOURCES=/resources \
-  jobstitch-server
+  -v "$PWD/my-resources:/resources:ro" -e RESUMIX_RESOURCES=/resources \
+  resumix-server
 ```
 
 ## From a checkout
 
 ```bash
 uv sync
-uv run jobstitch-api            # http://localhost:8080
+uv run resumix-api            # http://localhost:8080
 uv run pytest server/tests      # no API key, no network
 uv run pytest                   # every package, plus the integration test
 ```
@@ -162,7 +162,7 @@ regression is otherwise invisible until someone reads a bad PDF.
 A CV job runs for minutes after the request that started it has been answered.
 That is the one thing to plan around.
 
-- **`JOBSTITCH_WORK_DIR` is state.** A job's status, its result and every
+- **`RESUMIX_WORK_DIR` is state.** A job's status, its result and every
   request's log live there. The default is the system temp directory, which on
   most container platforms is RAM-backed and empty again after a redeploy —
   fine, because a client collects its CV within the minute. Mount a volume
@@ -172,7 +172,7 @@ That is the one thing to plan around.
   as failed — right for its own orphans, wrong for a sibling's live jobs.
 - **Request timeouts barely matter now.** Every call returns in seconds; only
   `/v1/cv/render` waits on a compile. What must outlast
-  `JOBSTITCH_REQUEST_BUDGET_SECONDS` is the client's willingness to keep
+  `RESUMIX_REQUEST_BUDGET_SECONDS` is the client's willingness to keep
   polling.
 - **Size for the compiles, not the waiting.** Ten jobs in flight is the
   default; each is mostly idle on the provider, but each also compiles LaTeX

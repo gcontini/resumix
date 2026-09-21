@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from jobstitch_contracts import (
+from resumix_contracts import (
     CVStatus,
     Envelope,
     JDAnalysis,

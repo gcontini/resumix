@@ -1,7 +1,7 @@
 # A run, end to end
 
 One posting, from the moment you press Ctrl+C on a job ad to the folder that
-holds the PDF. This is `jobstitch clipboard`; `watch` and `submit` differ only
+holds the PDF. This is `resumix clipboard`; `watch` and `submit` differ only
 in what hands the runner the next posting.
 
 ## The call sequence
@@ -13,7 +13,7 @@ sequenceDiagram
     participant Src as ClipboardSource
     participant Run as JobRunner
     participant Api as HttpApi
-    participant Srv as jobstitch-server
+    participant Srv as resumix-server
     participant Ws as Workspace
 
     Note over Src: polls every 2 s
@@ -122,7 +122,7 @@ status reads `END` it collects the document, the LaTeX and the PDF in one
 call.
 
 If the client dies mid-job, the job does not: the server keeps writing. Pick
-it back up with `jobstitch submit posting.txt --resume <request_id>`, which
+it back up with `resumix submit posting.txt --resume <request_id>`, which
 skips submitting and starts from `/status`.
 
 **7 — A folder that already holds its document is re-rendered, not rewritten.**
@@ -145,11 +145,11 @@ paid for and stays delivered.
 
 | Step | Module |
 |---|---|
-| Polling the clipboard, the free check | `client/src/jobstitch_client/sources/clipboard.py` |
-| The order of the steps | `client/src/jobstitch_client/runner.py` |
-| Every HTTP call, and nothing else | `client/src/jobstitch_client/api.py` |
-| Submitting and following a CV job | `client/src/jobstitch_client/cvjob.py` |
-| Paths, moves, recovery | `client/src/jobstitch_client/workspace.py` |
-| The analysis table and the question | `client/src/jobstitch_client/ui.py` |
-| `log.log` | `client/src/jobstitch_client/joblog.py` |
-| `applications.xlsx` | `client/src/jobstitch_client/tracking.py` |
+| Polling the clipboard, the free check | `client/src/resumix_client/sources/clipboard.py` |
+| The order of the steps | `client/src/resumix_client/runner.py` |
+| Every HTTP call, and nothing else | `client/src/resumix_client/api.py` |
+| Submitting and following a CV job | `client/src/resumix_client/cvjob.py` |
+| Paths, moves, recovery | `client/src/resumix_client/workspace.py` |
+| The analysis table and the question | `client/src/resumix_client/ui.py` |
+| `log.log` | `client/src/resumix_client/joblog.py` |
+| `applications.xlsx` | `client/src/resumix_client/tracking.py` |

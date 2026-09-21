@@ -4,9 +4,9 @@ requires-python = ">=3.12"
 
 [manifest]
 members = [
-    "jobstitch-client",
-    "jobstitch-contracts",
-    "jobstitch-server",
+    "resumix-client",
+    "resumix-contracts",
+    "resumix-server",
 ]
 
 [manifest.dependency-groups]
@@ -463,63 +463,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/28/30/879570ecf82574eaea77c5eb10309f4b630dece5f2a556e9814a90ba3f2d/jiter-0.17.0-graalpy312-graalpy250_312_native-macosx_11_0_arm64.whl", hash = "sha256:40d2c240f8f80b5b0f201b29f0ae129c81448c60c772227a41747b5e0026f6a2", size = 279113, upload-time = "2026-09-12T15:14:10.117Z" },
     { url = "https://files.pythonhosted.org/packages/77/7a/1f0b8a35fbd079a4f1752c31a15dc99cf277f863747c459be0af39e900e5/jiter-0.17.0-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3e05f5adbf68c4bd11e1610f394034d984152988e84be6f8314235ce6f2139e5", size = 303708, upload-time = "2026-09-12T15:14:11.445Z" },
     { url = "https://files.pythonhosted.org/packages/e1/8b/d76219ebdbcf3d4209d9d21a0810db4c8d0a6f88e3ee87d30bdea4e90d30/jiter-0.17.0-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d2c0bf24c72fd0491405dce5d40194f2070e9021ce648c1a1d46234b93d848ff", size = 307147, upload-time = "2026-09-12T15:14:12.897Z" },
-]
-
-[[package]]
-name = "jobstitch-client"
-version = "0.2.0"
-source = { editable = "client" }
-dependencies = [
-    { name = "httpx" },
-    { name = "jobstitch-contracts" },
-    { name = "openpyxl" },
-    { name = "pyperclip" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jobstitch-contracts", editable = "contracts" },
-    { name = "openpyxl" },
-    { name = "pyperclip" },
-]
-
-[[package]]
-name = "jobstitch-contracts"
-version = "0.2.0"
-source = { editable = "contracts" }
-dependencies = [
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pydantic" }]
-
-[[package]]
-name = "jobstitch-server"
-version = "0.2.0"
-source = { editable = "server" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "jinja2" },
-    { name = "jobstitch-contracts" },
-    { name = "openai" },
-    { name = "pypdf" },
-    { name = "python-dotenv" },
-    { name = "python-multipart" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "jinja2" },
-    { name = "jobstitch-contracts", editable = "contracts" },
-    { name = "openai" },
-    { name = "pypdf" },
-    { name = "python-dotenv" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]
@@ -993,6 +936,63 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
+name = "resumix-client"
+version = "0.2.0"
+source = { editable = "client" }
+dependencies = [
+    { name = "httpx" },
+    { name = "openpyxl" },
+    { name = "pyperclip" },
+    { name = "resumix-contracts" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "openpyxl" },
+    { name = "pyperclip" },
+    { name = "resumix-contracts", editable = "contracts" },
+]
+
+[[package]]
+name = "resumix-contracts"
+version = "0.2.0"
+source = { editable = "contracts" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic" }]
+
+[[package]]
+name = "resumix-server"
+version = "0.2.0"
+source = { editable = "server" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "jinja2" },
+    { name = "openai" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
+    { name = "python-multipart" },
+    { name = "resumix-contracts" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "jinja2" },
+    { name = "openai" },
+    { name = "pypdf" },
+    { name = "python-dotenv" },
+    { name = "python-multipart", specifier = ">=0.0.9" },
+    { name = "resumix-contracts", editable = "contracts" },
+    { name = "uvicorn", specifier = ">=0.30" },
 ]
 
 [[package]]

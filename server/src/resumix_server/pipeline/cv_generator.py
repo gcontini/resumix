@@ -14,8 +14,8 @@ you will send. No model is shown that data — it goes to the template and
 nowhere else — but the renderer needs it, and so the endpoint takes it.
 
 Every input arrives in memory — prompts and template in a
-:class:`~jobstitch_server.bundle.ResourceBundle`, the profile and the
-candidate data in :class:`~jobstitch_server.bundle.CandidateInputs`. Nothing
+:class:`~resumix_server.bundle.ResourceBundle`, the profile and the
+candidate data in :class:`~resumix_server.bundle.CandidateInputs`. Nothing
 is read from disk and nothing is written outside ``work_dir``.
 """
 
@@ -307,7 +307,7 @@ class CVGenerator:
         and order are preserved — following the rules in the highlight prompt.
         The ``response_format`` is whatever the highlighter's endpoint
         declares it supports (see
-        :meth:`~jobstitch.model_selector.ModelSelector.response_format`); the
+        :meth:`~resumix.model_selector.ModelSelector.response_format`); the
         ``TailoredCVData`` JSON schema is also restated in the prompt, which
         substitutes for the structural guarantee strict ``json_schema`` mode
         would otherwise give on endpoints that lack it.
@@ -440,9 +440,12 @@ class CVGenerator:
     def _review_cv_data(self, cv_data: TailoredCVData, attempt:int) -> ReviewResult:
         """Review generated CV content against the master profile.
 
-        Uses the same model as CV generation (``cv_model``) with the
-        review system prompt; the master profile and the generated CV are the
-        only inputs.
+        Uses the same model as CV generation (``cv_model``) with the review
+        system prompt and ``temperature=0``; the master profile and the
+        generated CV are the only inputs. Writing a CV wants the provider's
+        default sampling, but judging one does not: left unpinned, the same CV
+        drew a different set of violations every round and the loop had no
+        fixed point to settle on.
         On an unparsable/unschema-valid response the review is retried once
         (the error is fed back to the model); if it still fails after 2
         attempts a warning is printed and an ``OK`` (no violations) result is
@@ -471,11 +474,12 @@ class CVGenerator:
             {"role": "user", "content": review_request},
         ]
 
+        reviewer = self.cv_model.with_(temperature=0)
         for retry in range(2):
             resp = self._call(
-                self.cv_model,
+                reviewer,
                 messages,
-                self.cv_model.response_format(
+                reviewer.response_format(
                     "review_output", ReviewResult.model_json_schema()
                 ),
             )

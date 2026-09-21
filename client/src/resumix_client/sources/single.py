@@ -1,4 +1,4 @@
-"""One named file as a source — ``jobstitch submit``."""
+"""One named file as a source — ``resumix submit``."""
 
 from __future__ import annotations
 

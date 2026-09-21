@@ -12,7 +12,7 @@ import shutil
 
 import pytest
 
-from jobstitch_server.bundle import CandidateInputs, ResourceBundle, default_bundle
+from resumix_server.bundle import CandidateInputs, ResourceBundle, default_bundle
 
 from server_helpers import FakeSelector, sample_cv_data
 
@@ -65,8 +65,8 @@ def fake_models() -> dict:
 def app_state(fake_models, tmp_path, bundle):
     from threading import BoundedSemaphore
 
-    from jobstitch_server.api.deps import AppState
-    from jobstitch_server.api.settings import Settings
+    from resumix_server.api.deps import AppState
+    from resumix_server.api.settings import Settings
 
     settings = Settings(work_root=tmp_path, request_budget_seconds=60.0)
     return AppState(
@@ -83,7 +83,7 @@ def client(app_state):
     """A TestClient over the real app, wired to fake models."""
     from fastapi.testclient import TestClient
 
-    from jobstitch_server.api.app import create_app
+    from resumix_server.api.app import create_app
 
     with TestClient(create_app(state=app_state)) as test_client:
         yield test_client

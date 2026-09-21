@@ -1,7 +1,7 @@
 # --- Secrets ----------------------------------------------------------------
 .env
 # The client's own configuration: it holds a bearer token.
-jobstitch.toml
+resumix.toml
 
 # --- Your data --------------------------------------------------------------
 # The fictional set in examples/candidate/ is committed; yours is not. Keep
@@ -15,8 +15,8 @@ jobstitch.toml
 # Anything a run produced: CVs, spreadsheets, scratch folders.
 /applications/
 /out/
-/jobstitch-data/*
-!/jobstitch-data/.gitkeep
+/resumix-data/*
+!/resumix-data/.gitkeep
 
 # --- Docs -------------------------------------------------------------------
 # The rendered site. doc/ is the source; mkdocs builds this.

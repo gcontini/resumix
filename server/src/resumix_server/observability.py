@@ -3,7 +3,7 @@
 Responses say what happened, not how. The commentary — including the line
 each model call writes with its duration and token counts — is collected here
 per request and written to the request's directory by
-:mod:`jobstitch_server.jobstore`, for ``GET /logs/{request_id}`` to serve.
+:mod:`resumix_server.jobstore`, for ``GET /logs/{request_id}`` to serve.
 
 One piece does the collecting: a :class:`logging.Handler` that copies every
 record emitted during a request into that request's :class:`Run`. Pipeline
@@ -26,10 +26,10 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Iterator, List, Optional
 
-from jobstitch_contracts import LogEntry
+from resumix_contracts import LogEntry
 
 #: Root logger name; everything in the server logs under it.
-LOGGER_ROOT = "jobstitch_server"
+LOGGER_ROOT = "resumix_server"
 
 #: Bounds, so one pathological run cannot produce an unbounded response body.
 MAX_LOG_ENTRIES = 2000
@@ -81,8 +81,8 @@ class Run:
 
 NULL_RUN = Run("-", collect=False)
 
-_run: ContextVar[Run] = ContextVar("jobstitch_run", default=NULL_RUN)
-_stage: ContextVar[str] = ContextVar("jobstitch_stage", default="-")
+_run: ContextVar[Run] = ContextVar("resumix_run", default=NULL_RUN)
+_stage: ContextVar[str] = ContextVar("resumix_stage", default="-")
 
 
 def current_run() -> Run:
@@ -138,7 +138,7 @@ _configured = False
 def configure_logging(level: Optional[str] = None) -> None:
     """Install stdout logging + the run collector. Idempotent.
 
-    Called by the API's lifespan and by the ``jobstitch-api`` entry point;
+    Called by the API's lifespan and by the ``resumix-api`` entry point;
     importing the package installs nothing.
     """
     global _configured
@@ -147,7 +147,7 @@ def configure_logging(level: Optional[str] = None) -> None:
     _configured = True
 
     logger = logging.getLogger(LOGGER_ROOT)
-    logger.setLevel(level or os.getenv("JOBSTITCH_LOG_LEVEL", "INFO").upper())
+    logger.setLevel(level or os.getenv("RESUMIX_LOG_LEVEL", "INFO").upper())
     logger.propagate = False
 
     stream = logging.StreamHandler(sys.stdout)

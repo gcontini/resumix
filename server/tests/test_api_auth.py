@@ -7,7 +7,7 @@ from dataclasses import replace
 import pytest
 from fastapi.testclient import TestClient
 
-from jobstitch_server.api.app import create_app
+from resumix_server.api.app import create_app
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-"""The wire format shared by the jobstitch server and its clients.
+"""The wire format shared by the resumix server and its clients.
 
 Nothing here talks to a network, a filesystem or a model — it is the set of
 shapes both sides agree on, so neither has to import the other:

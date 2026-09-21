@@ -1,4 +1,4 @@
-"""``jobstitch watch`` — watch a folder for job descriptions."""
+"""``resumix watch`` — watch a folder for job descriptions."""
 
 from __future__ import annotations
 

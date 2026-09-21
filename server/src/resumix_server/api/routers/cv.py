@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from jobstitch_contracts import CVStatus, Envelope, RenderedCV
+from resumix_contracts import CVStatus, Envelope, RenderedCV
 
 from ...bundle import CandidateInputs
 from ...jobstore import RESULT, STATUS, JobDir

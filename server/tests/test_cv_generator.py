@@ -7,9 +7,9 @@ import shutil
 
 import pytest
 
-from jobstitch_server.pipeline.cv_generator import CVGenerator
-from jobstitch_server.pipeline.cv_renderer import RenderResult
-from jobstitch_server.pipeline.errors import ModelOutputError
+from resumix_server.pipeline.cv_generator import CVGenerator
+from resumix_server.pipeline.cv_renderer import RenderResult
+from resumix_server.pipeline.errors import ModelOutputError
 
 from server_helpers import FakeSelector, sample_cv_data
 
@@ -201,6 +201,17 @@ def test_a_regeneration_does_not_carry_the_previous_round_s_conversation(
     assert "Second" in last and "First" not in last
 
 
+def test_only_the_review_call_pins_the_temperature(bundle, candidate, tmp_path, no_latex):
+    """Writing a CV wants the provider's default sampling; judging one does
+    not, or the same CV draws different violations every round."""
+    model = FakeSelector(cv_json(), OK_REVIEW)
+    build(bundle, candidate, tmp_path, model).generate("JD")
+
+    write, review = model.calls
+    assert "temperature" not in write
+    assert review["temperature"] == 0
+
+
 def test_review_without_violations_is_treated_as_a_pass(bundle, candidate, tmp_path, no_latex):
     model = FakeSelector(cv_json(), '{"status": "REVIEW", "violations": []}')
     document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
@@ -224,7 +235,7 @@ def test_highlighting_replaces_the_content_when_it_works(bundle, candidate, tmp_
 
 
 def test_the_time_budget_stops_the_loop(bundle, candidate, tmp_path, no_latex):
-    from jobstitch_server.pipeline.errors import BudgetExceededError
+    from resumix_server.pipeline.errors import BudgetExceededError
 
     model = FakeSelector(cv_json(), OK_REVIEW)
     gen = build(bundle, candidate, tmp_path, model, deadline=0.0)

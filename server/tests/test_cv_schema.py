@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from jobstitch_server.pipeline.cv_schema import TailoredCVData, prompt_schema
+from resumix_server.pipeline.cv_schema import TailoredCVData, prompt_schema
 
 from server_helpers import sample_cv_data
 

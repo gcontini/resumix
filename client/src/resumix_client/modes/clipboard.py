@@ -1,4 +1,4 @@
-"""``jobstitch clipboard`` — watch the clipboard, one posting at a time."""
+"""``resumix clipboard`` — watch the clipboard, one posting at a time."""
 
 from __future__ import annotations
 

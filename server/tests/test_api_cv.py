@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from jobstitch_contracts import RenderedCV
+from resumix_contracts import RenderedCV
 
-from jobstitch_server.api.multipart import MAX_IMAGES
+from resumix_server.api.multipart import MAX_IMAGES
 
 from server_helpers import EXAMPLE_CANDIDATE, sample_cv_data, start_cv, wait_for_job
 

@@ -5,8 +5,8 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from jobstitch_contracts import JDAnalysis
-from jobstitch_server.pipeline.jd_validator import JDValidator
+from resumix_contracts import JDAnalysis
+from resumix_server.pipeline.jd_validator import JDValidator
 
 VALID = {
     "match_percentage": 82,

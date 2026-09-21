@@ -1,11 +1,11 @@
 [project]
-name = "jobstitch-client"
+name = "resumix-client"
 version = "0.2.0"
-description = "jobstitch CLI: clipboard/watch/submit/render against a jobstitch server."
+description = "resumix CLI: clipboard/watch/submit/render against a resumix server."
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "jobstitch-contracts",
+    "resumix-contracts",
     # The only transport. Everything else here is local I/O.
     "httpx>=0.27",
     # Clipboard mode.
@@ -15,10 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
-jobstitch = "jobstitch_client.cli:main"
+resumix = "resumix_client.cli:main"
 
 [tool.uv.sources]
-jobstitch-contracts = { workspace = true }
+resumix-contracts = { workspace = true }
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -28,4 +28,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"jobstitch_client.resources" = ["*.xlsx"]
+"resumix_client.resources" = ["*.xlsx"]

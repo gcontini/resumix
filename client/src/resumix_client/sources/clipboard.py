@@ -9,7 +9,7 @@ import time
 from typing import Iterator, Optional
 
 import pyperclip
-from jobstitch_contracts import static_jd_guess
+from resumix_contracts import static_jd_guess
 
 from . import JDCandidate
 
@@ -26,7 +26,7 @@ UNREACHABLE_DISPLAY = ("open display", "wayland")
 
 NO_CLIPBOARD_HINT = """  On Linux the clipboard needs a helper: apt install xclip (X11) or
   wl-clipboard (Wayland), and a reachable DISPLAY/WAYLAND_DISPLAY.
-  Over SSH, forward X11 (ssh -X) or use `jobstitch watch` instead, which
+  Over SSH, forward X11 (ssh -X) or use `resumix watch` instead, which
   needs no clipboard at all."""
 
 

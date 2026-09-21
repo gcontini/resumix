@@ -35,12 +35,12 @@ jobs:
       # Classic builder, as everywhere else: the Dockerfile must stay
       # buildable without BuildKit.
       - name: Build the server image
-        run: DOCKER_BUILDKIT=0 docker build -t jobstitch-server .
+        run: DOCKER_BUILDKIT=0 docker build -t resumix-server .
       - name: Start it and check it is healthy
         run: |
           docker run -d --name api -p 8080:8080 \
             -e MODEL_API_KEY=ci -e MODEL_BASE_URL=http://invalid/v1 \
-            jobstitch-server
+            resumix-server
           for i in $(seq 1 30); do
             curl -fsS localhost:8080/healthz && break || sleep 2
           done
@@ -53,9 +53,9 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            asset: jobstitch-linux-x86_64
+            asset: resumix-linux-x86_64
           - os: windows-latest
-            asset: jobstitch-windows-x86_64
+            asset: resumix-windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -71,13 +71,13 @@ jobs:
         uses: actions/cache@v6
         with:
           path: build
-          key: pyinstaller-${{ matrix.os }}-${{ hashFiles('uv.lock', 'client/packaging/jobstitch.spec') }}
+          key: pyinstaller-${{ matrix.os }}-${{ hashFiles('uv.lock', 'client/packaging/resumix.spec') }}
 
       - name: Build the executable
-        run: uv run --with pyinstaller pyinstaller --noconfirm client/packaging/jobstitch.spec
+        run: uv run --with pyinstaller pyinstaller --noconfirm client/packaging/resumix.spec
 
       - name: Check it runs
-        run: ./dist/jobstitch --help
+        run: ./dist/resumix --help
         shell: bash
 
       # The real question is not "does it start" but "does it talk to a
@@ -96,10 +96,10 @@ jobs:
           PORT: "8080"
           # The runner's /tmp is shared and holds unreadable directories;
           # the server should not have to scan it at all.
-          JOBSTITCH_WORK_DIR: ${{ runner.temp }}/jobstitch-work
+          RESUMIX_WORK_DIR: ${{ runner.temp }}/resumix-work
         run: |
           set -eux
-          uv run jobstitch-api &
+          uv run resumix-api &
           for i in $(seq 1 30); do
             curl -fsS localhost:8080/healthz && break || sleep 2
           done
@@ -108,7 +108,7 @@ jobs:
             '\begin{document}Hello from CI.\end{document}' > smoke.tex
           # No model is reachable here, and render needs none: this is
           # multipart in, envelope out, pdflatex, base64 back, PDF on disk.
-          ./dist/jobstitch -v --server http://localhost:8080 render smoke.tex
+          ./dist/resumix -v --server http://localhost:8080 render smoke.tex
           head -c 4 smoke.pdf | grep -q '%PDF'
           rm -f smoke.tex smoke.pdf
         shell: bash
@@ -119,18 +119,18 @@ jobs:
         run: |
           set -eux
           mkdir -p package/examples
-          cp dist/jobstitch* package/
+          cp dist/resumix* package/
           cp client/README.md package/
           cp -r examples/candidate package/examples/
           cp examples/posting.txt package/examples/
           printf '%s\n' \
-            '# Rename to jobstitch.toml, next to the executable.' \
+            '# Rename to resumix.toml, next to the executable.' \
             'server_url = "http://localhost:8080"' \
             '# token = "the-bearer-token"' \
             'cover_letter = "no"' \
             '# debug = true    # fetch the server log after every call' \
             '# verbose = true  # print each call and its request id' \
-            > package/jobstitch.toml.example
+            > package/resumix.toml.example
           # The README's links are written for the repository; in the
           # download, examples/ sits beside it and there is no server/.
           sed -i 's|(\.\./examples/candidate)|(examples/candidate)|' package/README.md

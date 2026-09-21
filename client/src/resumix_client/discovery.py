@@ -2,7 +2,7 @@
 
 The rule is: put your files in the current folder. Anything named below that
 sits in the directory you are running from (or in ``--data-dir``) is picked up
-by name. An explicit path in ``jobstitch.toml`` or on the command line always
+by name. An explicit path in ``resumix.toml`` or on the command line always
 wins, and what cannot be found locally falls back to the server's default.
 
 Images are the one thing found by shape rather than by name: every ``.png``,
@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-#: The files jobstitch knows how to use, by the name it looks for.
+#: The files resumix knows how to use, by the name it looks for.
 KNOWN_FILES = (
     "candidate_profile.json",
     "candidate_data.json",
@@ -31,7 +31,7 @@ KNOWN_FILES = (
 #: Images are picked up by extension, not by name.
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg")
 
-CONFIG_NAME = "jobstitch.toml"
+CONFIG_NAME = "resumix.toml"
 
 
 def search_dirs(extra: Optional[Path] = None) -> List[Path]:
@@ -48,14 +48,14 @@ def search_dirs(extra: Optional[Path] = None) -> List[Path]:
 
 
 def find_config(explicit: Optional[Path] = None) -> Optional[Path]:
-    """Locate ``jobstitch.toml``: the flag, then ``$JOBSTITCH_CONFIG``, then the
+    """Locate ``resumix.toml``: the flag, then ``$RESUMIX_CONFIG``, then the
     search folders."""
     if explicit is not None:
         path = Path(explicit).expanduser()
         if not path.is_file():
             raise FileNotFoundError(f"config file not found: {path}")
         return path
-    from_env = os.getenv("JOBSTITCH_CONFIG")
+    from_env = os.getenv("RESUMIX_CONFIG")
     if from_env:
         path = Path(from_env).expanduser()
         if path.is_file():

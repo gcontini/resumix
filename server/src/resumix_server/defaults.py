@@ -1,6 +1,6 @@
 """Where the server's impersonal defaults come from.
 
-Two sources, in order: the directory named by ``$JOBSTITCH_RESOURCES`` (so a
+Two sources, in order: the directory named by ``$RESUMIX_RESOURCES`` (so a
 deployment can mount edited prompts or a different template without a
 rebuild), then the copy shipped inside the package. A file present in neither
 is a packaging bug, so it raises.
@@ -35,12 +35,12 @@ SIGNATURE_FILE = "candidate_signature.png"
 @lru_cache(maxsize=1)
 def packaged_dir() -> Path:
     """The ``resources/`` folder inside the installed package."""
-    return Path(str(resources.files("jobstitch_server.resources")))
+    return Path(str(resources.files("resumix_server.resources")))
 
 
 def override_dir() -> Optional[Path]:
-    """``$JOBSTITCH_RESOURCES``, when set to an existing directory."""
-    raw = os.getenv("JOBSTITCH_RESOURCES")
+    """``$RESUMIX_RESOURCES``, when set to an existing directory."""
+    raw = os.getenv("RESUMIX_RESOURCES")
     if not raw:
         return None
     path = Path(raw).expanduser()

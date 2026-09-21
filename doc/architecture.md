@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TB
     subgraph your["your machine"]
-        CLI["<b>jobstitch</b> (client)<br/>single executable"]
+        CLI["<b>resumix</b> (client)<br/>single executable"]
         FILES["candidate_profile.json<br/>candidate_data.json<br/>candidate_preferences.md<br/>resume.tex.jinja · prompts · images"]
         OUT["cv/ · discarded/ · error/ · working/<br/>applications.xlsx"]
         FILES --> CLI
@@ -13,14 +13,14 @@ flowchart TB
     end
 
     subgraph wire["contracts"]
-        CT["jobstitch_contracts<br/>Envelope · CVStatus · RenderedCV<br/>JDAnalysis · JDDetection · RequestLog<br/>static_jd_guess"]
+        CT["resumix_contracts<br/>Envelope · CVStatus · RenderedCV<br/>JDAnalysis · JDDetection · RequestLog<br/>static_jd_guess"]
     end
 
     subgraph host["wherever you run it"]
-        API["<b>jobstitch-server</b><br/>FastAPI + uvicorn"]
+        API["<b>resumix-server</b><br/>FastAPI + uvicorn"]
         PIPE["pipeline<br/>jd_validator · cv_generator<br/>cv_renderer · letter_generator"]
         RES["resources<br/>5 prompts · resume.tex.jinja<br/>models.toml"]
-        STORE["JOBSTITCH_WORK_DIR<br/>one directory per request"]
+        STORE["RESUMIX_WORK_DIR<br/>one directory per request"]
         API --> PIPE
         RES --> PIPE
         PIPE --> STORE
@@ -55,7 +55,7 @@ no database, no accounts and no seeded state; the only thing it keeps is one
 directory per request:
 
 ```text
-$JOBSTITCH_WORK_DIR/<request_id>/
+$RESUMIX_WORK_DIR/<request_id>/
     status.json   a CV job's state — only CV jobs have one
     result.json   the finished RenderedCV — only once the job is done
     log.json      every line the request produced, model calls included
@@ -71,7 +71,7 @@ rest are dropped, except one still marked `running`.
 ```mermaid
 flowchart TB
     REQ["request"] --> MW["RequestContextMiddleware<br/>assigns request_id, binds the Run"]
-    MW --> AUTH{"JOBSTITCH_API_TOKEN set?"}
+    MW --> AUTH{"RESUMIX_API_TOKEN set?"}
     AUTH -->|"no match"| E401["401 unauthorized"]
     AUTH -->|"ok / not set"| PARTS["multipart parts<br/>size, UTF-8, JSON, ≤10 images"]
     PARTS --> SLOT{"a free job slot?"}
@@ -90,7 +90,7 @@ flowchart TB
   decides what an exception produces on the wire, so a failure body has the
   same shape as a success: a `request_id`, `ok: false` and one line naming the
   kind and the stage. See [error model](protocol.md#errors).
-- **One semaphore.** `JOBSTITCH_MAX_CONCURRENT_JOBS` (10) bounds requests in
+- **One semaphore.** `RESUMIX_MAX_CONCURRENT_JOBS` (10) bounds requests in
   flight. A full server refuses immediately rather than queueing a caller for
   minutes.
 - **The pipeline is a library.** Everything under `pipeline/` takes its inputs
@@ -116,7 +116,7 @@ table of `resources/models.toml`. Three roles call it:
 Provider differences are declared as capabilities (`web_search`, `thinking`,
 `structured_output`), never branched on by name. Each role's `model`,
 `temperature`, `thinking` and `structured_output` can be overridden with a
-`JOBSTITCH_<ROLE>_<FIELD>` environment variable without editing the file.
+`RESUMIX_<ROLE>_<FIELD>` environment variable without editing the file.
 
 Every model reply is re-validated: the JSON schema goes into the prompt *and*
 into `response_format`, and the reply is parsed by pydantic. A weak
@@ -133,13 +133,13 @@ slot.
 The consequences are worth knowing before you deploy:
 
 - **A job id only means something to the instance holding its directory.** Run
-  one instance per `JOBSTITCH_WORK_DIR`, or give several a shared root and
+  one instance per `RESUMIX_WORK_DIR`, or give several a shared root and
   route by request id.
 - **`WEB_CONCURRENCY=1`.** The slots and the workers are per-process, and a
   starting process marks every job still marked `running` as failed — correct
   for its own orphans, wrong for a sibling's live jobs.
 - **A job cannot be cancelled yet.** An abandoned one holds a slot until its
-  own budget runs out (`JOBSTITCH_REQUEST_BUDGET_SECONDS`, 20 minutes).
+  own budget runs out (`RESUMIX_REQUEST_BUDGET_SECONDS`, 20 minutes).
   `PLANNED-FEATURES.md` describes the `DELETE /v1/cv/{id}` that fixes it.
 
 ## Observability

@@ -1,4 +1,4 @@
-"""jobstitch server: the HTTP API that writes and renders CVs.
+"""resumix server: the HTTP API that writes and renders CVs.
 
 Layers, outermost first:
 
@@ -14,9 +14,9 @@ Layers, outermost first:
   per-request split between them and the personal inputs.
 - ``observability`` / ``jobstore`` — the per-request log, including the token
   spend of every model call, and the state of a running CV job. Both live in
-  one directory per request under ``JOBSTITCH_WORK_DIR``.
+  one directory per request under ``RESUMIX_WORK_DIR``.
 
-The wire format lives in :mod:`jobstitch_contracts`, which both this and the
+The wire format lives in :mod:`resumix_contracts`, which both this and the
 client depend on; neither imports the other.
 """
 

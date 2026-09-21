@@ -5,11 +5,11 @@ per request, to a server that holds the model API keys and the LaTeX
 toolchain. No Python, no API key and no LaTeX install of your own.
 
 ```text
-jobstitch [global options] MODE [mode options]
+resumix [global options] MODE [mode options]
 ```
 
-Global options work on either side of the mode name: `jobstitch -v submit
-posting.txt --out ~/applications` and `jobstitch submit -v …` do the same
+Global options work on either side of the mode name: `resumix -v submit
+posting.txt --out ~/applications` and `resumix submit -v …` do the same
 thing.
 
 ## Which mode
@@ -40,7 +40,7 @@ flowchart TD
 ### `clipboard` — copy a posting, get a CV
 
 ```bash
-jobstitch clipboard --out ~/applications
+resumix clipboard --out ~/applications
 ```
 
 Watches the clipboard. When you copy something that looks like a posting, it
@@ -64,7 +64,7 @@ use `watch`, which needs no clipboard at all.
 ### `watch` — drop files into a folder
 
 ```bash
-jobstitch watch --in ~/Downloads/postings --out ~/applications
+resumix watch --in ~/Downloads/postings --out ~/applications
 ```
 
 Every file dropped into `--in` is **claimed immediately** — moved into
@@ -79,7 +79,7 @@ folder as `--out`.
 ### `submit` — one file, once
 
 ```bash
-jobstitch submit posting.txt --out ~/applications --yes
+resumix submit posting.txt --out ~/applications --yes
 ```
 
 The same pipeline for a single file, then it exits. No recovery prompt: a
@@ -90,8 +90,8 @@ folder it watches.
 ### `submit-raw` — just the CV, right here
 
 ```bash
-jobstitch submit-raw posting.txt
-jobstitch submit-raw posting.txt -o cv.pdf -o cv.json -o cv.tex
+resumix submit-raw posting.txt
+resumix submit-raw posting.txt -o cv.pdf -o cv.json -o cv.tex
 ```
 
 The CV and nothing else: no detection, no analysis, no question before
@@ -107,8 +107,8 @@ second run counts up to `posting_1.pdf` rather than replacing it.
 ### `render` — compile an edited CV
 
 ```bash
-jobstitch render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
-jobstitch render cv_Jordan_Rivera.tex --output /tmp/preview.pdf
+resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
+resumix render cv_Jordan_Rivera.tex --output /tmp/preview.pdf
 ```
 
 Give it the `.json` document to re-render from the content, or the `.tex` to
@@ -120,7 +120,7 @@ that request, which is where the LaTeX error is.
 ### `logs` — what the server did
 
 ```bash
-jobstitch logs b510f8dff047
+resumix logs b510f8dff047
 ```
 
 Every failure names a request id; this is the other half of that. It prints
@@ -134,11 +134,11 @@ hundred requests, so ask reasonably soon; a pruned id gives `404`.
 
 | Flag | What it does |
 |---|---|
-| `--server URL` | The jobstitch server. Default `http://localhost:8080`. |
+| `--server URL` | The resumix server. Default `http://localhost:8080`. |
 | `--token TOKEN` | Bearer token, if the server requires one. |
 | `--temperature F` | Sampling temperature override, passed to the server. |
 | `--pages N` | Page limit the CV must fit. Default: the server's, which is 2. |
-| `--config FILE` | Use this `jobstitch.toml` instead of searching for one. |
+| `--config FILE` | Use this `resumix.toml` instead of searching for one. |
 | `--data-dir DIR` | Look for your files here before the current folder. |
 | `-d`, `--debug` | Fetch the server's log after **every** call and fold it into `log.log`. Without it, only failures are fetched. |
 | `-v`, `--verbose` | Print what the server reports about each finished step — tokens, thinking tokens, elapsed, and the reviewer's or the page check's own words — plus the request id and the `/healthz` attempts. |
@@ -165,16 +165,16 @@ Everything resolves in this order:
 
 ```mermaid
 flowchart LR
-    CLI["command line"] --> ENV["environment"] --> TOML["jobstitch.toml"] --> FOUND["a file in the<br/>current folder"] --> SRV["the server's default"]
+    CLI["command line"] --> ENV["environment"] --> TOML["resumix.toml"] --> FOUND["a file in the<br/>current folder"] --> SRV["the server's default"]
 ```
 
-### `jobstitch.toml`
+### `resumix.toml`
 
-Looked for as `--config`, then `$JOBSTITCH_CONFIG`, then `jobstitch.toml` in
+Looked for as `--config`, then `$RESUMIX_CONFIG`, then `resumix.toml` in
 the current folder.
 
 ```toml
-server_url   = "https://jobstitch.example.run.app"
+server_url   = "https://resumix.example.run.app"
 token        = "the-bearer-token"   # only if the server requires one
 cover_letter = "no"                 # no | yes | letter_only
 # temperature = 0.4                 # passed to the server
@@ -204,9 +204,9 @@ means.
 
 | Variable | What it does |
 |---|---|
-| `JOBSTITCH_API_URL` | The server URL. Beaten by `--server`. |
-| `JOBSTITCH_API_TOKEN` | The bearer token. Beaten by `--token`. |
-| `JOBSTITCH_CONFIG` | Path to `jobstitch.toml`. Beaten by `--config`. |
+| `RESUMIX_API_URL` | The server URL. Beaten by `--server`. |
+| `RESUMIX_API_TOKEN` | The bearer token. Beaten by `--token`. |
+| `RESUMIX_CONFIG` | Path to `resumix.toml`. Beaten by `--config`. |
 
 ### Your files
 
@@ -252,7 +252,7 @@ Start from the fictional set in the repository's `examples/candidate/`.
 
 File names come from your own `candidate_data.json`, not from the server.
 
-To revise a CV: edit `cv_Jordan_Rivera.json` and run `jobstitch render` on it —
+To revise a CV: edit `cv_Jordan_Rivera.json` and run `resumix render` on it —
 one LaTeX compile, no model calls. Editing the `.tex` and rendering that works
 too. The spreadsheet's own header row is the schema: rename, reorder or add
 columns in your copy and the rows follow.
@@ -291,14 +291,14 @@ newer requests have pushed it out, and keeps nothing else.
 
 | What you see | What to do |
 |---|---|
-| `cannot reach the jobstitch server at …` | The server is down or the URL is wrong. `curl <url>/healthz` to check. |
+| `cannot reach the resumix server at …` | The server is down or the URL is wrong. `curl <url>/healthz` to check. |
 | `did not come up after 3 attempts` | The server was unreachable on three tries two seconds apart — a cold container may need longer; try again. |
-| `401` / `a valid bearer token is required` | The server wants a token: set `token` in `jobstitch.toml` or pass `--token`. |
+| `401` / `a valid bearer token is required` | The server wants a token: set `token` in `resumix.toml` or pass `--token`. |
 | `candidate_profile.json is required but was not found` | Put it in the current folder, or name it under `[files]`. |
 | `no clipboard here: neither DISPLAY nor WAYLAND_DISPLAY…` | Install `xclip` or `wl-clipboard`, or use `watch`. |
 | `429` / `all job slots are busy` | The server is at capacity. Try again shortly. |
 | `clipboard: not a posting (412 chars, nothing sent)` | What you copied is a fragment. Nothing was sent anywhere. |
 | A posting you wanted lands in `error/` | Read the `.log` beside it. A wrong "not a job description" verdict usually means the copy grabbed only part of the page. |
-| You need more than the error line | Re-run with `-d`, or `jobstitch logs <request id>` while the server still has it. |
+| You need more than the error line | Re-run with `-d`, or `resumix logs <request id>` while the server still has it. |
 | `working/` is not empty | A previous run stopped mid-job. `clipboard` and `watch` offer to resume or clean at startup. |
-| The client died but the job was running | `jobstitch submit posting.txt --resume <request_id>` picks it back up. |
+| The client died but the job was running | `resumix submit posting.txt --resume <request_id>` picks it back up. |

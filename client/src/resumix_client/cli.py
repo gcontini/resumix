@@ -1,7 +1,7 @@
-"""``jobstitch`` — the command line.
+"""``resumix`` — the command line.
 
 Parses, builds the :class:`Config` (flags beat the environment beats
-``jobstitch.toml`` beats what is in the current folder) and hands over to a
+``resumix.toml`` beats what is in the current folder) and hands over to a
 mode. It contains no logic of its own beyond that.
 """
 
@@ -32,12 +32,12 @@ files:
   ./incoming (created if missing).
 
 examples:
-  jobstitch clipboard --out ~/applications
-  jobstitch watch --in ~/Downloads/jds --out ~/applications --cover-letter yes
-  jobstitch submit posting.txt --out ~/applications --yes
-  jobstitch submit-raw posting.txt -o cv.pdf -o cv.json
-  jobstitch render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
-  jobstitch logs 0f9c1a7b-2f4e-4f2a-9a31-5c0d2f1e8b44
+  resumix clipboard --out ~/applications
+  resumix watch --in ~/Downloads/jds --out ~/applications --cover-letter yes
+  resumix submit posting.txt --out ~/applications --yes
+  resumix submit-raw posting.txt -o cv.pdf -o cv.json
+  resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
+  resumix logs 0f9c1a7b-2f4e-4f2a-9a31-5c0d2f1e8b44
 """
 
 
@@ -49,7 +49,7 @@ def global_options() -> argparse.ArgumentParser:
     """
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", type=Path, default=argparse.SUPPRESS,
-                        help="Path to jobstitch.toml.")
+                        help="Path to resumix.toml.")
     common.add_argument("--data-dir", type=Path, default=argparse.SUPPRESS,
                         help="Folder to look in for your files (before the current folder).")
     common.add_argument("--server", default=argparse.SUPPRESS,
@@ -70,8 +70,8 @@ def global_options() -> argparse.ArgumentParser:
 def build_parser() -> argparse.ArgumentParser:
     common = global_options()
     parser = argparse.ArgumentParser(
-        prog="jobstitch",
-        description="Turn job descriptions into tailored CVs, against a jobstitch server.",
+        prog="resumix",
+        description="Turn job descriptions into tailored CVs, against a resumix server.",
         epilog=EPILOGUE,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[common],

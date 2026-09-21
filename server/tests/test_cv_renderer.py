@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from jobstitch_server.pipeline.cv_renderer import CVRenderer, check_pdf_pages
-from jobstitch_server.pipeline.errors import LatexCompileError, LatexTimeoutError
+from resumix_server.pipeline.cv_renderer import CVRenderer, check_pdf_pages
+from resumix_server.pipeline.errors import LatexCompileError, LatexTimeoutError
 
 from server_helpers import GOLDEN
 
@@ -185,7 +185,7 @@ def test_page_check_escalates_its_advice(monkeypatch, tmp_path):
         def __init__(self, pages): self.pages = pages
 
     def reader_with(*counts):
-        monkeypatch.setattr("jobstitch_server.pipeline.cv_renderer.PdfReader",
+        monkeypatch.setattr("resumix_server.pipeline.cv_renderer.PdfReader",
                             lambda p: FakeReader([FakePage(n) for n in counts]))
 
     reader_with(0, 0, 1)
@@ -209,7 +209,7 @@ def test_page_check_honors_a_custom_limit(monkeypatch, tmp_path):
         def __init__(self, pages): self.pages = pages
 
     monkeypatch.setattr(
-        "jobstitch_server.pipeline.cv_renderer.PdfReader",
+        "resumix_server.pipeline.cv_renderer.PdfReader",
         lambda p: FakeReader([FakePage(0), FakePage(1)]),
     )
     result = check_pdf_pages(tmp_path / "x.pdf", limit=1)

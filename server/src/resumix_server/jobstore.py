@@ -1,6 +1,6 @@
 """Where a request's scratch space, its log and its CV job state live.
 
-One directory per request under ``JOBSTITCH_WORK_DIR``::
+One directory per request under ``RESUMIX_WORK_DIR``::
 
     <root>/<request_id>/
         status.json   a CV job's state; only CV jobs have one

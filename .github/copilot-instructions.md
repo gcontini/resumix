@@ -1,13 +1,13 @@
-# Copilot Instructions — jobstitch
+# Copilot Instructions — resumix
 
-**jobstitch** turns a job description into a tailored, two-page LaTeX CV and
+**resumix** turns a job description into a tailored, two-page LaTeX CV and
 an optional cover letter. It is a `uv` workspace of three packages, split so
 each can be deployed and tested independently:
 
 ```
-contracts/   jobstitch_contracts  — pydantic models + envelope + the free JD guess
-server/      jobstitch_server     — stateless FastAPI service: LLM calls + pdflatex
-client/      jobstitch_client     — the thing you run: clipboard/watch/submit/render
+contracts/   resumix_contracts  — pydantic models + envelope + the free JD guess
+server/      resumix_server     — stateless FastAPI service: LLM calls + pdflatex
+client/      resumix_client     — the thing you run: clipboard/watch/submit/render
 ```
 
 Dependency direction is one-way — `client → contracts ← server`, never
@@ -19,7 +19,7 @@ global state); this file is the file map and the day-to-day commands.
 
 ## Components (file map)
 
-**`contracts/src/jobstitch_contracts/`** — the wire format, nothing else
+**`contracts/src/resumix_contracts/`** — the wire format, nothing else
 - `payloads.py` — `CVStatus` (`status`, `detail`: where a CV job is now and
   one line about the step before, no history), `RenderedCV`
   (`tex`, `pdf_base64`, `document`), `CoverLetter`, `ServerStatus`. The CV
@@ -35,7 +35,7 @@ global state); this file is the file map and the day-to-day commands.
 - `guess.py` — `static_jd_guess(text) -> bool`, the free structural check
   (length band, no binary) both sides can run before paying for anything.
 
-**`server/src/jobstitch_server/`** — personal data arrives per request and is
+**`server/src/resumix_server/`** — personal data arrives per request and is
 dropped when it ends; a request's own directory is the only thing kept
 - `api/app.py` — `create_app()`, the ASGI middleware that mints the request id
   (filtered: it names a directory) and sets the log collector contextvar, and
@@ -45,12 +45,12 @@ dropped when it ends; a request's own directory is the only thing kept
   dir + the log on disk afterwards).
 - `api/jobs.py` — the CV worker thread: re-establishes the `Run`, reports each
   step by rewriting `status.json`, stores the result or the failure.
-- `jobstore.py` — one directory per request under `JOBSTITCH_WORK_DIR`
+- `jobstore.py` — one directory per request under `RESUMIX_WORK_DIR`
   (`status.json`, `result.json`, `log.json`, `work/`), atomic writes, pruned
   to the newest 200.
 - `api/routers/{health,jd,cv,letter,logs}.py` — one router per resource.
   `logs.py` is `GET /logs/{request_id}` against `jobstore.py`'s directory
-  per request under `JOBSTITCH_WORK_DIR` (newest 200 kept) — the one piece of
+  per request under `RESUMIX_WORK_DIR` (newest 200 kept) — the one piece of
   state the server holds, and it is disposable.
 - `api/errors.py` — maps `PipelineError`/`ValidationError`/`openai.APIError`
   to a status and an `ok:false` envelope; never echoes the provider body.
@@ -91,16 +91,16 @@ dropped when it ends; a request's own directory is the only thing kept
 prompts, `resume.tex.jinja`, `models.toml`, a blank `candidate_signature.png`
 (the one image the stock template includes; a request's own images are merged
 over the defaults by file name).
-Packaged as `jobstitch_server.resources` (see `server/pyproject.toml`) so
+Packaged as `resumix_server.resources` (see `server/pyproject.toml`) so
 `importlib.resources` still finds it despite living outside `src/`.
 
-**`client/src/jobstitch_client/`** — your data, a bearer token, no Python
+**`client/src/resumix_client/`** — your data, a bearer token, no Python
 required to run it (PyInstaller `--onefile`)
-- `api.py` — `JobstitchApi` (Protocol) / `HttpApi` (httpx) — the only module
-  that knows the server exists. `JobstitchError` carries `request_id` so a
+- `api.py` — `ResumixApi` (Protocol) / `HttpApi` (httpx) — the only module
+  that knows the server exists. `ResumixError` carries `request_id` so a
   caller can fetch what the server did.
 - `config.py` / `discovery.py` — settings resolution, highest precedence
-  first: CLI flag → env var → `jobstitch.toml` → file found next to the
+  first: CLI flag → env var → `resumix.toml` → file found next to the
   executable → server default. `CONFIG_KEYS` maps short TOML keys to the
   filenames `discovery.py` looks for.
 - `runner.py` — `JobRunner`: the one place the step order is written
@@ -108,7 +108,7 @@ required to run it (PyInstaller `--onefile`)
   call goes through `_call()`, which fetches the request's server log when
   `--debug` is set, or unconditionally on failure.
 - `joblog.py` — `JobLog` (per-job `log.log`, client steps + folded-in server
-  log), `format_entries()` (same rendering, for `jobstitch logs <id>`).
+  log), `format_entries()` (same rendering, for `resumix logs <id>`).
 - `workspace.py` — `Workspace`: owns the `working/error/discarded/cv` folder
   tree, atomic moves, the daily subfolders. `take_in(path, move=...)` — moved
   for a watched inbox, copied for a named argument (`submit` must not consume
@@ -138,7 +138,7 @@ required to run it (PyInstaller `--onefile`)
   rides on it — no logs, no usage — so the common case pays nothing for what
   it does not ask for.
 - **`GET /logs/{request_id}`** is the only way to see what a request did.
-  Backed by that request's directory under `JOBSTITCH_WORK_DIR`
+  Backed by that request's directory under `RESUMIX_WORK_DIR`
   (`jobstore.py`, newest 200 kept); an id that was pruned, that failed before
   any work started, or that landed on a different instance, is a `404`. The
   client fetches it after every call with `--debug`, and always on failure.
@@ -166,7 +166,7 @@ required to run it (PyInstaller `--onefile`)
   `/logs` if you need it).
 - **`submit` copies its input; `watch` moves it.** An inbox gets emptied; an
   argument you named does not disappear.
-- **Concurrency**: one `BoundedSemaphore(JOBSTITCH_MAX_CONCURRENT_JOBS)`
+- **Concurrency**: one `BoundedSemaphore(RESUMIX_MAX_CONCURRENT_JOBS)`
   (default 10) gates job handlers → `429` + `Retry-After` when full. No
   second gate for the LaTeX compile — it is fast enough not to need one.
 - **Every model reply is re-validated.** The schema is shown in the prompt
@@ -177,14 +177,14 @@ required to run it (PyInstaller `--onefile`)
 
 - Python 3.12, `uv` workspace (`pyproject.toml` at the root plus one per
   package); `uv sync` installs all three in editable mode. Console scripts:
-  `jobstitch-api` (server), `jobstitch` (client).
+  `resumix-api` (server), `resumix` (client).
 - LLM access via any OpenAI-compatible endpoint — one provider, one API key
   (`MODEL_API_KEY`/`MODEL_BASE_URL`; see `.env.example`), declared once in
   the `[provider]` table of
   `server/resources/models.toml`. The three roles
   (`summary`/`cv`/`highlight`) each declare only model name and generation
   settings, which can also be overridden per role via
-  `JOBSTITCH_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
+  `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
   structured_output).
 - `%`-style lazy logging args, never f-strings inside `logger.*` — sanitized
   LaTeX can reach a log line and a literal `%` would break the formatter.
@@ -195,7 +195,7 @@ required to run it (PyInstaller `--onefile`)
   processes).
 - Docker: **classic builder only** — no BuildKit features, no heredocs in a
   Dockerfile (`Dockerfile`, at the repo root, built with `DOCKER_BUILDKIT=0`).
-- PyInstaller (`client/packaging/jobstitch.spec`), not Cython — Cython still
+- PyInstaller (`client/packaging/resumix.spec`), not Cython — Cython still
   needs an interpreter and does not produce a standalone exe. Build on the
   target OS; it does not cross-compile.
 - Keep the code simple; this is a personal tool wearing production-shaped
@@ -209,8 +209,8 @@ required to run it (PyInstaller `--onefile`)
 uv sync
 
 # run from source
-uv run jobstitch-api                       # the server
-uv run jobstitch clipboard --out ~/applications   # the client
+uv run resumix-api                       # the server
+uv run resumix clipboard --out ~/applications   # the client
 
 # tests — all four suites, no API key, no network
 uv run pytest
@@ -218,11 +218,11 @@ uv run pytest server/tests                 # one package only
 uv run pytest -k architecture              # the dependency-direction rule
 
 # the server image (classic builder only)
-DOCKER_BUILDKIT=0 docker build -t jobstitch-server .
-docker run --rm -p 8080:8080 --env-file .env jobstitch-server
+DOCKER_BUILDKIT=0 docker build -t resumix-server .
+docker run --rm -p 8080:8080 --env-file .env resumix-server
 
 # the client executable (build on the OS you are targeting)
-uv run --with pyinstaller pyinstaller client/packaging/jobstitch.spec
+uv run --with pyinstaller pyinstaller client/packaging/resumix.spec
 ```
 
 `pdflatex`-dependent tests skip themselves when it is not on `PATH`.
@@ -234,7 +234,7 @@ test with no network call.
 
 - No test may need an API key, a network socket, or a terminal.
 - Fake at the transport boundary, not above it — inside `ModelSelector` for
-  the server, behind the `JobstitchApi` protocol (`FakeApi`) for the client —
+  the server, behind the `ResumixApi` protocol (`FakeApi`) for the client —
   so the code that assembles a request is what actually runs under test.
 - `server/tests/golden/cv_golden.tex` pins the whole render byte-for-byte; an
   escaping regression is otherwise invisible until someone reads a bad PDF.

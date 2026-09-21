@@ -1,4 +1,4 @@
-"""``jobstitch submit-raw``: a job description in, files in this folder out."""
+"""``resumix submit-raw``: a job description in, files in this folder out."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from jobstitch_client.modes import submit_raw
+from resumix_client.modes import submit_raw
 
 from conftest import JD_TEXT
 

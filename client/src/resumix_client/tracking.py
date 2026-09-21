@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional, Protocol
 
 import openpyxl
-from jobstitch_contracts import JDAnalysis
+from resumix_contracts import JDAnalysis
 
 #: The empty spreadsheet shipped with the client, copied on first use.
 TEMPLATE_NAME = "applications.xlsx"
@@ -82,7 +82,7 @@ class XlsxTracker:
         """Copy the empty template into the output folder on first use."""
         if self.xlsx_path.exists():
             return
-        template = Path(str(resources.files("jobstitch_client.resources") / TEMPLATE_NAME))
+        template = Path(str(resources.files("resumix_client.resources") / TEMPLATE_NAME))
         self.xlsx_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(template, self.xlsx_path)
         print(f"  📊 created {self.xlsx_path} from {template.name}", flush=True)

@@ -1,4 +1,4 @@
-"""``jobstitch render`` — a document or a .tex in, a PDF beside it out.
+"""``resumix render`` — a document or a .tex in, a PDF beside it out.
 
 The only mode that needs neither your profile nor a job description: it is
 the one to reach for after hand-editing a ``cv_*.json`` or a ``cv_*.tex``.
@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..api import HttpApi, JobstitchError, read_text
+from ..api import HttpApi, ResumixError, read_text
 from ..config import Config
 from ..joblog import format_entries
 from ..ui import fail
@@ -38,7 +38,7 @@ def run(config: Config, source: Path, *, output: Path | None = None) -> int:
             envelope = api.render(document=document, template=template, images=images)
         else:
             fail(f"render takes a .tex or a .json file, not {source.suffix or 'a directory'}")
-    except JobstitchError as exc:
+    except ResumixError as exc:
         fail(f"{exc}{_server_log(api, exc.request_id)}")
     except ValueError as exc:
         fail(f"{source.name} is not valid JSON: {exc}")
@@ -56,5 +56,5 @@ def _server_log(api: HttpApi, request_id: str | None) -> str:
         return ""
     try:
         return "\n" + format_entries(request_id, api.logs(request_id).data.entries)
-    except JobstitchError:
+    except ResumixError:
         return f"\n(the server log for {request_id} could not be fetched)"

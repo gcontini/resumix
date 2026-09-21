@@ -18,17 +18,17 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "server" / "tests"))
 
-from jobstitch_client.api import HttpApi, JobstitchError          # noqa: E402
-from jobstitch_client.config import Config                        # noqa: E402
-from jobstitch_client.runner import JobRunner                     # noqa: E402
-from jobstitch_client.sources import JDCandidate                  # noqa: E402
-from jobstitch_client.tracking import build_tracker               # noqa: E402
-from jobstitch_client.ui import Decision                          # noqa: E402
-from jobstitch_client.workspace import Workspace                  # noqa: E402
-from jobstitch_server.api.app import create_app                   # noqa: E402
-from jobstitch_server.api.deps import AppState                    # noqa: E402
-from jobstitch_server.api.settings import Settings                # noqa: E402
-from jobstitch_server.bundle import default_bundle                # noqa: E402
+from resumix_client.api import HttpApi, ResumixError          # noqa: E402
+from resumix_client.config import Config                        # noqa: E402
+from resumix_client.runner import JobRunner                     # noqa: E402
+from resumix_client.sources import JDCandidate                  # noqa: E402
+from resumix_client.tracking import build_tracker               # noqa: E402
+from resumix_client.ui import Decision                          # noqa: E402
+from resumix_client.workspace import Workspace                  # noqa: E402
+from resumix_server.api.app import create_app                   # noqa: E402
+from resumix_server.api.deps import AppState                    # noqa: E402
+from resumix_server.api.settings import Settings                # noqa: E402
+from resumix_server.bundle import default_bundle                # noqa: E402
 
 from server_helpers import FakeSelector, sample_cv_data           # noqa: E402
 
@@ -116,7 +116,7 @@ def runner(make_runner):
 @pytest.fixture(autouse=True)
 def no_polling_delay(monkeypatch):
     """The fakes answer instantly; waiting 4s between polls proves nothing."""
-    monkeypatch.setattr("jobstitch_client.cvjob.POLL_SECONDS", 0)
+    monkeypatch.setattr("resumix_client.cvjob.POLL_SECONDS", 0)
 
 
 @needs_latex
@@ -176,5 +176,5 @@ def test_a_server_error_reaches_the_client_as_a_typed_failure(runner, api, model
 
 def test_the_client_reports_an_unreachable_server_clearly():
     api = HttpApi("http://127.0.0.1:1")  # nothing listens here
-    with pytest.raises(JobstitchError, match="cannot reach the jobstitch server"):
+    with pytest.raises(ResumixError, match="cannot reach the resumix server"):
         api.detect("x" * 1500)

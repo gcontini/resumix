@@ -8,7 +8,7 @@ change that made them obvious.
 `POST /v1/cv` now returns before its work is done, so a caller that stops
 polling — Ctrl-C, a closed laptop, a crashed client — leaves a worker thread
 writing a CV nobody will collect. It holds one of the
-`JOBSTITCH_MAX_CONCURRENT_JOBS` slots until `JOBSTITCH_REQUEST_BUDGET_SECONDS`
+`RESUMIX_MAX_CONCURRENT_JOBS` slots until `RESUMIX_REQUEST_BUDGET_SECONDS`
 runs out, 20 minutes by default. Ten abandoned jobs lock the server out for
 that long, with no way back but a restart.
 

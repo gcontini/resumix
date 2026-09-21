@@ -9,7 +9,7 @@ because breaking it has a cost we have already paid once.
   owns paths and moves and nothing else. `JobRunner` knows the order of steps
   and delegates every one of them. If you cannot say what a class does in one
   sentence without "and", split it.
-- **Depend on protocols, not implementations.** `JobstitchApi`, `JDSource`,
+- **Depend on protocols, not implementations.** `ResumixApi`, `JDSource`,
   `Confirmer`, `Tracker` exist so the modes can be tested with no server, no
   terminal and no spreadsheet. A new source of job descriptions should be a
   new `JDSource` and no change anywhere else.
@@ -17,7 +17,7 @@ because breaking it has a cost we have already paid once.
   imports the other; `tests/test_architecture.py` enforces it. The contracts
   package imports nothing but pydantic — it is loaded by a web server and by a
   frozen executable, and has to stay cheap in both.
-- **The pipeline is a library.** Everything under `jobstitch_server/pipeline/`
+- **The pipeline is a library.** Everything under `resumix_server/pipeline/`
   takes its inputs in memory and returns its outputs. It reads no
   configuration, resolves no paths and writes nothing outside the scratch
   directory it is handed. That is what makes it safe to run per request.

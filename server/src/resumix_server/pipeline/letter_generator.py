@@ -164,7 +164,7 @@ class LetterGenerator:
     ) -> str:
         """Write the letter and return its text.
 
-        ``analysis`` is optional everywhere in jobstitch: the JD alone is
+        ``analysis`` is optional everywhere in resumix: the JD alone is
         enough to write a letter, it just makes for a less targeted one.
         """
         analysis = dict(analysis or {})

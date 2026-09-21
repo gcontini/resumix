@@ -11,9 +11,9 @@ from __future__ import annotations
 import time
 from typing import Callable, Optional, Tuple
 
-from jobstitch_contracts import RenderedCV
+from resumix_contracts import RenderedCV
 
-from .api import JobstitchApi, JobstitchError, read_text
+from .api import ResumixApi, ResumixError, read_text
 from .config import Config
 
 #: How often to ask. The job takes minutes; asking faster only adds noise.
@@ -21,13 +21,13 @@ POLL_SECONDS = 4.0
 
 
 def write_cv(
-    api: JobstitchApi, config: Config, jd_text: str, *,
+    api: ResumixApi, config: Config, jd_text: str, *,
     say: Callable[[str], None], resume: Optional[str] = None,
 ) -> Tuple[str, RenderedCV]:
     """Write one CV, reporting progress through ``say``.
 
     Returns the job's request id and what it produced — the merged document,
-    its LaTeX and its PDF. A job that fails raises :class:`JobstitchError`
+    its LaTeX and its PDF. A job that fails raises :class:`ResumixError`
     from the poll, carrying the same cause and status the work would have.
 
     ``resume`` skips submitting a new job and picks an existing one back up
@@ -49,7 +49,7 @@ def write_cv(
             pages=config.pages,
         ).request_id
         if config.verbose:
-            say(f"   request id: {request_id} (jobstitch logs {request_id})")
+            say(f"   request id: {request_id} (resumix logs {request_id})")
 
     deadline = time.monotonic() + config.timeout
     seen_status, seen_detail = "", ""
@@ -64,7 +64,7 @@ def write_cv(
         if status.status == "END":
             return request_id, api.cv_result(request_id).data
         if time.monotonic() > deadline:
-            raise JobstitchError(
+            raise ResumixError(
                 f"the CV job gave no answer within {config.timeout:.0f}s "
                 f"(last status: {status.status})",
                 request_id=request_id,

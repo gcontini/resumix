@@ -68,7 +68,7 @@ class ServerStatus(BaseModel):
     """What ``/healthz`` reports."""
 
     status: str = Field(description="'ok' when the server can do its job")
-    version: str = Field(description="jobstitch-server version")
+    version: str = Field(description="resumix-server version")
     pdflatex: bool = Field(description="Whether a pdflatex binary is available")
     models: dict[str, str] = Field(description="Model name configured per role")
     auth_required: bool = Field(description="Whether a bearer token is required")

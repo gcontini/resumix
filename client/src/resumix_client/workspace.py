@@ -102,7 +102,7 @@ class Workspace:
         recoverable.
 
         ``move=False`` copies instead, for an input the caller named by path
-        and still owns: ``jobstitch submit posting.txt`` must not make
+        and still owns: ``resumix submit posting.txt`` must not make
         ``posting.txt`` disappear.
         """
         target = self._free(self.working / f"{timestamp()}_{path.name}")

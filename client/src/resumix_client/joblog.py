@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Sequence
 
-from jobstitch_contracts import LogEntry
+from resumix_contracts import LogEntry
 
 
 def _header(request_id: str, count: int) -> str:
@@ -55,7 +55,7 @@ class JobLog:
 
 
 def format_entries(request_id: str, entries: Sequence[LogEntry]) -> str:
-    """The same rendering, for ``jobstitch logs <request_id>`` on stdout."""
+    """The same rendering, for ``resumix logs <request_id>`` on stdout."""
     return "\n".join([_header(request_id, len(entries)), *map(_entry, entries)])
 
 

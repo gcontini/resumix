@@ -5,7 +5,7 @@ prompts (generation, review, highlighting) via :func:`prompt_schema`, so
 editing one of them changes what the model produces. Treat these classes as
 prompts, not just as types.
 
-They live here rather than in ``jobstitch_contracts`` because no client reads
+They live here rather than in ``resumix_contracts`` because no client reads
 them: ``POST /v1/cv`` hands its caller the JSON the model wrote, and the
 caller stores it and posts it back to be rendered without looking inside. The
 shape is this server's business — which is also why it is open: a reply with

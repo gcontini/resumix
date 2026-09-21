@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from jobstitch_contracts import MAX_JD_CHARS, MIN_JD_CHARS
+from resumix_contracts import MAX_JD_CHARS, MIN_JD_CHARS
 
 
 def _int(name: str, default: int) -> int:
@@ -49,18 +49,18 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
-        work_root = Path(os.getenv("JOBSTITCH_WORK_DIR", tempfile.gettempdir()))
+        work_root = Path(os.getenv("RESUMIX_WORK_DIR", tempfile.gettempdir()))
         work_root.mkdir(parents=True, exist_ok=True)
         return cls(
-            api_token=os.getenv("JOBSTITCH_API_TOKEN") or None,
+            api_token=os.getenv("RESUMIX_API_TOKEN") or None,
             work_root=work_root,
-            max_part_bytes=_int("JOBSTITCH_MAX_PART_BYTES", 2_000_000),
-            max_concurrent_jobs=_int("JOBSTITCH_MAX_CONCURRENT_JOBS", 10),
-            latex_timeout=_float("JOBSTITCH_LATEX_TIMEOUT", 120.0),
-            request_budget_seconds=_float("JOBSTITCH_REQUEST_BUDGET_SECONDS", 1200.0),
-            max_attempts=_int("JOBSTITCH_MAX_ATTEMPTS", 4),
-            jd_min_chars=_int("JOBSTITCH_JD_MIN_CHARS", MIN_JD_CHARS),
-            jd_max_chars=_int("JOBSTITCH_JD_MAX_CHARS", MAX_JD_CHARS),
+            max_part_bytes=_int("RESUMIX_MAX_PART_BYTES", 2_000_000),
+            max_concurrent_jobs=_int("RESUMIX_MAX_CONCURRENT_JOBS", 10),
+            latex_timeout=_float("RESUMIX_LATEX_TIMEOUT", 120.0),
+            request_budget_seconds=_float("RESUMIX_REQUEST_BUDGET_SECONDS", 1200.0),
+            max_attempts=_int("RESUMIX_MAX_ATTEMPTS", 4),
+            jd_min_chars=_int("RESUMIX_JD_MIN_CHARS", MIN_JD_CHARS),
+            jd_max_chars=_int("RESUMIX_JD_MAX_CHARS", MAX_JD_CHARS),
         )
 
 

@@ -1,9 +1,9 @@
-# jobstitch client configuration.
+# resumix client configuration.
 #
-# Copy to jobstitch.toml and put it next to the jobstitch executable (or pass
+# Copy to resumix.toml and put it next to the resumix executable (or pass
 # --config). Every value here can be overridden on the command line.
 
-# The jobstitch server to use.
+# The resumix server to use.
 server_url = "http://localhost:8080"
 
 # Only if that server requires one (it will answer 401 without it).
@@ -21,7 +21,7 @@ cover_letter = "no"
 # How long to wait for a CV, in seconds. Writing one takes minutes.
 # timeout = 1800    # seconds to keep polling a CV job before giving up
 
-# Where your files are. Omit any entry and jobstitch looks for the file by its
+# Where your files are. Omit any entry and resumix looks for the file by its
 # usual name next to the executable; omit it there too and the server's own
 # default is used (the two candidate files have no default and are required).
 # [files]

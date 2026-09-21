@@ -23,15 +23,23 @@ Without them the `image` job fails at `docker login`, after the image has been
 built and checked — and because `package` waits on every job, no release is
 published until they exist.
 
-**GitHub Pages**, once, under *Settings → Pages*: source *Deploy from a
-branch*, branch `gh-pages`, folder `/ (root)`. The branch does not exist until
-the first release creates it, so either release once and then set this, or
-create an empty `gh-pages` branch first. Nothing else writes that branch — it
-belongs to mike.
+**GitHub Pages**, once, under *Settings → Pages*: source **GitHub Actions**.
+Not *Deploy from a branch* — `gh-pages` is still where every version is kept,
+but the `docs` job uploads that branch and deploys it itself. Choosing the
+branch instead hands publishing to the build Pages runs on a push, and that
+build never fires here: mike pushes as `github-actions[bot]`, and a
+`GITHUB_TOKEN` push starts no workflow run. The branch would move and the
+site would not. Nothing else writes that branch — it belongs to mike.
+
+One consequence worth knowing: with this source, pushing `gh-pages` by hand
+publishes nothing. A `mike deploy --push` from a laptop updates the store and
+leaves the site where it was. Releasing is what publishes.
 
 The workflow also declares `permissions: contents: write`. The repository
 default for `GITHUB_TOKEN` is read-only, and this workflow pushes a commit, a
-tag and a release; without that block the push is refused with a 403.
+tag and a release; without that block the push is refused with a 403. The
+`docs` job asks for two more of its own — `pages: write` and `id-token: write`
+— because it deploys the site rather than leaving that to a branch build.
 
 ## Running it
 
@@ -53,7 +61,7 @@ flowchart TB
     B1["<b>build</b> — ubuntu<br/>pyinstaller → resumix<br/>assert <i>resumix version</i>"]
     B2["<b>build</b> — windows<br/>pyinstaller → resumix.exe<br/>assert <i>resumix version</i>"]
     IMG["<b>image</b><br/>DOCKER_BUILDKIT=0 docker build<br/>assert /healthz version<br/>docker push :x.y.z and :latest"]
-    DOC["<b>docs</b><br/>mike deploy x.y.z latest<br/>mike set-default latest<br/>→ gh-pages"]
+    DOC["<b>docs</b><br/>mike deploy x.y.z latest<br/>mike set-default latest<br/>→ gh-pages → deploy-pages"]
     PKG["<b>package</b><br/>download both binaries<br/>assemble · tar.gz<br/>gh release create"]
     TAG --> B1 --> PKG
     TAG --> B2 --> PKG

@@ -479,10 +479,9 @@ class CVGenerator:
             # was read as a labelling rule: the reviewer kept comparing
             # against the profile and filing the mismatches it found as
             # "Logic".
-            review_request += ("The GENERATED CV has already been reviewed against the "
-                               "MASTER PROFILE. Flag only MAJOR Syntax and Logic issues. "
-                               "No Exaggeration issues, and nothing that needs the MASTER "
-                               "PROFILE to judge, under any category.\n")
+            review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
+                               " times, it should be ok by now. "
+            "Flag only outstanding syntax and logic issues this turn, if there are any.")
         review_request += (
             "--------------------------------------------\n"
             "MASTER PROFILE:\n"

@@ -24,18 +24,18 @@ Features:
 - It can watch your **clipboard** or a **folder** for  multiple generation, or run **once** on a single file.
 
 You need to provide:
-- A list of your work experiences, skills, the more you put the best it is (as long as you can defend it in an interview). You don't have to worry about writing them in a perfect style: it will fix it for you.
-- Some customization data for the cv (your phone...)
-   - Any image your template uses — a signature scan, a photo, a logo. Drop it
-     in the folder and the template includes it by file name.
+- A list of your work experiences, skills, the more you put the better the CV will be (as long as you can defend it in an interview). You don't have to worry about writing them in a perfect style: `resumix` will fix it for you.
+- Some customization data for the cv (your phone, linkedin...)
+   - a signature scan - looks good on your cv. 
 - The job description
-- You api key and model configuration
+- You api key and model configurations 
 
 ## Will it work for me?
 
-It started as my own personal lab to learn AI assisted coding and to pass the ATS with flying colors. It's not tested across
-different cv formats and sizes. It's sized for a well established professional with >10 
-years of experience and 3-6 working experiences. 
+It started as my own personal lab to learn AI assisted coding and to pass the ATS with flying colors. It's not tested across different cv formats and sizes. It's sized for a well established professional with >10 
+years of experience and 3-8 working experiences. 
+
+It is focused on getting the content of the CV right instead of customization of presentations.
 
 If it doesn't work for you "out of the box" check for options, it is extremely *tunable* but you may need some investment. Ask on the [forum](https://github.com/gcontini/resumix/discussions) for help or open an issue.
 
@@ -43,8 +43,8 @@ It took me a couple of weeks to get it to work well. If you do on your own the p
 
 * prepare the templates for your cv
 * the models will continue exaggerate your experiences and to pass the lenght limits until you put in place a review step.
-* the review process has to be tuned (temperature=0...) or it will not converge.
-* the models need to be tuned or they will consume all your token plan with no added benefit.
+* the whole review process has to be tuned (temperature=0, retries...) or it will not converge nor find errors.
+* the models thinking budgets need to be tuned or they will consume all your token plan with no added benefit.
 
 ## Download and run
 

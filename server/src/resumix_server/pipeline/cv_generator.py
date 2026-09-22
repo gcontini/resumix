@@ -648,10 +648,11 @@ class CVGenerator:
                     )
                     retry = _retry_prompt(
                         cv_data,
-                        "rejected by the content reviewer",
-                        "Rewrite it as a single valid JSON object strictly "
-                        "matching the TailoredCVData schema, fixing ALL of the "
-                        "following issues:\n"
+                        "rejected by the content reviewer.",
+                        "* Output a single valid JSON object strictly matching the TailoredCVData schema. \n"
+                        "* **Keep** the former field values from 'YOUR PREVIOUS ATTEMPT', copy them 'as is'"
+                        " EXCEPT for the fields mentioned in violations list."
+                        "* **Fix** ALL of the violations below:\n"
                         f"{violations_text}",
                     )
                     continue

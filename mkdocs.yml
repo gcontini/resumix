@@ -13,6 +13,11 @@ repo_url: https://github.com/gcontini/resumix
 site_url: https://gcontini.github.io/resumix/
 docs_dir: doc
 
+# Flat page/index.html folders buy nothing here — doc/ has no subfolders to
+# begin with, so this just makes the built site match: architecture.html
+# next to protocol.html, not architecture/index.html.
+use_directory_urls: false
+
 # A broken internal link fails the build rather than shipping.
 strict: true
 

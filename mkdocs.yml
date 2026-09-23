@@ -73,6 +73,7 @@ nav:
   - Using it:
       - The client: client.md
       - Running the two halves apart: deployment.md
+      - Developing locally in VS Code: development-setup.md
   - Reference:
       - The HTTP API: protocol.md
       - Building the server: build-server.md

@@ -25,6 +25,7 @@ both sides import and neither owns.
 | Build or deploy the server | [Building the server](build-server.md) |
 | Build the client executable | [Building the client](build-client.md) |
 | Decide where each half runs | [Running the two halves apart](deployment.md) |
+| Work on resumix itself, in VS Code | [Developing locally in VS Code](development-setup.md) |
 
 ## The shape of a run
 
@@ -53,34 +54,3 @@ The short quickstarts live in the repository's `README.md`, `client/README.md`
 and `server/README.md`. These pages are the long form: what the system does,
 why it is built this way, and every parameter of both halves.
 
-## Building these pages
-
-The site is `doc/` rendered by [MkDocs](https://www.mkdocs.org/) with the
-[Material](https://squidfunk.github.io/mkdocs-material/) theme, configured in
-`mkdocs.yml` at the repository root. Both are pinned in the `docs` dependency
-group of `pyproject.toml`, so they come with the workspace and not from your
-system Python:
-
-```bash
-uv run --group docs mkdocs serve    # live preview on http://localhost:8000
-uv run --group docs mkdocs build    # static HTML into site/ (gitignored)
-```
-
-| | |
-|---|---|
-| Supported | MkDocs **1.6+** with mkdocs-material **9.5+** |
-| Not supported | MkDocs 2.0, which removes the plugin system Material is built on. Both are capped in `pyproject.toml` |
-| Diagrams | Mermaid, as ```` ```mermaid ```` fences, rendered by Material through `pymdownx.superfences`. A different theme will print them as code |
-| Strictness | `strict: true` — a link to a page or an anchor that does not exist fails the build |
-
-To add a page: put the Markdown in `doc/` and add it to the `nav:` in
-`mkdocs.yml`. A page that is not in the nav still builds, but nothing links to
-it.
-
-The published site is versioned. Each release deploys its own copy with
-[mike](https://github.com/jimporter/mike), and the selector in the header
-switches between them — so the docs you are reading match the version you
-downloaded, not whatever `main` says today. Locally you still just run
-`mkdocs`; the version selector is the one thing that will not appear, because
-it is built from a `versions.json` that only exists on the published site. See
-[Cutting a release](release.md).

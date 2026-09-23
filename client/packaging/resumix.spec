@@ -49,5 +49,5 @@ exe = EXE(
     strip=False,
     upx=False,
     console=True,
-    icon=str(CLIENT.parent.parent / "doc" / "images" / "resumix-icon.ico"),
+    icon=str(CLIENT.parent / "doc" / "images" / "resumix-icon.ico"),
 )

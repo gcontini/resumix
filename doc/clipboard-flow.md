@@ -58,7 +58,7 @@ sequenceDiagram
     Run->>Ws: cv_You.json · cv_You.tex · cv_You.pdf
 
     opt --cover-letter yes
-        Run->>Api: letter(jd, profile, analysis)
+        Run->>Api: letter(jd, profile, candidate_data, analysis)
         Api->>Srv: POST /v1/letter
         Srv-->>Api: 200 {text, words}
         Run->>Ws: cover_letter.txt

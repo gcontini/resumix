@@ -59,7 +59,7 @@ class PromptConfirmer:
     def confirm(self, analysis: JDAnalysis) -> Decision:
         print_analysis(analysis)
         print("Paste the posting URL to submit, y = submit without link, "
-              "s = skip, q = quit", flush=True)
+              "n/s = skip, q = quit", flush=True)
         while True:
             try:
                 answer = input("> ").strip()
@@ -70,11 +70,19 @@ class PromptConfirmer:
             low = answer.lower()
             if low in ("q", "quit"):
                 return Decision(submit=False, quit=True)
-            if low in ("s", "skip"):
+            if low in ("n", "s", "skip"):
                 return Decision(submit=False)
             if low in ("y", "yes"):
                 return Decision(submit=True)
-            return Decision(submit=True, url=answer)
+            if answer.startswith("http"):
+                if len(answer) > 300:
+                    print("⚠ URL is too long (>300 chars). Please paste a shorter URL.", flush=True)
+                    continue
+                return Decision(submit=True, url=answer)
+            # Anything else is not one of y/n/s/q or a URL — ask again rather
+            # than guessing: silently treating stray input as "submit" is
+            # what let a mistyped skip turn into a submission.
+            print("⚠ y = submit, n/s = skip, q = quit, or paste the posting URL.", flush=True)
 
 
 class AutoConfirmer:

@@ -22,6 +22,9 @@ async def create_letter(
     candidate_profile: Optional[UploadFile] = File(
         None, description="candidate_profile.json — what the letter draws on"
     ),
+    candidate_data: Optional[UploadFile] = File(
+        None, description="candidate_data.json — the header block's contact details"
+    ),
     analysis: Optional[UploadFile] = File(
         None, description="analysis.json — optional; makes the letter more targeted"
     ),
@@ -38,6 +41,9 @@ async def create_letter(
     profile = await json_part(
         candidate_profile, name="candidate_profile", max_bytes=limit, required=True
     )
+    data = await json_part(
+        candidate_data, name="candidate_data", max_bytes=limit, required=True
+    )
     jd_analysis = await json_part(analysis, name="analysis", max_bytes=limit)
     bundle = state.bundle.with_overrides(
         sys_prompt_letter=await text_part(
@@ -51,7 +57,7 @@ async def create_letter(
 
     def job() -> CoverLetter:
         letter = LetterGenerator(model, system_prompt=bundle.sys_prompt_letter).generate(
-            text, profile=profile, analysis=jd_analysis
+            text, profile=profile, candidate_data=data, analysis=jd_analysis
         )
         return CoverLetter(text=letter, words=len(letter.split()))
 

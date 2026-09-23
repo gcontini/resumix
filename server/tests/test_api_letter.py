@@ -10,6 +10,7 @@ LETTER = " ".join(["word"] * 200)
 def letter_parts(candidate, **extra):
     return {
         "candidate_profile": ("p.json", json.dumps(dict(candidate.profile)), "application/json"),
+        "candidate_data": ("d.json", json.dumps(dict(candidate.data)), "application/json"),
         **extra,
     }
 

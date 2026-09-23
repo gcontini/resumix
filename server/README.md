@@ -291,11 +291,14 @@ deterministic: editing the content and re-rendering never costs a model call.
 
 ```bash
 curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
+     -F candidate_data=@candidate_data.json \
      -F analysis=@analysis.json localhost:8080/v1/letter
 ```
 
-Required: `jd`, `candidate_profile`. Optional: `analysis` (makes the letter
-more targeted), `sys_prompt_letter`, `temperature`. When the analysis says the
+Required: `jd`, `candidate_profile`, `candidate_data` (the header block's name,
+email, phone, LinkedIn — the letter is prose the model writes directly, not a
+template, so it needs the real contact details). Optional: `analysis` (makes
+the letter more targeted), `sys_prompt_letter`, `temperature`. When the analysis says the
 posting is direct from a named employer and the endpoint supports server-side
 web search, the model is told to research the company; an endpoint that
 rejects the flag falls back to writing without it.

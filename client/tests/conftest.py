@@ -137,8 +137,10 @@ class FakeApi:
         self.seen_images = dict(images or {})
         return envelope(self.rendered)
 
-    def letter(self, text, *, profile, analysis=None, prompt=None, temperature=None):
+    def letter(self, text, *, profile, candidate_data, analysis=None, prompt=None,
+               temperature=None):
         self._record("letter")
+        self.seen_candidate_data = candidate_data
         return envelope(self.cover_letter)
 
 

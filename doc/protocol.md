@@ -283,6 +283,7 @@ document dates it today.
 
 ```bash
 curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
+     -F candidate_data=@candidate_data.json \
      -F analysis=@analysis.json localhost:8080/v1/letter
 ```
 
@@ -290,6 +291,7 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 |---|---|---|
 | `jd` / `jd_text` | required | The posting |
 | `candidate_profile` | required | JSON object |
+| `candidate_data` | required | JSON object — the header block's name, email, phone, LinkedIn |
 | `analysis` | optional | A `JDAnalysis` — makes the letter more targeted, and enables the web research |
 | `sys_prompt_letter` | optional | Replace the letter prompt |
 | `temperature` | optional | Sampling temperature |

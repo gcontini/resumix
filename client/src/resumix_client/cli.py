@@ -19,7 +19,7 @@ from .modes import render as render_mode
 from .modes import submit as submit_mode
 from .modes import submit_raw as submit_raw_mode
 from .modes import watch as watch_mode
-from .ui import fail
+from .ui import fail, warn
 
 EPILOGUE = """\
 files:
@@ -185,6 +185,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return submit_mode.run(config, args.jd_file, out, resume=args.resume, **common)
     except ConfigError as exc:
         fail(str(exc))
+    except KeyboardInterrupt:
+        # watch/clipboard already print their own message and return before
+        # this is ever reached; this is the net for submit/submit-raw, which
+        # have no loop of their own to catch it in.
+        warn("stopped")
+        return 0
     return 0
 
 

@@ -67,14 +67,19 @@ class LetterGenerator:
         self,
         job_description: str,
         profile: Mapping[str, Any],
+        candidate_data: Mapping[str, Any],
         analysis: Mapping[str, Any],
         research: bool,
     ) -> str:
         """Assemble the single user turn: today's date, the master profile,
-        a trimmed JD-analysis subset (only the fields relevant to a letter —
-        the full JDAnalysis carries scoring fields with no place in one),
-        the raw JD, and — only when ``research`` is true — an explicit
-        instruction to research the named company on the web.
+        the candidate's contact details (the letter's header block, unlike
+        the CV, is written by the model rather than a template — it needs
+        the real name, email, phone and LinkedIn, not what the profile
+        happens to contain), a trimmed JD-analysis subset (only the fields
+        relevant to a letter — the full JDAnalysis carries scoring fields
+        with no place in one), the raw JD, and — only when ``research`` is
+        true — an explicit instruction to research the named company on the
+        web.
         """
         analysis_subset = {
             k: analysis.get(k)
@@ -98,6 +103,9 @@ class LetterGenerator:
             "--------------------------------------------\n"
             "MASTER PROFILE:\n"
             f"{json.dumps(dict(profile), indent=2)}\n"
+            "--------------------------------------------\n"
+            "CANDIDATE DATA:\n"
+            f"{json.dumps(dict(candidate_data), indent=2)}\n"
             "--------------------------------------------\n"
             "JD ANALYSIS:\n"
             f"{json.dumps(analysis_subset, indent=2)}\n"
@@ -160,6 +168,7 @@ class LetterGenerator:
         job_description: str,
         *,
         profile: Mapping[str, Any],
+        candidate_data: Mapping[str, Any],
         analysis: Optional[Mapping[str, Any]] = None,
     ) -> str:
         """Write the letter and return its text.
@@ -180,7 +189,9 @@ class LetterGenerator:
             self._system_message,
             {
                 "role": "user",
-                "content": self._build_user_message(job_description, profile, analysis, research),
+                "content": self._build_user_message(
+                    job_description, profile, candidate_data, analysis, research
+                ),
             },
         ]
 

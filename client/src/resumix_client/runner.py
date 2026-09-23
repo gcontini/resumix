@@ -240,6 +240,7 @@ class JobRunner:
         letter = self._call(log, lambda: self.api.letter(
             jd_text,
             profile=self.config.require("candidate_profile.json").read_bytes(),
+            candidate_data=self.config.require("candidate_data.json").read_bytes(),
             analysis=analysis.model_dump_json(),
             prompt=read_text(self.config.path(LETTER_PROMPT)),
             temperature=self.config.temperature,

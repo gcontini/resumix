@@ -91,7 +91,8 @@ class ResumixApi(Protocol):
     ) -> Envelope[RenderedCV]: ...
 
     def letter(
-        self, text: str, *, profile: bytes, analysis: Optional[str] = None,
+        self, text: str, *, profile: bytes, candidate_data: bytes,
+        analysis: Optional[str] = None,
         prompt: Optional[str] = None, temperature: Optional[float] = None,
     ) -> Envelope[CoverLetter]: ...
 
@@ -181,9 +182,11 @@ class HttpApi:
         files.extend(_image_parts(images))
         return self._post("/v1/cv/render", RenderedCV, files=files)
 
-    def letter(self, text, *, profile, analysis=None, prompt=None, temperature=None):
+    def letter(self, text, *, profile, candidate_data, analysis=None, prompt=None,
+               temperature=None):
         files: List[Part] = [
-            ("candidate_profile", ("candidate_profile.json", profile, "application/json"))
+            ("candidate_profile", ("candidate_profile.json", profile, "application/json")),
+            ("candidate_data", ("candidate_data.json", candidate_data, "application/json")),
         ]
         if analysis is not None:
             files.append(("analysis", ("analysis.json", analysis, "application/json")))

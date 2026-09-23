@@ -1,0 +1,77 @@
+name: Publish gh-pages
+
+# gh-pages is deployed through GitHub Actions Pages (see release.yml's docs
+# job), not the legacy "serve the branch" mode: landing a commit here does
+# not republish the site by itself. A `push` trigger on gh-pages would need
+# this file to live on that branch too — mike owns that branch entirely, so
+# instead this is dispatched by hand. With no version, it just republishes
+# whatever is currently on the branch, e.g. after a manual push of a one-off
+# file like a search console verification token. With a version, it first
+# has mike regenerate that version — the same step release.yml's docs job
+# runs, but callable without cutting a whole release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Doc version for mike to (re)generate, e.g. 0.3.2. Leave empty to just republish gh-pages as it stands."
+        required: false
+        type: string
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # mike pushes gh-pages
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # mike commits onto gh-pages and needs the real history of it, not
+          # the single commit a shallow clone would give it.
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        if: inputs.version != ''
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Regenerate this version with mike
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eux
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # --update-aliases moves `latest` off whatever held it before.
+          uv run --group docs mike deploy --push --update-aliases "$VERSION" latest
+          # Idempotent, and it is what makes / redirect to latest.
+          uv run --group docs mike set-default --push latest
+
+      # A deployment replaces the whole site, so it has to carry every
+      # version and not just this one — the branch, exactly as it now
+      # stands, mike or no mike.
+      - name: Take the branch as it stands
+        run: |
+          set -eux
+          git fetch origin gh-pages
+          git worktree add ../site FETCH_HEAD
+
+      # This archives with `tar --dereference`, so the `latest` symlink mike
+      # writes ships as a real directory. It drops .git and .github too.
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ../site
+
+      - uses: actions/deploy-pages@v5
+        id: deploy

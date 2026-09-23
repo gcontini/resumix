@@ -11,6 +11,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job here only reads the repo, builds and tests — none of them talk
+# to the GitHub API.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

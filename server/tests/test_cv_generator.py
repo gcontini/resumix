@@ -142,7 +142,7 @@ def test_the_prompt_carries_the_system_prompt_schema_profile_and_jd(
     # never sees it through response_format.
     assert "JSON_SCHEMA (TailoredCVData)" in user
     assert json.dumps(model.calls[0]["response_format"]) == '{"type": "json_object"}'
-    assert candidate.profile["name"] in user
+    assert candidate.profile["skills"][0] in user
     assert "SENTINEL JD" in user
 
 
@@ -213,8 +213,10 @@ def test_a_regeneration_does_not_carry_the_previous_round_s_conversation(
              if any("Please tailor my CV" in (m["content"] or "") for m in c["messages"])][-1]
     assert len(third["messages"]) == 2          # system + one user turn, always
     # Only the CV it has to improve on, never the round before that.
+    # (Two mentions expected: the section header, plus the instruction's own
+    # reference back to it.)
     last = third["messages"][-1]["content"]
-    assert last.count("YOUR PREVIOUS ATTEMPT") == 1
+    assert last.count("YOUR PREVIOUS ATTEMPT") == 2
     assert "Second" in last and "First" not in last
 
 

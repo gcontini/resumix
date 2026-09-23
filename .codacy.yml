@@ -1,0 +1,9 @@
+---
+# Test code is exercised by pytest, not by Codacy's static analysis; keep it
+# out of the quality report so findings stay about the library, not the
+# fixtures that pin its behaviour.
+exclude_paths:
+  - 'contracts/tests/**'
+  - 'server/tests/**'
+  - 'client/tests/**'
+  - 'tests/**'

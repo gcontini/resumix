@@ -26,7 +26,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends
              texlive-latex-base texlive-fonts-extra cm-super
       - run: uv sync --frozen
-      - run: uv run pytest -q
+      - run: uv run pytest -q --cov --cov-report=xml
+
+      # Coverage, not code quality: Codacy's own static analysis runs
+      # separately from a repo-linked GitHub App and reads .codacy.yml for
+      # its exclusions. This just reports what the tests actually covered.
+      - name: Upload coverage to Codacy
+        uses: codacy/codacy-coverage-reporter-action@v1
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml
 
   # The site is part of a release now, and mkdocs.yml is `strict: true`, so a
   # broken internal link has to fail here rather than half way through one.

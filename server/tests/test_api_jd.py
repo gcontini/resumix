@@ -66,7 +66,7 @@ def test_analysis_prompt_carries_the_profile_and_the_preferences(client, fake_mo
 
     prompt = fake_models["summary"].last_prompt
     assert "SENTINEL" in prompt
-    assert candidate.profile["name"] in prompt
+    assert candidate.profile["skills"][0] in prompt
     assert candidate.preferences[:40] in prompt
 
 

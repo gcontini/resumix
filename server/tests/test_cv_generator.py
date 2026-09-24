@@ -8,7 +8,7 @@ import shutil
 import pytest
 
 from resumix_server.pipeline.cv_generator import CVGenerator
-from resumix_server.pipeline.cv_renderer import RenderResult
+from resumix_server.pipeline.cv_renderer import CVRenderer, RenderResult
 from resumix_server.pipeline.errors import ModelOutputError
 
 from server_helpers import FakeSelector, sample_cv_data
@@ -36,11 +36,11 @@ def no_latex(monkeypatch):
     """Skip the compile: the page check is exercised separately."""
     pages = {"n": 1}
 
-    def fake_render(self, cv_data, stem):
+    def fake_render(self, document, *, stem="cv"):
         return RenderResult(tex="", pdf=b"%PDF", pages=pages["n"],
                             advice="length OK" if pages["n"] <= 2 else "REMOVE 1 duty.")
 
-    monkeypatch.setattr(CVGenerator, "_render", fake_render)
+    monkeypatch.setattr(CVRenderer, "render_document", fake_render)
     return pages
 
 

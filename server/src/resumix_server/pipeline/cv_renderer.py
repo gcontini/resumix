@@ -314,22 +314,22 @@ def check_pdf_pages(pdf_path: Path, limit: int = PAGE_LIMIT) -> Dict[str, Any]:
         desc=""
         if(total_overflow <= 2):
             desc = (
-                f"PDF is rejected because it is too long. PDF is {pages} pages, the mandatory {limit} page limit was exceeded. Slight overflow detected."
+                f"CV in previous attempt is rejected: too long. CV is {pages} pages, the mandatory {limit} page limit was exceeded. Slight overflow detected."
                 f"Excess {total_overflow} lines across all the pages. "
-                f"Condense summary, REMOVE 1 duty. In total be sure to remove more than {(total_overflow * 90)} characters."
+                f"Condense summary, REMOVE 1 duty, copy the rest of the CV as is. In total be sure to remove more than {(total_overflow * 90)} characters."
             )
-        elif(total_overflow<10): 
+        elif(total_overflow<15): 
             desc = (
-                f"PDF is rejected because it is too long. PDF is {pages} pages, mandatory page limit exceeded."
-                f"Condense summary, REMOVE {int((total_overflow+1)/2)} duties."
-                f"In total be sure to remove more than {(total_overflow * 90)} characters."
+                f"CV in previous attempt is rejected: TOO LONG. CV is {pages} pages, mandatory page limit exceeded."
+                f"Condense summary, REMOVE not less than {int((total_overflow+1)/2)} duties."
+                f"In total be sure to remove more than {(total_overflow * 90)} characters, copy the rest of the CV as is."
             )
         else:
             desc = (
-                f"PDF is rejected because it is EXTREMELY long. PDF is {pages} pages, page limit exceeded. SERIOUS overflow detected. An heavy rework of the content is needed."
+                f"CV in previous attempt is rejected: EXTREMELY long. PDF is {pages} pages, page limit exceeded. SERIOUS overflow detected. An heavy reduction/rework of the content is needed."
                 f"Total {total_overflow} overflow lines across pages. "
                 "Condense summary, remove one work experience completely." 
-                "Aim for 4 work experiences with 18 duties in total over the whole CV.")
+                "Aim for 3 work experiences with 15 duties in total over the whole CV.")
 
     result["description"] = desc
     logger.info("  [Tool Executed] Checked '%s': %d pages -> %s", pdf_path.name, pages, desc)

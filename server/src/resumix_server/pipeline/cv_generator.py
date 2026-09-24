@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field, ValidationError
 from ..bundle import CandidateInputs, ResourceBundle
 from ..model_selector import ModelSelector
 from ..observability import LOGGER_ROOT, stage
-from .cv_renderer import CVRenderer, RenderResult
+from .cv_renderer import CVRenderer
 from .cv_schema import TailoredCVData, prompt_schema
 from .errors import BudgetExceededError, ModelOutputError
 from .parsing import parse_model_json
@@ -102,23 +102,6 @@ def _reply_diagnostics(response) -> str:
             f"reasoning_tokens={getattr(details, 'reasoning_tokens', None) if details else None}"
         )
     return ", ".join(bits)
-
-
-def _usage_of(response) -> Tuple[int, int, int]:
-    """Prompt, completion and thinking tokens for one call; zeros if unreported.
-
-    The per-call line in the log is still the ledger. This is the same numbers
-    added up, so a step can say what it cost while it is still running.
-    """
-    usage = getattr(response, "usage", None)
-    if usage is None:
-        return 0, 0, 0
-    details = getattr(usage, "completion_tokens_details", None)
-    return (
-        getattr(usage, "prompt_tokens", 0) or 0,
-        getattr(usage, "completion_tokens", 0) or 0,
-        (getattr(details, "reasoning_tokens", 0) or 0) if details else 0,
-    )
 
 
 #: Called as the run moves on: the step starting now, and one line about the
@@ -220,12 +203,21 @@ class CVGenerator:
 
     # --- helpers ------------------------------------------------------------
     def _call(self, model: ModelSelector, messages, response_format):
-        """Every model call goes through here, so a step can be costed."""
+        """Every model call goes through here, so a step can be costed.
+
+        The per-call line in the log is still the ledger. The counters are the
+        same numbers added up, so a step can say what it cost while it is still
+        running; a call that reports no usage adds nothing.
+        """
         response = model.completions_create(messages, response_format=response_format)
-        prompt, completion, thinking = _usage_of(response)
         self._calls += 1
-        self._tokens += prompt + completion
-        self._thinking += thinking
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            details = getattr(usage, "completion_tokens_details", None)
+            self._tokens += (getattr(usage, "prompt_tokens", 0) or 0) + (
+                getattr(usage, "completion_tokens", 0) or 0
+            )
+            self._thinking += getattr(details, "reasoning_tokens", 0) or 0
         return response
 
     def _mark(self) -> Tuple[int, int, float]:
@@ -251,31 +243,6 @@ class CVGenerator:
         never replace a real name, email or address.
         """
         return {**cv_data.model_dump(), **dict(self.candidate.data)}
-
-    def _check_deadline(self, attempt: int) -> None:
-        """Stop before starting a round that cannot finish in the budget."""
-        if self.deadline is None or time.monotonic() < self.deadline:
-            return
-        raise BudgetExceededError(
-            f"time budget exhausted after {attempt} attempt(s)",
-            stage="cv.generate",
-            detail={"attempts": attempt},
-        )
-
-    def _render(self, cv_data: TailoredCVData, stem: str) -> RenderResult:
-        """Render the CV. The page checks throw the bytes away; the last one
-        does not — it is the PDF the caller asked for."""
-        return self.renderer.render_document(self._document(cv_data), stem=stem)
-
-    @staticmethod
-    def _extract_cv_data(response) -> TailoredCVData:
-        """Parse the LLM response content into a validated ``TailoredCVData``.
-
-        Raises ``ValueError`` (incl. ``json.JSONDecodeError``) or
-        ``ValidationError`` when the content is missing or does not conform to
-        the schema; both are fed back to the model for a corrective retry.
-        """
-        return parse_model_json(response.choices[0].message.content, TailoredCVData)
 
     _VIOLATION_CATEGORY_RE = re.compile(r"Category:\s*([A-Za-z]+)", re.IGNORECASE)
 
@@ -371,7 +338,7 @@ class CVGenerator:
                 self.highlight_model.response_format("cv_data", self._cached_schema),
             )
             try:
-                return self._extract_cv_data(resp)
+                return parse_model_json(resp.choices[0].message.content, TailoredCVData)
             except (ValueError, ValidationError) as e:
                 diag = _reply_diagnostics(resp)
                 if attempt + 1 < max_attempts:
@@ -418,7 +385,7 @@ class CVGenerator:
             )
 
             try:
-                cv_data = self._extract_cv_data(cv)   # parse content + validate
+                cv_data = parse_model_json(cv.choices[0].message.content, TailoredCVData)
                 # The payload is logged on the way through, not only when it
                 # is rejected: a CV can be schema-valid and still garbled, and
                 # then this is the only record of what the model actually wrote.
@@ -474,11 +441,6 @@ class CVGenerator:
         review_request = ("Review the GENERATED CV below against the candidate MASTER "
             "PROFILE.\n")
         if attempt > 0:
-            # The accuracy check is closed after the first round. Naming the
-            # profile explicitly here because "no Exaggeration issues" alone
-            # was read as a labelling rule: the reviewer kept comparing
-            # against the profile and filing the mismatches it found as
-            # "Logic".
             review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
                                " times, it should be ok by now. "
             "Flag only outstanding syntax and logic issues this turn, if there are any.")
@@ -592,7 +554,13 @@ class CVGenerator:
         self._report("generate")
 
         for attempt in range(self.max_attempts):
-            self._check_deadline(attempt)
+            # Stop before starting a round that cannot finish in the budget.
+            if self.deadline is not None and time.monotonic() >= self.deadline:
+                raise BudgetExceededError(
+                    f"time budget exhausted after {attempt} attempt(s)",
+                    stage="cv.generate",
+                    detail={"attempts": attempt},
+                )
             logger.info("--- attempt %d ---", attempt + 1)
 
             # Generate -> validate against TailoredCVData, feeding the
@@ -663,7 +631,9 @@ class CVGenerator:
 
             logger.info("--- render %d ---", attempt + 1)
             with stage("render"):
-                result = self._render(cv_data, f"attempt_{attempt + 1}")
+                result = self.renderer.render_document(
+                    self._document(cv_data), stem=f"attempt_{attempt + 1}"
+                )
             final_cv_data = cv_data
             logger.info("  Page check: %d pages -> %s", result.pages, result.advice)
 
@@ -697,9 +667,9 @@ class CVGenerator:
 
         # The deliverable: the same render the page check did, on the
         # highlighted content, kept this time.
-        with stage("render"):
-            result = self._render(final_cv_data, "cv")
         document = self._document(final_cv_data)
+        with stage("render"):
+            result = self.renderer.render_document(document, stem="cv")
         summary = (
             f"done, {self._calls} model calls, tokens used={self._tokens}, "
             f"thinking={self._thinking}, "

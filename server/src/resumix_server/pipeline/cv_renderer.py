@@ -120,7 +120,8 @@ class CVRenderer:
             "$": r"\$",
             "#": r"\#",
             "_": r"\_",
-            "]": r"\]",
+            "[": "{[}",
+            "]": "{]}",
             "~": r"\textasciitilde{}",
             "^": r"\textasciicircum{}",
         }

@@ -20,6 +20,10 @@ def test_it_enforces_the_template_s_limits():
     del no_description[0]["description"]
     with pytest.raises(ValidationError):
         sample_cv_data(experiences=no_description)             # required
+    no_duties = sample_cv_data().model_dump()["experiences"]
+    no_duties[0]["duties"] = []
+    with pytest.raises(ValidationError):
+        sample_cv_data(experiences=no_duties)                  # an empty list breaks \begin{itemize}
 
 
 def test_a_field_nobody_declared_is_kept_rather_than_dropped():

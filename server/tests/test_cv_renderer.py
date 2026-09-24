@@ -45,6 +45,17 @@ def test_escapes_latex_specials(renderer):
     assert r"\_" in out and r"\#" in out
 
 
+def test_square_brackets_are_braced_not_backslashed(renderer):
+    # "\]" would close display math; "{]}" prints a bracket anywhere.
+    assert renderer._sanitize_latex("[Remote] role") == "{[}Remote{]} role"
+
+
+@needs_latex
+def test_the_golden_fixture_compiles(renderer, fixture_document):
+    """The golden .tex pins the escaping; this proves it is also valid LaTeX."""
+    assert renderer.render_document(fixture_document).pdf.startswith(b"%PDF")
+
+
 def test_bold_and_italic_markers_become_latex(renderer):
     assert renderer._sanitize_latex("**Kubernetes** rollout") == r"\textbf{Kubernetes} rollout"
     assert renderer._sanitize_latex("*Terraform* modules") == r"\textit{Terraform} modules"
@@ -191,7 +202,7 @@ def test_page_check_escalates_its_advice(monkeypatch, tmp_path):
     reader_with(0, 0, 1)
     assert "REMOVE 1 duty" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0, 6)
-    assert "REMOVE 3 duties" in check_pdf_pages(tmp_path / "x.pdf")["description"]
+    assert "REMOVE not less than 3 duties" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0, 30)
     assert "EXTREMELY long" in check_pdf_pages(tmp_path / "x.pdf")["description"]
     reader_with(0, 0)

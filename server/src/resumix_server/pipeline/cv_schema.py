@@ -42,6 +42,8 @@ class WorkExperienceItem(BaseModel):
         description="One-sentence overview of the role (scope, mission, team or context), under 180 characters, "
         "tailored from the matching MASTER PROFILE experience's description. ")
     duties: List[str] = Field(
+        min_length=1,
+        max_length=9,
         description="Tailored achievements/responsibilities/duties matching the master profile."
     )
 

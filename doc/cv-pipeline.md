@@ -131,7 +131,7 @@ inside three prompts — generation, review and highlighting.
 | `job_title` | string | Target title, taken from the posting |
 | `summary` | string | The professional summary at the top |
 | `skills` | 6–8 strings | Prioritised for this posting, grounded in the profile |
-| `experiences` | 3–5 objects | `title`, `company`, `location`, `dates`, optional `project_name`, `description` (one line before the duties, counts as one duty), `duties` |
+| `experiences` | 3–5 objects | `title`, `company`, `location`, `dates`, optional `project_name`, `description` (one line before the duties, counts as one duty), `duties` (at least 1) |
 | `certifications` | 0–5 objects | `date`, `name` — most relevant first |
 
 Extra fields are allowed on the way in *and* on the way out: they survive

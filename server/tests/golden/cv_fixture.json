@@ -29,6 +29,7 @@
         "location": "Milan, Italy",
         "dates": "February 2021 {}-- Present",
         "project_name": "Winter Olympics {}-- Organizing Committee",
+        "description": "IT & infrastructure lead for a 50% larger venue network, reporting to the CIO.",
         "duties": [
           "Cut spend by **30%** while scaling to 100+ nodes (a^b notation, 50% uptime SLA).",
           "Ran a \\team of 12; owned the {roadmap} and the [backlog].",
@@ -41,6 +42,7 @@
         "location": "Lisbon, Portugal",
         "dates": "March 2018 {}-- January 2021",
         "project_name": null,
+        "description": "Ran the infrastructure team across 4 data centres.",
         "duties": [
           "Consolidated 4 data centres into 2.",
           "Introduced SRE practice & on-call rotation."
@@ -52,6 +54,7 @@
         "location": "Porto, Portugal",
         "dates": "June 2012 {}-- February 2018",
         "project_name": null,
+        "description": "Operations engineer for a 300-server fleet.",
         "duties": ["Automated provisioning for 300 servers."]
       }
     ],

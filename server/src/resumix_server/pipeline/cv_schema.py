@@ -38,6 +38,9 @@ class WorkExperienceItem(BaseModel):
         None,
         description="Project Description eg. 'Milano Winter Olympics -- Organizing Committee'",
     )
+    description: str = Field(
+        description="One-sentence overview of the role (scope, mission, team or context), under 180 characters, "
+        "tailored from the matching MASTER PROFILE experience's description. ")
     duties: List[str] = Field(
         description="Tailored achievements/responsibilities/duties matching the master profile."
     )

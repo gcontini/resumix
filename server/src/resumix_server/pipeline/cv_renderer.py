@@ -328,8 +328,8 @@ def check_pdf_pages(pdf_path: Path, limit: int = PAGE_LIMIT) -> Dict[str, Any]:
             desc = (
                 f"CV in previous attempt is rejected: EXTREMELY long. PDF is {pages} pages, page limit exceeded. SERIOUS overflow detected. An heavy reduction/rework of the content is needed."
                 f"Total {total_overflow} overflow lines across pages. "
-                "Condense summary, remove one work experience completely." 
-                "Aim for 3 work experiences with 15 duties in total over the whole CV.")
+                "Condense summary, remove one or more work experience completely." 
+                "Aim for 3 work experiences, and 15 duties in TOTAL over the whole CV.")
 
     result["description"] = desc
     logger.info("  [Tool Executed] Checked '%s': %d pages -> %s", pdf_path.name, pages, desc)

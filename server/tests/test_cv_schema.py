@@ -16,6 +16,10 @@ def test_it_enforces_the_template_s_limits():
         sample_cv_data(skills=["only", "three", "here"])       # min 6
     with pytest.raises(ValidationError):
         sample_cv_data(experiences=[])                         # min 3
+    no_description = sample_cv_data().model_dump()["experiences"]
+    del no_description[0]["description"]
+    with pytest.raises(ValidationError):
+        sample_cv_data(experiences=no_description)             # required
 
 
 def test_a_field_nobody_declared_is_kept_rather_than_dropped():

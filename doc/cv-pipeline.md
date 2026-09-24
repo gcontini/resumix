@@ -114,8 +114,8 @@ the pages past the limit, and the instruction scales with it
 | Overflow | What the model is told |
 |---|---|
 | ≤ 2 lines | Condense the summary, remove 1 duty, cut more than `lines × 90` characters |
-| < 10 lines | Condense the summary, remove `(lines+1)/2` duties, cut more than `lines × 90` characters |
-| ≥ 10 lines | Serious overflow: remove one work experience completely; aim for 4 experiences and 18 duties in total |
+| < 15 lines | Condense the summary, remove `(lines+1)/2` duties, cut more than `lines × 90` characters |
+| ≥ 15 lines | Serious overflow: remove one work experience completely; aim for 3 experiences, each with its description, and 12 duties in total |
 
 That wording is part of the prompt. Editing it changes what the model
 produces.
@@ -131,7 +131,7 @@ inside three prompts — generation, review and highlighting.
 | `job_title` | string | Target title, taken from the posting |
 | `summary` | string | The professional summary at the top |
 | `skills` | 6–8 strings | Prioritised for this posting, grounded in the profile |
-| `experiences` | 3–5 objects | `title`, `company`, `location`, `dates`, optional `project_name`, `duties` |
+| `experiences` | 3–5 objects | `title`, `company`, `location`, `dates`, optional `project_name`, `description` (one line before the duties, counts as one duty), `duties` |
 | `certifications` | 0–5 objects | `date`, `name` — most relevant first |
 
 Extra fields are allowed on the way in *and* on the way out: they survive

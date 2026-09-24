@@ -29,6 +29,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Lisbon, Portugal",
                 "dates": "March 2022 -- Present",
                 "project_name": "Freight tracking",
+                "description": "Platform team owning freight event ingestion.",
                 "duties": ["Owned the **event ingestion** architecture."],
             },
             {
@@ -37,6 +38,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Barcelona, Spain",
                 "dates": "August 2018 -- February 2022",
                 "project_name": None,
+                "description": "Reliability lead for a clinical records platform.",
                 "duties": ["Designed multi-region failover."],
             },
             {
@@ -45,6 +47,7 @@ def sample_cv_data(**overrides) -> TailoredCVData:
                 "location": "Berlin, Germany",
                 "dates": "May 2014 -- July 2018",
                 "project_name": None,
+                "description": "Backend work on a customer-facing analytics product.",
                 "duties": ["Built a Go query engine."],
             },
         ],

@@ -79,8 +79,10 @@
 \BLOCK{ else }
 \paragraph[\VAR{ exp.dates }]{\textstyleEmphasis{\VAR{ exp.dates }}}
 \BLOCK{ endif }
+\mbox{}\\
+\VAR{ exp.description }
 \liststyleListi
-\begin{itemize}
+\begin{itemize}\setlength\itemsep{1pt}
 \BLOCK{ for bullet in exp.duties }
 \item {\VAR{ bullet }}
 \BLOCK{ endfor }

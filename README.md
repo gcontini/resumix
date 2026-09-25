@@ -9,7 +9,9 @@ Turn a job description and your work experiences into a tailored, two-page TeX C
 Produces an honest CV that you can actually defend in a job interview. Though you can change the cv layout, the focus is on the CV content optimization for ATS.
 
 <div align="center">
-  <img src="doc/images/cv.png" alt="CV Preview">
+  <a href="examples/sample_cv.pdf">
+    <img src="doc/images/cv.png" alt="CV Preview">
+  </a>
 </div>
 
 Features:

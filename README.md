@@ -4,17 +4,13 @@
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/f4ef6c19a55741d8b3cdf1f210b0ba82)](https://app.codacy.com/gh/gcontini/resumix/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Turn a job description and your unstructured experiences into a tailored, two-page LaTeX CV and a cover letter, using any OpenAI-compatible model.
+Turn a job description and your work experiences into a tailored, two-page TeX CV and a cover letter, using any OpenAI-compatible model.
 
-Produces an honest CV that you can actually defend in a job interview.
+Produces an honest CV that you can actually defend in a job interview. Though you can change the cv layout, the focus is on the CV content optimization for ATS.
 
-<details>
-<summary><b>CV Preview</b></summary>
-
-![CV Preview](doc/images/cv.png)
-
-[**See what it produces →** `examples/sample_cv.pdf`](examples/sample_cv.pdf)
-</details>
+<div align="center">
+  <img src="doc/images/cv.png" alt="CV Preview">
+</div>
 
 Features:
 - **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).

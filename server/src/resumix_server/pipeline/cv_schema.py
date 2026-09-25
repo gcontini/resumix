@@ -39,7 +39,7 @@ class WorkExperienceItem(BaseModel):
         description="Project Description eg. 'Milano Winter Olympics -- Organizing Committee'",
     )
     role_summary: str = Field(
-        min_length= 10,
+        min_length= 20,
         max_length= 190,
         description="Overview of the role (scope, mission, team or context), "
         "tailored from the matching MASTER PROFILE experience's role_summary. ")

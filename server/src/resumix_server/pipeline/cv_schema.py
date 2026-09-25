@@ -38,9 +38,11 @@ class WorkExperienceItem(BaseModel):
         None,
         description="Project Description eg. 'Milano Winter Olympics -- Organizing Committee'",
     )
-    description: str = Field(
-        description="One-sentence overview of the role (scope, mission, team or context), under 180 characters, "
-        "tailored from the matching MASTER PROFILE experience's description. ")
+    role_summary: str = Field(
+        min_length= 10,
+        max_length= 190,
+        description="Overview of the role (scope, mission, team or context), "
+        "tailored from the matching MASTER PROFILE experience's role_summary. ")
     duties: List[str] = Field(
         min_length=1,
         max_length=9,
@@ -50,7 +52,6 @@ class WorkExperienceItem(BaseModel):
 
 class CertificationItem(BaseModel):
     model_config = ConfigDict(extra="allow")
-
     date: str = Field(description="When the certification was earned, e.g., 'July 2023'")
     name: str = Field(description="Certification name")
 

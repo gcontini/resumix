@@ -16,10 +16,10 @@ def test_it_enforces_the_template_s_limits():
         sample_cv_data(skills=["only", "three", "here"])       # min 6
     with pytest.raises(ValidationError):
         sample_cv_data(experiences=[])                         # min 3
-    no_description = sample_cv_data().model_dump()["experiences"]
-    del no_description[0]["description"]
+    no_role_summary = sample_cv_data().model_dump()["experiences"]
+    del no_role_summary[0]["role_summary"]
     with pytest.raises(ValidationError):
-        sample_cv_data(experiences=no_description)             # required
+        sample_cv_data(experiences=no_role_summary)            # required
     no_duties = sample_cv_data().model_dump()["experiences"]
     no_duties[0]["duties"] = []
     with pytest.raises(ValidationError):

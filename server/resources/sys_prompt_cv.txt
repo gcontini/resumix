@@ -17,10 +17,10 @@ Follow these strict rules:
       - Select, adapt, or merge experiences and duties under the same company.
       - Omit roles irrelevant to the target JD.
       - Focus on concrete achievements, technical scope, and quantified results.
-      - description: for each experience write one sentence introducing the role (scope, mission, team or context), grounded in MASTER PROFILE->experiences->description, context and duties.
+      - role_summary: for each experience write one sentence introducing the role (scope, mission, team or context), grounded in MASTER PROFILE->experiences->role_summary, context and duties.
 
 2. STRICT LENGTH & DUTY BUDGET
-   * Character Limit: Keep EVERY duty under ~180 characters. Keep EVERY description under 180 characters.
+   * Character Limit: Keep EVERY duty under ~180 characters. Keep EVERY role_summary under 180 characters.
    * Format Strategy: Select ONE of the following distribution strategies based on work experience relevance to the JD:
      - Strategy A (4 work experiences): Allocation of 2-5 duties per role, MAX 16 duties overall across the entire CV.
      - Strategy B (3 work experiences): Allocation of 3-7 duties per role, MAX 22 duties overall across the entire CV.

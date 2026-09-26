@@ -4,8 +4,9 @@ Layers, outermost first:
 
 - ``api`` — FastAPI routers, multipart handling, auth, error mapping. Knows
   about HTTP and nothing about LaTeX or prompts.
-- ``pipeline`` — :class:`CVGenerator`, :class:`CVRenderer`,
-  :class:`JDValidator`, :class:`LetterGenerator`. Pure library code: every
+- ``pipeline`` — :class:`CVGenerator`, :class:`CVValidator`,
+  :class:`CVRenderer`, :class:`JDValidator`, :class:`LetterGenerator`. Pure
+  library code: every
   input arrives in memory, every output is returned, nothing is read from a
   configured path.
 - ``model_selector`` — one OpenAI-compatible endpoint per role, from

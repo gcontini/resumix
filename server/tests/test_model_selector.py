@@ -1,4 +1,4 @@
-"""The three models are declarative config, and capabilities are flags."""
+"""The four models are declarative config, and capabilities are flags."""
 
 import pytest
 
@@ -28,6 +28,11 @@ thinking = "on"
 thinking_budget = 6000
 reasoning_effort = "high"
 
+[models.review]
+model = "review-1"
+structured_output = "none"
+temperature = 0.0
+
 [models.highlight]
 model = "highlight-1"
 thinking = "off"
@@ -51,8 +56,10 @@ def provider_key(monkeypatch):
 
 
 # --- parsing + validation ---------------------------------------------------
-def test_parses_the_three_roles(config):
-    assert sorted(config.models) == ["cv", "highlight", "summary"]
+def test_parses_the_four_roles(config):
+    assert sorted(config.models) == ["cv", "highlight", "review", "summary"]
+    assert config.models["review"].structured_output == "none"
+    assert config.models["review"].temperature == 0.0
     assert config.models["cv"].thinking_budget == 6000
     assert config.models["summary"].web_search is True
     assert config.models["cv"].web_search is False  # defaulted
@@ -66,7 +73,7 @@ def test_a_missing_role_is_rejected(tmp_path):
         ms.load_model_config(write(tmp_path, toml))
 
 
-def test_declaring_only_two_roles_is_rejected(tmp_path):
+def test_leaving_a_role_out_is_rejected(tmp_path):
     toml = TOML[: TOML.index("[models.highlight]")]
     with pytest.raises(ValueError, match=r"models\.highlight"):
         ms.load_model_config(write(tmp_path, toml))
@@ -198,7 +205,7 @@ def test_thinking_budget_drops_conflicting_reasoning_effort(config):
 # --- building ---------------------------------------------------------------
 def test_build_models_carries_the_declared_settings(config, provider_key):
     models = ms.build_models(config, quiet=True)
-    assert sorted(models) == ["cv", "highlight", "summary"]
+    assert sorted(models) == ["cv", "highlight", "review", "summary"]
     summary = models["summary"]
     assert summary.model == "summary-1"
     assert summary.temperature == 0.1
@@ -207,6 +214,17 @@ def test_build_models_carries_the_declared_settings(config, provider_key):
     assert summary.max_tokens == 8000
     assert models["cv"].extra_body == {"enable_thinking": True, "thinking_budget": 6000}
     assert models["highlight"].temperature is None  # not declared -> provider default
+    # 0.0 is a value, not "unset": it must reach the request.
+    assert models["review"].temperature == 0.0
+
+
+def test_the_shipped_reviewer_does_not_sample():
+    """The review loop converges only if the same CV draws the same verdict
+    twice. That used to be pinned in code; it is the review role's own setting
+    now, so the shipped file is what has to hold it."""
+    review = ms.load_model_config().models["review"]
+    assert review.temperature == 0
+    assert review.structured_output == "none"      # the reply is text
 
 
 def test_build_model_raises_naming_the_provider_var(config, monkeypatch):

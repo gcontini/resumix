@@ -56,9 +56,9 @@ def sample_document(candidate_data) -> dict:
 
 @pytest.fixture
 def fake_models() -> dict:
-    """The three roles, all fake. Replace ``replies`` per test."""
+    """The four roles, all fake. Replace ``replies`` per test."""
     return {role: FakeSelector(profile=role, model=f"fake-{role}")
-            for role in ("summary", "cv", "highlight")}
+            for role in ("summary", "cv", "review", "highlight")}
 
 
 @pytest.fixture

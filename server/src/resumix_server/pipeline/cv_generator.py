@@ -1,12 +1,13 @@
 """Writing the CV: job description in, :class:`TailoredCVData` out.
 
-The loop is generate -> review -> render -> measure -> condense, and the
-render in the middle is the point: the two-page limit is checked against a
-real compiled PDF, so the instruction fed back to the model ("remove 1
-duty") is grounded in what actually overflowed rather than a guess. The PDF
-produced along the way is thrown out with the scratch directory; the caller
-merges in its own candidate data and renders the result when it wants the
-file.
+The loop is generate -> validate -> regenerate: every round writes a CV,
+:class:`~resumix_server.pipeline.cv_validator.CVValidator` says what is wrong
+with it, and what it says becomes the next round's task. The render inside
+that check is the point: the two-page limit is measured on a real compiled
+PDF, so the instruction fed back to the model ("remove 1 duty") is grounded in
+what actually overflowed rather than a guess. The PDFs produced along the way
+are thrown out with the scratch directory; after the last round the keywords
+are highlighted and the result is rendered once more, for good.
 
 The page checks render your ``candidate_data`` too. They have to: a page
 count taken with the contact details missing is not the page count of the CV
@@ -23,101 +24,51 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from ..bundle import CandidateInputs, ResourceBundle
 from ..model_selector import ModelSelector
 from ..observability import LOGGER_ROOT, stage
 from .cv_renderer import CVRenderer
 from .cv_schema import TailoredCVData, prompt_schema
+from .cv_validator import CVValidator
 from .errors import BudgetExceededError, ModelOutputError
-from .parsing import parse_model_json
+from .parsing import parse_model_json, raw_excerpt, reply_diagnostics
 
 logger = logging.getLogger(f"{LOGGER_ROOT}.cv")
 
-# How much of a rejected payload to log: enough head to see the shape the
-# model chose and enough tail to see where a truncated reply stopped. Both
-# together stay under the per-line cap the run log store applies.
-RAW_HEAD_CHARS = 1200
-RAW_TAIL_CHARS = 400
 
-
-def _raw_excerpt(content: Optional[str]) -> str:
-    """Head and tail of a payload, with the middle elided."""
-    if not content:
-        return repr(content)
-    elided = len(content) - RAW_HEAD_CHARS - RAW_TAIL_CHARS
-    if elided <= 0:
-        return content
-    return (
-        f"{content[:RAW_HEAD_CHARS]}"
-        f"\n    ... [{elided} chars elided] ...\n"
-        f"{content[-RAW_TAIL_CHARS:]}"
-    )
-
-
-def _retry_prompt(cv_data: TailoredCVData, why: str, instruction: str) -> str:
-    """The CV to improve on, and what to do to it, for the next round.
+def _retry_prompt(cv_data: TailoredCVData, violations: List[str]) -> str:
+    """The CV to improve on, and everything to fix in it, for the next round.
 
     A rejected CV comes back as material in a fresh prompt rather than as the
     model's own previous turn: told to fix its own reply, the model copy-edits
     it — carrying over whatever was wrong with it — instead of writing a CV.
+
+    One list, whatever the complaints are about. An overstatement and an
+    overflowing page are the same kind of instruction to the model, and it can
+    only fix the ones it is shown in the round it is shown them.
     """
     return (
         "\n--------------------------------------------\n"
-        f"YOUR PREVIOUS ATTEMPT, {why}:\n"
+        "YOUR PREVIOUS ATTEMPT, rejected:\n"
         f"{cv_data.model_dump_json(indent=2)}\n"
         "--------------------------------------------\n"
-        f"{instruction}"
+        "* Output a single valid JSON object strictly matching the TailoredCVData schema. \n"
+        "* **Keep** the former field values from 'YOUR PREVIOUS ATTEMPT', copy them 'as is'"
+        " EXCEPT where a violation below requires a change.\n"
+        "* **Fix** ALL of the violations below:\n"
+        + "\n".join(f"- {v}" for v in violations)
     )
-
-
-def _reply_diagnostics(response) -> str:
-    """Why a reply could not be used, beyond the validation error itself.
-
-    ``finish_reason="length"`` means the model was cut off rather than wrong,
-    and reasoning counts tell a thinking budget that ate the output budget
-    apart from one that was never applied — neither is visible in a Pydantic
-    error.
-    """
-    choice = response.choices[0]
-    content = choice.message.content
-    bits = [
-        f"finish_reason={choice.finish_reason}",
-        f"content_chars={len(content or '')}",
-    ]
-    reasoning = getattr(choice.message, "reasoning_content", None)
-    if reasoning:
-        bits.append(f"reasoning_chars={len(reasoning)}")
-    usage = getattr(response, "usage", None)
-    if usage is not None:
-        details = getattr(usage, "completion_tokens_details", None)
-        bits.append(f"completion_tokens={getattr(usage, 'completion_tokens', None)}")
-        bits.append(
-            f"reasoning_tokens={getattr(details, 'reasoning_tokens', None) if details else None}"
-        )
-    return ", ".join(bits)
 
 
 #: Called as the run moves on: the step starting now, and one line about the
 #: one that just finished. Both go straight to a client, unread by anything.
 ProgressFn = Callable[[str, str], None]
-
-
-class ReviewResult(BaseModel):
-    status: Literal["OK", "REVIEW"] = Field(
-        description="'OK' when the CV content is acceptable, 'REVIEW' when the CV must be regenerated fixing the issues in 'violations'."
-    )
-    violations: List[str] = Field(
-        max_length= 10,
-        default_factory=list,
-        description="Specific, actionable issues the CV generator must fix when status=='REVIEW'. Empty list when status=='OK'.",
-    )
 
 
 class CVGenerator:
@@ -126,9 +77,11 @@ class CVGenerator:
     Parameters
     ----------
     cv_model:
-        The ``cv`` model: writes the CV and reviews it. Built once by the
-        caller and shared across requests — it holds an HTTP client, not
-        per-job state.
+        The ``cv`` model: writes the CV. Built once by the caller and shared
+        across requests — it holds an HTTP client, not per-job state.
+    review_model:
+        The ``review`` model: judges each CV against the master profile and
+        answers in plain text, one violation per line. Shared the same way.
     highlight_model:
         The ``highlight`` model, which adds ``**bold**``/``*italics*`` markers
         to the finished content. ``None`` skips that pass.
@@ -142,7 +95,8 @@ class CVGenerator:
         Scratch directory for the page-check renders. Created and removed by
         the caller.
     max_attempts:
-        Generate -> review -> render -> page-check rounds before giving up.
+        Generate -> validate rounds before giving up and delivering the last
+        CV anyway.
     max_validation_attempts:
         Schema-validation retries within one round.
     deadline:
@@ -158,6 +112,7 @@ class CVGenerator:
         self,
         *,
         cv_model: ModelSelector,
+        review_model: ModelSelector,
         bundle: ResourceBundle,
         candidate: CandidateInputs,
         work_dir: Path,
@@ -198,8 +153,18 @@ class CVGenerator:
         self._master_profile = dict(candidate.profile)
         self._system_message = {"role": "system", "content": bundle.sys_prompt_cv}
         self._highlight_message = {"role": "system", "content": bundle.sys_prompt_highlight}
-        self._review_message = {"role": "system", "content": bundle.sys_prompt_review}
         self._cached_schema = prompt_schema()
+
+        # What is wrong with a CV is its own question, asked by its own class.
+        # It is handed this generator's counted call, so a review's tokens land
+        # on the one ledger the progress lines are costed from.
+        self.validator = CVValidator(
+            review_model=review_model,
+            renderer=self.renderer,
+            master_profile=self._master_profile,
+            review_prompt=bundle.sys_prompt_review,
+            call=self._call,
+        )
 
     # --- helpers ------------------------------------------------------------
     def _call(self, model: ModelSelector, messages, response_format):
@@ -243,44 +208,6 @@ class CVGenerator:
         never replace a real name, email or address.
         """
         return {**cv_data.model_dump(), **dict(self.candidate.data)}
-
-    _VIOLATION_CATEGORY_RE = re.compile(r"Category:\s*([A-Za-z]+)", re.IGNORECASE)
-
-    @classmethod
-    def _extract_review_result(
-        cls, response, excluded_categories: frozenset = frozenset()
-    ) -> ReviewResult:
-        """Parse the reviewer's response content into a :class:`ReviewResult`.
-
-        Raises ``ValueError`` (incl. ``json.JSONDecodeError``) or
-        ``ValidationError`` when the content is missing or does not conform to
-        the schema.
-        patch the model return in case.
-
-        ``excluded_categories`` is a hard backstop for the "flag only these
-        categories" instruction in the review prompt: that instruction is a
-        request, not a guarantee, so violations whose declared ``Category:``
-        is excluded are dropped here regardless of whether the model honored
-        it.
-        """
-
-        review_result = parse_model_json(
-            response.choices[0].message.content,
-            ReviewResult,
-            empty="Reviewer returned empty content",
-        )
-
-        def category(violation: str) -> str:
-            m = cls._VIOLATION_CATEGORY_RE.search(violation)
-            return m.group(1).lower() if m else ""
-
-        #remove empty and too short violations, and any excluded category
-        review_result.violations[:] = [
-            x for x in review_result.violations
-            if len(x) > 15 and category(x) not in excluded_categories
-        ]
-        review_result.status = "OK" if len(review_result.violations) == 0 else "REVIEW"
-        return review_result
 
     def _highlight_keywords(
         self, cv_data: TailoredCVData, job_description: str
@@ -340,7 +267,7 @@ class CVGenerator:
             try:
                 return parse_model_json(resp.choices[0].message.content, TailoredCVData)
             except (ValueError, ValidationError) as e:
-                diag = _reply_diagnostics(resp)
+                diag = reply_diagnostics(resp)
                 if attempt + 1 < max_attempts:
                     logger.warning(
                         "  ↻ highlighting attempt %d failed (%s: %s; %s) — retrying",
@@ -351,7 +278,7 @@ class CVGenerator:
                     "  ⚠ highlighting failed (%s: %s; %s) — continuing with the "
                     "un-highlighted CV\n    payload: %s",
                     type(e).__name__, e, diag,
-                    _raw_excerpt(resp.choices[0].message.content),
+                    raw_excerpt(resp.choices[0].message.content),
                 )
                 return cv_data
 
@@ -392,7 +319,7 @@ class CVGenerator:
                 logger.info(
                     "  ✓ Output validated against TailoredCVData "
                     "(validation attempt %d)\n    payload: %s",
-                    val_attempt + 1, _raw_excerpt(cv.choices[0].message.content),
+                    val_attempt + 1, raw_excerpt(cv.choices[0].message.content),
                 )
                 return cv_data
             except (ValueError, ValidationError) as e:
@@ -401,8 +328,8 @@ class CVGenerator:
                     "    reply: %s\n"
                     "    payload: %s",
                     val_attempt + 1, type(e).__name__, e,
-                    _reply_diagnostics(cv),
-                    _raw_excerpt(cv.choices[0].message.content),
+                    reply_diagnostics(cv),
+                    raw_excerpt(cv.choices[0].message.content),
                 )
                 messages.append(
                     {
@@ -423,106 +350,21 @@ class CVGenerator:
             stage="cv.generate",
         )
 
-    def _review_cv_data(self, cv_data: TailoredCVData, attempt:int) -> ReviewResult:
-        """Review generated CV content against the master profile.
-
-        Uses the same model as CV generation (``cv_model``) with the review
-        system prompt and ``temperature=0``; the master profile and the
-        generated CV are the only inputs. Writing a CV wants the provider's
-        default sampling, but judging one does not: left unpinned, the same CV
-        drew a different set of violations every round and the loop had no
-        fixed point to settle on.
-        On an unparsable/unschema-valid response the review is retried once
-        (the error is fed back to the model); if it still fails after 2
-        attempts a warning is printed and an ``OK`` (no violations) result is
-        returned so the unvalidated CV proceeds through the pipeline.
-        """
-
-        review_request = ("Review the GENERATED CV below against the candidate MASTER "
-            "PROFILE.\n")
-        if attempt > 0:
-            review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
-                               " times, it should be ok by now. "
-            "Flag only outstanding syntax and logic issues this turn, if there are any.")
-        review_request += (
-            "--------------------------------------------\n"
-            "MASTER PROFILE:\n"
-            f"{json.dumps(self._master_profile, indent=2)}\n"
-            "--------------------------------------------\n"
-            "GENERATED CV:\n"
-            f"{cv_data.model_dump_json(indent=2)}\n"
-            "--------------------------------------------\n"
-            "Output a single JSON object with 'status' 'OK' or "
-            "['REVIEW' and 'violations' (list of specific issues to fix)]."
-        )
-
-        messages = [
-            self._review_message,
-            {"role": "user", "content": review_request},
-        ]
-
-        reviewer = self.cv_model.with_(temperature=0)
-        for retry in range(2):
-            resp = self._call(
-                reviewer,
-                messages,
-                reviewer.response_format(
-                    "review_output", ReviewResult.model_json_schema()
-                ),
-            )
-
-            messages.append(
-                {"role": "assistant", "content": resp.choices[0].message.content}
-            )
-
-            try:
-                excluded = frozenset({"exaggeration"}) if attempt > 0 else frozenset()
-                return self._extract_review_result(resp, excluded)
-            except (ValueError, ValidationError) as e:
-                logger.error(
-                    "  ✗ Review response invalid (retry %d): %s: %s\n"
-                    "    reply: %s\n"
-                    "    payload: %s",
-                    retry + 1, type(e).__name__, e,
-                    _reply_diagnostics(resp),
-                    _raw_excerpt(resp.choices[0].message.content),
-                )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your previous response was NOT valid against the "
-                            "review schema.\n"
-                            f"Validation error: {type(e).__name__}: {e}\n\n"
-                            "Output a single valid JSON object with 'status' "
-                            "('OK' or 'REVIEW') and 'violations' (list of strings)."
-                        ),
-                    }
-                )
-
-        # After 2 failed attempts do not block the job: warn and let the
-        # (unvalidated) CV proceed as if the review passed.
-        logger.warning(
-            "  ⚠ Content reviewer failed to return a valid review after 2 "
-            "attempts — continuing with the unvalidated CV"
-        )
-        return ReviewResult(status="OK", violations=[])
-
     def generate(
         self, job_description: str
     ) -> Tuple[Dict[str, Any], str, bytes, str]:
-        """Write, review, condense, highlight and render one CV.
+        """Write, check, condense, highlight and render one CV.
 
-        The loop is generate -> review -> render -> measure -> condense. The
-        render in the middle is what makes the page limit real: the model is
-        told to cut based on an actual page count, not an estimate. The review
-        runs until it passes once; condensing attempts after that only measure
-        length. After the loop the keywords are highlighted once and the result
-        is rendered for good.
+        Each round writes a CV and hands it to the validator, which reviews
+        the content against the profile, renders it and measures it; whatever
+        it finds wrong comes back as one list and becomes the next round's
+        task. Running out of rounds is not a failure — the last CV is
+        delivered and the log says what is still open, because a CV one line
+        too long is worth more to the caller than an error. After the loop the
+        keywords are highlighted once and the result is rendered for good.
 
         Returns the merged document, its LaTeX, its PDF and one line saying
-        what the run cost. Raises :class:`ModelOutputError` if no attempt
-        produced a usable CV.
+        what the run cost.
         """
         started = time.monotonic()
         user_prompt = (
@@ -543,7 +385,6 @@ class CVGenerator:
             )
 
         final_cv_data = None
-        content_reviewed = False
         # What the last round got wrong, appended to the task prompt for the
         # next one. Every attempt is its own conversation: the attempts used
         # to accumulate, and a model shown three of its own near-identical
@@ -569,91 +410,73 @@ class CVGenerator:
             mark = self._mark()
             with stage("cv.generate"):
                 cv_data = self._generate_valid_cv_data(user_prompt + retry)
+            # The content review is the long half of the check and runs only
+            # until it passes; after that the step is named for the render.
             self._report(
-                "review" if not content_reviewed else "page_check",
+                "review" if not self.validator.content_reviewed else "page_check",
                 self._cost(mark, "generation finished"),
             )
 
-            # Content review (same model as generation): REVIEW rejects the CV
-            # and its violations are fed back for regeneration on the next
-            # attempt; OK lets the CV proceed to rendering. Once it passes, the
-            # only thing later attempts change is length, so it is not re-run.
-            if not content_reviewed:
-                logger.info("--- content review ---")
-                mark = self._mark()
-                with stage("cv.review"):
-                    review = self._review_cv_data(cv_data, attempt)
-
-                if review.status == "REVIEW" and attempt + 1 >= self.max_attempts:
-                    # Out of attempts: fall through to render like the page
-                    # check does when it never gets under the limit, rather
-                    # than failing a job that produced a usable CV.
-                    logger.warning(
-                        "  ⚠ Content reviewer still rejects the CV after %d "
-                        "attempt(s) — proceeding with the unreviewed CV",
-                        self.max_attempts,
-                    )
-                    for violation in review.violations:
-                        logger.info("      - %s", violation)
-                    review.status = "OK"
-
-                if review.status == "REVIEW":
-                    # Print the violations the reviewer requested so they are
-                    # visible in the log (they are also fed back to the
-                    # generator).
-                    logger.info(
-                        "  ✗ Review rejected CV (%d violation(s)) — regenerating",
-                        len(review.violations),
-                    )
-                    for violation in review.violations:
-                        logger.info("      - %s", violation)
-                    violations_text = "\n".join(f"- {v}" for v in review.violations)
-                    self._report(
-                        "re-generate",
-                        self._cost(mark, "review rejected the CV")
-                        + "\n"
-                        + violations_text,
-                    )
-                    retry = _retry_prompt(
-                        cv_data,
-                        "rejected by the content reviewer.",
-                        "* Output a single valid JSON object strictly matching the TailoredCVData schema. \n"
-                        "* **Keep** the former field values from 'YOUR PREVIOUS ATTEMPT', copy them 'as is'"
-                        " EXCEPT for the fields mentioned in violations list."
-                        "* **Fix** ALL of the violations below:\n"
-                        f"{violations_text}",
-                    )
-                    continue
-
-                logger.info("  ✓ Review OK")
-                content_reviewed = True
-                self._report("page_check", self._cost(mark, "review passed"))
-
-            logger.info("--- render %d ---", attempt + 1)
-            with stage("render"):
-                result = self.renderer.render_document(
-                    self._document(cv_data), stem=f"attempt_{attempt + 1}"
-                )
+            # Review, render, measure. Every attempt is rendered, rejected or
+            # not, so there is always a CV to fall back on and both kinds of
+            # complaint are found in the same round.
+            mark = self._mark()
+            result = self.validator.validate(
+                cv_data, self._document(cv_data), attempt=attempt
+            )
             final_cv_data = cv_data
-            logger.info("  Page check: %d pages -> %s", result.pages, result.advice)
 
-            if result.pages <= self.renderer.page_limit:
-                logger.info("  ✓ Length OK (%d pages)", result.pages)
-                self._report("highlight", f"page check passed: {result.pages} page(s)")
+            if not result.violations:
+                self._report(
+                    "highlight",
+                    self._cost(mark, f"page check passed: {result.pages} page(s)"),
+                )
                 break
 
-            logger.info("PDF too long — condensing and retrying...")
-            # result.advice is the instruction, verbatim: the client sees the
+            if attempt + 1 >= self.max_attempts:
+                # Out of attempts: deliver what the last round produced rather
+                # than fail a job that has a usable CV in hand. What is still
+                # wrong with it is on the record.
+                logger.warning(
+                    "  ⚠ %d violation(s) still open after %d attempt(s) — "
+                    "delivering the last CV",
+                    len(result.violations), self.max_attempts,
+                )
+                for violation in result.violations:
+                    logger.info("      - %s", violation)
+                # Still report the step: a client polling for "highlight"
+                # should not have to tell giving up apart from succeeding.
+                self._report(
+                    "highlight",
+                    self._cost(
+                        mark,
+                        f"out of attempts with {len(result.violations)} "
+                        f"violation(s) open, {result.pages} page(s)",
+                    ),
+                )
+                break
+
+            logger.info("CV rejected — regenerating...")
+            # The violations are the instruction, verbatim: the client sees the
             # same words the model is about to be given.
+            violations_text = "\n".join(f"- {v}" for v in result.violations)
             self._report(
                 "re-generate",
-                f"page check failed: {result.pages} page(s)\n{result.advice}",
+                self._cost(
+                    mark,
+                    f"CV rejected: {len(result.violations)} violation(s), "
+                    f"{result.pages} page(s)",
+                )
+                + "\n"
+                + violations_text,
             )
-            retry = _retry_prompt(cv_data, "too long", result.advice)
+            retry = _retry_prompt(cv_data, result.violations)
 
         if final_cv_data is None:
+            # Only reachable with max_attempts <= 0: every round that runs
+            # keeps its CV.
             raise ModelOutputError(
-                f"No CV passed review in {self.max_attempts} attempts.",
+                f"No CV was produced in {self.max_attempts} attempts.",
                 stage="cv.generate",
                 detail={"attempts": self.max_attempts},
             )
@@ -678,4 +501,4 @@ class CVGenerator:
         return document, result.tex, result.pdf, summary
 
 
-__all__ = ["CVGenerator", "ReviewResult"]
+__all__ = ["CVGenerator"]

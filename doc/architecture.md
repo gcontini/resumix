@@ -18,7 +18,7 @@ flowchart TB
 
     subgraph host["wherever you run it"]
         API["<b>resumix-server</b><br/>FastAPI + uvicorn"]
-        PIPE["pipeline<br/>jd_validator · cv_generator<br/>cv_renderer · letter_generator"]
+        PIPE["pipeline<br/>jd_validator · cv_generator · cv_validator<br/>cv_renderer · letter_generator"]
         RES["resources<br/>5 prompts · resume.tex.jinja<br/>models.toml"]
         STORE["RESUMIX_WORK_DIR<br/>one directory per request"]
         API --> PIPE
@@ -102,15 +102,16 @@ flowchart TB
   `TEXMFVAR`. A request may supply both the template and a whole `.tex`, so
   both are treated as hostile input.
 
-## The three models
+## The four models
 
 One provider, one API key, one endpoint — declared once in the `[provider]`
-table of `resources/models.toml`. Three roles call it:
+table of `resources/models.toml`. Four roles call it:
 
 | Role | Used for | Shipped as |
 |---|---|---|
 | `summary` | JD detection, JD analysis, cover letters. The only role allowed server-side web search. | `qwen3.8-flash`, thinking on, low effort |
-| `cv` | Writing the CV and reviewing it | `qwen3.8-max`, thinking on, 6000-token budget, strict JSON schema |
+| `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget, strict JSON schema |
+| `review` | Reviewing each CV against the master profile; answers in plain text, one violation per line | `qwen3.8-max`, thinking on, temperature 0, no JSON mode |
 | `highlight` | The `**bold**` keyword pass over validated CV JSON | `qwen3.8-flash`, thinking **off** |
 
 Provider differences are declared as capabilities (`web_search`, `thinking`,

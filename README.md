@@ -120,14 +120,6 @@ uv run --group docs mkdocs serve  # the documentation site, on :8000
 Tests that need `pdflatex` skip themselves without it. The engineering rules
 the code follows are in [AGENTS.md](AGENTS.md).
 
-## Known limitations
-
-- A CV job cannot be cancelled: an abandoned one holds a slot until its own
-  budget runs out. See [PLANNED-FEATURES.md](PLANNED-FEATURES.md).
-- A job id only means something to the instance holding its directory, so run
-  one instance per `RESUMIX_WORK_DIR`.
-- One template, one language. Bring your own `.tex.jinja` if you want a different shape.
-
 ## License
 
 MIT — see [LICENSE](LICENSE).

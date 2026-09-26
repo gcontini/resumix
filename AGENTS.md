@@ -39,10 +39,6 @@ because breaking it has a cost we have already paid once.
 
 ## Correctness
 
-- **Every model reply is re-validated.** The schema goes into the prompt *and*
-  into `response_format`, and the reply is parsed by pydantic. Providers
-  differ in how much structure they enforce, so a weak `response_format`
-  costs a retry, never correctness.
 - **Prompt text is behaviour.** The `Field(description=...)` strings end up in
   the JSON schema shown to the model. Editing one changes what the model
   produces — treat those classes as prompts, not just as types.

@@ -322,6 +322,7 @@ def check_pdf_pages(pdf_path: Path, limit: int = PAGE_LIMIT) -> Dict[str, Any]:
         elif(total_overflow<15): 
             desc = (
                 f"CV in previous attempt is rejected: TOO LONG. CV is {pages} pages, mandatory page limit exceeded."
+                f"Total {total_overflow} overflow lines across pages. "
                 f"Condense summary, REMOVE not less than {int((total_overflow+1)/2)} duties."
                 f"In total be sure to remove more than {(total_overflow * 90)} characters, copy the rest of the CV as is."
             )

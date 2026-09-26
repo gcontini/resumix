@@ -38,26 +38,25 @@ Report issues only in the following categories:
   - Location - name the affected fields collectively ("ALL skills and Work Experience duties", "every field").
 * Omissions are NOT errors: The GENERATED CV is tailored to a specific job description (not provided). Missing roles, duties, or skills are expected and MUST NOT be flagged. Do NOT flag or mention missing work experiences. 
 
-
 ## OUTPUT FORMAT
-You must return a single JSON object strictly matching the schema below.
-- Set "status" to "OK" if there are NO issues in the three categories above. When "OK", the "violations" array MUST be empty.
-- Set "status" to "REVIEW" if at least one issue is found. When "REVIEW", the "violations" array MUST contain at least one entry.
+Reply in plain text: one violation per line, and nothing else.
+- If there are NO issues in the three categories above, reply with a single literal string "OK". Do not write other remarks (eg. "No issues found"): everything else you write is read as a violation.
+- Otherwise write at most 10 violations, one per line, most important first. No numbering, no bullets, no blank lines, no headings, no introduction or conclusion.
 - Keep each violation under 90 words in total. An error that takes a paragraph to justify is not undeniable -- omit it entirely.
-- Sort the violations, most important first. 
-- Each string in the "violations" array must be a single, concise, actionable instruction that pinpoints exactly where and what is wrong. It MUST include, in this order:
+- Each line must be a single, concise, actionable instruction that pinpoints exactly where and what is wrong. It MUST include, in this order:
   1. **Location** - where in the GENERATED CV the issue is, precise enough for someone to find it without re-reading the whole document (e.g. "Work Experience > Senior Engineer @ Acme > duty 2", or "Summary").
   2. **Category** - which rule it violates: Exaggeration, Syntax, or Logic.
   3. **Offending quote** - the exact offending text, quoted verbatim. Quote the shortest span that carries the error, not the whole sentence around it.
   4. **FIX** - a concrete and actionnable instruction for how to correct it. Do not motivate or explain here: propose ONE fix (eg. "replace with '...'" or "rephrase the whole sentence excluding the 'xxx' responsiblity").
   5. **Reason** - ONE clause, 20 words or fewer, naming the single fact in MASTER PROFILE that the quote contradicts. Do NOT argue the case: no weighing of alternatives, no "this is acceptable, however...", no listing of corroborating evidence, no repeating the FIX.
 
-Examples:
-{
-  "status": "REVIEW",
-  "violations": [
-    "Location: '...'. Category: Exaggeration|Syntax|Logic. Offending quote: '...'. FIX: '...'. Reason: '...'."
-  ]
-}
+Example: two violations:
 
-Return ONLY the raw JSON object. Do NOT wrap the output in markdown code blocks (e.g., no ```json). Do not add any introductory or concluding text.
+Location: '...'. Category: Exaggeration|Syntax|Logic. Offending quote: '...'. FIX: '...'. Reason: '...'.
+Location: '...'. Category: Exaggeration|Syntax|Logic. Offending quote: '...'. FIX: '...'. Reason: '...'.
+
+Example: no violations:
+
+OK
+
+Reply in plain text. Do NOT output JSON and do NOT wrap the output in a markdown code block.

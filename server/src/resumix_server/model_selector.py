@@ -1,6 +1,6 @@
 """Centralized LLM model selection.
 
-resumix calls exactly three models, one per job, all declared in
+resumix calls exactly four models, one per job, all declared in
 ``resources/models.toml`` and sharing one provider (one API key/endpoint,
 declared once in the ``[provider]`` table):
 
@@ -8,7 +8,10 @@ declared once in the ``[provider]`` table):
     JD detection, JD analysis and the cover letter — mid-size, light thinking,
     and the only model allowed to run server-side web research.
 ``cv``
-    CV writing and the content review — the large one, with a thinking budget.
+    CV writing — the large one, with a thinking budget.
+``review``
+    The content review of each CV against the master profile — the same large
+    model, pinned to temperature 0, answering in plain text.
 ``highlight``
     The Markdown ``**bold**`` pass over already-validated CV JSON — mid-size,
     thinking off.
@@ -16,7 +19,7 @@ declared once in the ``[provider]`` table):
 A :class:`ModelSelector` bundles everything needed to call one of them —
 endpoint credentials, model name, generation parameters and the provider
 capabilities that matter — so callers never construct an OpenAI client or pick
-parameters themselves: ask :func:`build_models` for all three (or
+parameters themselves: ask :func:`build_models` for all four (or
 :func:`build_model` for one), then call
 :meth:`ModelSelector.completions_create`.
 
@@ -49,8 +52,8 @@ logger = logging.getLogger(f"{LOGGER_ROOT}.models")
 
 MODELS_FILE = "models.toml"
 
-#: The three jobs resumix has a model for, in the order a run uses them.
-MODEL_ROLES = ("summary", "cv", "highlight")
+#: The four jobs resumix has a model for, in the order a run uses them.
+MODEL_ROLES = ("summary", "cv", "review", "highlight")
 
 # Fallback used when models.toml omits it. max_tokens has no fallback: when
 # neither a model nor [defaults] declares it, the request omits max_tokens
@@ -107,7 +110,7 @@ class ProviderConfig:
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """One of the three models, as written in ``models.toml``.
+    """One of the four models, as written in ``models.toml``.
 
     Provider differences are capabilities, not names: ``web_search``,
     ``thinking`` and ``structured_output`` are what :func:`build_model`
@@ -176,7 +179,7 @@ class ModelSpec:
 
 @dataclass
 class ModelConfig:
-    """Parsed ``models.toml``: the provider, the three models, ``[defaults]``."""
+    """Parsed ``models.toml``: the provider, the four models, ``[defaults]``."""
 
     provider: ProviderConfig
     models: Dict[str, ModelSpec] = field(default_factory=dict)
@@ -282,7 +285,7 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     if not provider_body:
         raise ValueError(
             f"{path}: no [provider] table — resumix needs one provider's "
-            "endpoint, shared by all three models"
+            "endpoint, shared by all four models"
         )
     unknown_provider_keys = set(provider_body) - _PROVIDER_ALLOWED_KEYS
     if unknown_provider_keys:
@@ -655,10 +658,10 @@ def build_models(
     resources_dir: Optional[Path] = None,
     quiet: bool = False,
 ) -> Dict[str, ModelSelector]:
-    """Build all three models, keyed by role (see :data:`MODEL_ROLES`).
+    """Build all four models, keyed by role (see :data:`MODEL_ROLES`).
 
     Raises ``RuntimeError`` when the provider's API key is not set — with one
-    provider there is no fallback, so all three roles fail together.
+    provider there is no fallback, so all four roles fail together.
     """
     load_dotenv()
     if config is None:

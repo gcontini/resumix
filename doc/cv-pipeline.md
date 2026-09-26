@@ -5,8 +5,9 @@ against your profile, compiles it, measures it, condenses it until it fits,
 highlights the keywords and renders it for good.
 
 The code is `server/src/resumix_server/pipeline/cv_generator.py`
-(`CVGenerator.generate`), with the compile and the page count in
-`cv_renderer.py`.
+(`CVGenerator.generate`) for the rounds, `cv_validator.py` (`CVValidator`) for
+what is wrong with each CV, and `cv_renderer.py` for the compile and the page
+count.
 
 ## The loop
 
@@ -21,28 +22,33 @@ flowchart TD
     VAL -->|"no, 3 tries"| FAIL502["502 model_output"]
     VAL -->|"yes"| REVIEWED{"already passed<br/>review?"}
 
-    REVIEWED -->|"yes"| RENDER
-    REVIEWED -->|"no"| REV["<b>review</b><br/>cv model vs. the master profile"]
-    REV --> VERDICT{"violations?"}
-    VERDICT -->|"yes"| VIO["append the violations<br/>to the conversation"] --> NEXT
-    VERDICT -->|"no"| RENDER["<b>page_check</b><br/>render + pdflatex + count pages"]
+    REVIEWED -->|"no"| REV["<b>review</b><br/>review model vs. the master profile,<br/>one violation per line"]
+    REV --> RENDER
+    REVIEWED -->|"yes"| RENDER["<b>page_check</b><br/>render + pdflatex + count pages"]
 
-    RENDER --> FITS{"pages ≤ limit?"}
-    FITS -->|"no"| ADVICE["append the condense<br/>instruction, verbatim"] --> NEXT{"attempts left?<br/>MAX_ATTEMPTS = 4"}
+    RENDER --> VERDICT{"anything wrong?<br/>content, then length"}
+    VERDICT -->|"yes"| VIO["one list of violations,<br/>verbatim, into the next prompt"] --> NEXT{"attempts left?<br/>MAX_ATTEMPTS = 4"}
     NEXT -->|"yes"| DL
-    NEXT -->|"no"| LAST["keep the last render<br/>even if over the limit"]
-    FITS -->|"yes"| HL
+    NEXT -->|"no"| LAST["keep the last render,<br/>violations and all"]
+    VERDICT -->|"no"| HL
     LAST --> HL["<b>highlight</b><br/>highlight model, **bold** markers"]
 
     HL --> FINAL["final render, kept"] --> FIN(["<b>END</b><br/>document · tex · pdf"])
 ```
 
-Three things about that picture are deliberate:
+Four things about that picture are deliberate:
 
 **The render in the middle is the point.** The page limit is enforced by
 actually compiling the CV and counting its pages, so the instruction fed back
 to the model ("remove 1 duty") is grounded in a real overflow rather
 than an estimate.
+
+**And it is never rationed.** Every attempt is compiled and measured, whether
+the reviewer accepted it or not. A `pdflatex` pass costs about a second and a
+review costs the most expensive call in the pipeline, so withholding the page
+count from a rejected CV saves nothing — it only means a CV that is both
+overstated and too long spends one round learning about each. Both complaints
+come back as one list, and an overflowing page is a violation like any other.
 
 **That is why the endpoint takes `candidate_data`.** A page count taken with
 the contact block missing, or with a different template, is not the page count
@@ -50,25 +56,26 @@ of the CV you will send. No model is ever shown `candidate_data` — it goes to
 the renderer and nowhere else — but the renderer cannot measure without it.
 
 **The review runs until it passes once.** After that, later attempts only
-change length, so re-reviewing would spend a large-model call to re-confirm
-what it already said. When it does reject, the reviewer's own words are what
-the generator is given next.
+shorten a CV the reviewer has already accepted, so re-reviewing would spend a
+large-model call to re-confirm what it already said. When it does reject, the
+reviewer's own words are what the generator is given next.
 
 ## Retries, budgets and what each failure costs
 
 | Guard | Limit | Set by | On exhaustion |
 |---|---|---|---|
-| Generate → review → page-check rounds | 4 | `RESUMIX_MAX_ATTEMPTS` | `502 model_output` if review never passed; otherwise the last render is kept |
+| Generate → validate rounds | 4 | `RESUMIX_MAX_ATTEMPTS` | the last render is kept, with whatever is still open named in the log |
 | Schema-validation retries inside one round | 3 | `max_validation_attempts` | `502 model_output` |
-| Review parse retries | 2 | fixed | a warning; the CV proceeds as if the review passed |
+| Review retries (reply cut off) | 2 | fixed | a warning; the CV proceeds as if the review passed |
 | Highlight attempts | 2 | fixed | a warning; the un-highlighted CV is returned |
 | Wall clock for the whole run | 1200 s | `RESUMIX_REQUEST_BUDGET_SECONDS` | `504`, checked between rounds |
 | One `pdflatex` compile | 120 s | `RESUMIX_LATEX_TIMEOUT` | `504 latex_timeout` |
 
-The page limit is therefore best-effort and the review is not: a CV that never
-passes review fails the job, while a CV that never fits is delivered at the
-length the last attempt reached. If that happens, the log says so on every
-round.
+Both checks are therefore best-effort. A CV that never satisfies the reviewer
+and a CV that never fits are delivered exactly as the last round left them,
+with what is still wrong named in the log — failing a job that has a usable CV
+in hand serves nobody. The one thing that does fail it is a model that cannot
+produce schema-valid content at all.
 
 ## What the client sees while it runs
 
@@ -82,19 +89,24 @@ stateDiagram-v2
     generate --> review: first round only
     generate --> page_check: already reviewed
     review --> re_generate: violations
-    review --> page_check: OK
-    page_check --> re_generate: too long
-    page_check --> highlight: fits
+    review --> highlight: nothing wrong,<br/>or out of attempts
+    page_check --> re_generate: violations
+    page_check --> highlight: nothing wrong,<br/>or out of attempts
     re_generate --> generate
     highlight --> FIN
     state "END" as FIN
     FIN --> [*]
 ```
 
+The render is part of whichever step is running — `review` in the first round,
+`page_check` after it has passed — because it takes about a second, and a
+status nobody can poll in time is not worth reporting.
+
 `re_generate` is spelled `re-generate` on the wire. `detail` is written for a
-person and may span several lines: a rejected review quotes the reviewer's
-complaints verbatim, and a failed page check quotes the condense instruction
-verbatim, because those are the words the model is about to be given.
+person and may span several lines: a rejected CV is followed by everything
+wrong with it, one per line — the reviewer's complaints, and the condense
+instruction when the PDF ran over — because those are the words the model is
+about to be given.
 
 ```json
 {"status": "review",
@@ -109,7 +121,8 @@ failure on.
 
 When the PDF is too long, the overflow is measured in non-empty text lines on
 the pages past the limit, and the instruction scales with it
-(`check_pdf_pages`):
+(`check_pdf_pages`). It is appended to that round's violations as the last
+entry, in these words:
 
 | Overflow | What the model is told |
 |---|---|

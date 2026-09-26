@@ -63,8 +63,9 @@ def models():
         "summary": FakeSelector("YES", json.dumps(ANALYSIS),
                                 profile="summary", model="fake-summary"),
         "cv": FakeSelector(sample_cv_data().model_dump_json(),
-                           '{"status": "OK", "violations": []}',
                            profile="cv", model="fake-cv"),
+        # An empty reply: the reviewer finds nothing to fix.
+        "review": FakeSelector("", profile="review", model="fake-review"),
         "highlight": FakeSelector(sample_cv_data(summary="**Bold** summary.").model_dump_json(),
                                   profile="highlight", model="fake-highlight"),
     }
@@ -132,8 +133,11 @@ def test_a_posting_becomes_a_real_pdf(runner, models):
 
     log = (folder / "log.log").read_text()
     assert "writing the CV" in log
-    # The statuses the job went through, reported as they happened.
-    assert "generate" in log and "END" in log
+    # The statuses the job went through, reported as they happened. Not
+    # "generate": with instant fakes it lasts microseconds, and whether a poll
+    # lands inside it is a race. "review" spans a real compile, so a poll
+    # always sees it.
+    assert "review" in log and "END" in log
     assert "server request" not in log, "a quiet run does not pull the server's log"
 
 

@@ -99,6 +99,7 @@ async def create_cv(
     def build(work: Path, progress) -> Tuple[Dict[str, Any], str, bytes, str]:
         return CVGenerator(
             cv_model=cv_model,
+            review_model=state.models["review"],
             highlight_model=state.models.get("highlight"),
             bundle=bundle,
             candidate=candidate,

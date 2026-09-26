@@ -24,15 +24,17 @@ from resumix_server.api.multipart import MAX_IMAGES
 from server_helpers import EXAMPLE_CANDIDATE, sample_cv_data, start_cv, wait_for_job
 
 needs_latex = pytest.mark.skipif(shutil.which("pdflatex") is None, reason="pdflatex not installed")
-OK_REVIEW = '{"status": "OK", "violations": []}'
+OK_REVIEW = ""                          # the reviewer's "nothing to fix"
 
 
 def load_replies(models, *replies):
+    """Script the writer; the reviewer approves whatever it is shown."""
     models["cv"].replies = list(replies)
+    models["review"].replies = [OK_REVIEW]
 
 
 def a_good_run(fake_models, **overrides):
-    load_replies(fake_models, sample_cv_data(**overrides).model_dump_json(), OK_REVIEW)
+    load_replies(fake_models, sample_cv_data(**overrides).model_dump_json())
     fake_models["highlight"].replies = [sample_cv_data(**overrides).model_dump_json()]
 
 
@@ -128,7 +130,7 @@ def test_a_field_the_schema_never_declared_is_handed_back_too(client, fake_model
     """The reply is validated, not filtered: your prompt and your template can
     agree on something this server has never heard of."""
     written = {**sample_cv_data().model_dump(), "availability": "Immediate"}
-    load_replies(fake_models, json.dumps(written), OK_REVIEW)
+    load_replies(fake_models, json.dumps(written))
     fake_models["highlight"].replies = [json.dumps(written)]
     request_id = start_cv(client, parts)
     wait_for_job(client, request_id)

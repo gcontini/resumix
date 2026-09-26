@@ -54,12 +54,16 @@ dropped when it ends; a request's own directory is the only thing kept
   state the server holds, and it is disposable.
 - `api/errors.py` — maps `PipelineError`/`ValidationError`/`openai.APIError`
   to a status and an `ok:false` envelope; never echoes the provider body.
-- `pipeline/cv_generator.py` — `CVGenerator`: write → review → render →
-  condense-to-two-pages (up to `max_attempts` rounds) → keyword highlight →
-  render for good. Returns `(document, tex, pdf, summary)`. Pure library code
-  — inputs in memory, outputs returned, nothing read from a configured path;
-  progress leaves through an injected `progress(status, detail)` callback, not
-  a file.
+- `pipeline/cv_generator.py` — `CVGenerator`: write → validate → regenerate
+  (up to `max_attempts` rounds) → keyword highlight → render for good.
+  Returns `(document, tex, pdf, summary)`. Pure library code — inputs in
+  memory, outputs returned, nothing read from a configured path; progress
+  leaves through an injected `progress(status, detail)` callback, not a file.
+- `pipeline/cv_validator.py` — `CVValidator`: what is wrong with one CV, as
+  one list of violations — the content review against the master profile,
+  then the render and the page count, whose condense instruction is appended
+  as the last violation. Every attempt is rendered, rejected or not: a compile
+  is cheap next to a model call. The review runs until it passes once.
 - `pipeline/cv_renderer.py` — `CVRenderer`: Jinja (`\VAR{}`/`\BLOCK{}`
   delimiters, `DictLoader` built fresh per request since the template can be
   client-supplied) → `pdflatex`, sandboxed (`-no-shell-escape`,
@@ -181,8 +185,8 @@ required to run it (PyInstaller `--onefile`)
 - LLM access via any OpenAI-compatible endpoint — one provider, one API key
   (`MODEL_API_KEY`/`MODEL_BASE_URL`; see `.env.example`), declared once in
   the `[provider]` table of
-  `server/resources/models.toml`. The three roles
-  (`summary`/`cv`/`highlight`) each declare only model name and generation
+  `server/resources/models.toml`. The four roles
+  (`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
   settings, which can also be overridden per role via
   `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
   structured_output).

@@ -47,7 +47,7 @@ settings below already wired.
 
 ### API keys
 
-The server calls three models, all through one provider (resumix assumes a
+The server calls four models, all through one provider (resumix assumes a
 single API key). The endpoint is declared once, in the `[provider]` table of
 `resources/models.toml`; the key itself comes from the
 environment:
@@ -65,7 +65,8 @@ doesn't need to change.
 | Role | What it does | Shipped as |
 |---|---|---|
 | `summary` | JD detection, JD analysis, cover letters | `qwen-plus`, thinking on, low effort |
-| `cv` | Writing the CV and reviewing it | `qwen3.8-max`, thinking on, 6000-token budget |
+| `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget |
+| `review` | Reviewing each CV against your profile, in plain text | `qwen3.8-max`, thinking on, temperature 0 |
 | `highlight` | The `**bold**` keyword pass | `qwen-plus`, thinking **off** |
 
 Thinking is off for the highlighter deliberately: letting a reasoning model
@@ -83,7 +84,7 @@ RESUMIX_CV_THINKING=off
 RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 ```
 
-The pattern is `RESUMIX_<ROLE>_<FIELD>` for `SUMMARY`, `CV` and
+The pattern is `RESUMIX_<ROLE>_<FIELD>` for `SUMMARY`, `CV`, `REVIEW` and
 `HIGHLIGHT`; see `.env.example` for the full list.
 
 ### Environment
@@ -98,7 +99,7 @@ The pattern is `RESUMIX_<ROLE>_<FIELD>` for `SUMMARY`, `CV` and
 | `RESUMIX_MAX_CONCURRENT_JOBS` | `10` | Requests in flight; the rest get `429` |
 | `RESUMIX_LATEX_TIMEOUT` | `120` | Seconds before a compile is killed |
 | `RESUMIX_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
-| `RESUMIX_MAX_ATTEMPTS` | `4` | Generate → review → page check rounds |
+| `RESUMIX_MAX_ATTEMPTS` | `4` | Generate → validate rounds |
 | `RESUMIX_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
 | `RESUMIX_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
 | `RESUMIX_LOG_LEVEL` | `INFO` | Logging level |
@@ -142,7 +143,7 @@ one line saying what went wrong, its kind and its stage:
 
 ```json
 {"request_id": "b510f8dff047", "ok": false,
- "error": "model_output [cv.generate]: No CV passed review in 4 attempts."}
+ "error": "model_output [cv.generate]: Could not obtain valid TailoredCVData after 3 validation attempts."}
 ```
 
 Nothing else rides on a reply: what the server did is behind
@@ -205,10 +206,11 @@ against your stated preferences.
 
 ### `POST /v1/cv` → `GET /v1/cv/{id}/status` → `GET /v1/cv/{id}`
 
-The expensive one: minutes of model calls. It writes the CV, reviews it
-against your profile, renders it, condenses it until it fits the page limit
-(2 by default, or `pages` in the request), highlights the keywords and
-renders it for good.
+The expensive one: minutes of model calls. It writes the CV, and each round
+checks it — reviewed against your profile, rendered, and measured against the
+page limit (2 by default, or `pages` in the request) — feeding everything
+wrong with it back into the next round, until it passes or the rounds run
+out. Then it highlights the keywords and renders it for good.
 
 It does not wait. The `POST` answers **`202`** with the job's id, you poll for
 the status, and you collect everything at the end:
@@ -255,9 +257,9 @@ when you want to know what it cost.
 
 `status` is one of `generate`, `review`, `re-generate`, `page_check`,
 `highlight`, `END`. `detail` is written for a person to read and may span
-several lines: a rejected review quotes the reviewer's complaints verbatim,
-and a failed page check quotes the condense instruction verbatim, because
-those are the words the model is about to be given.
+several lines: a rejected CV is followed by everything wrong with it, one per
+line — the reviewer's complaints and, when the PDF ran over, the condense
+instruction — because those are the words the model is about to be given.
 
 A job that failed answers here with the status and cause the work produced —
 `502`, `504`, `422` — so a poll is the only call a client has to handle

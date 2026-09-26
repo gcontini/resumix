@@ -102,7 +102,7 @@ local Ollama. Switching providers is replacing those two values; `models.toml`
 names the same two variables and does not need to change.
 
 Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
-`SUMMARY`, `CV` and `HIGHLIGHT`:
+`SUMMARY`, `CV`, `REVIEW` and `HIGHLIGHT`:
 
 ```bash
 RESUMIX_CV_MODEL=qwen-max

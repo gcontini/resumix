@@ -63,6 +63,8 @@ class FakeSelector(ModelSelector):
     request assembly, ``response_format`` negotiation, usage recording — is
     the production code path. ``replies`` is consumed in order and the last
     one repeats, so a retry loop can be handed one failure then a success.
+    ``finish_reason`` is reported on every reply — ``"length"`` plays a reply
+    the token limit cut off.
     """
 
     def __init__(
@@ -71,12 +73,14 @@ class FakeSelector(ModelSelector):
         profile: str = "fake",
         model: str = "fake-model",
         structured_output: str = "json_object",
+        finish_reason: str = "stop",
     ):
         super().__init__(
             profile=profile, api_key="test-key", base_url="http://fake.invalid/v1",
             model=model, structured_output=structured_output,
         )
         self.replies = list(replies) or ["{}"]
+        self.finish_reason = finish_reason
         self.calls: list[dict] = []
         self.gate: threading.Event | None = None
         self.llm = SimpleNamespace(
@@ -93,7 +97,7 @@ class FakeSelector(ModelSelector):
         return SimpleNamespace(
             choices=[SimpleNamespace(
                 message=SimpleNamespace(content=content, reasoning_content=None),
-                finish_reason="stop",
+                finish_reason=self.finish_reason,
             )],
             usage=SimpleNamespace(prompt_tokens=11, completion_tokens=22, total_tokens=33,
                                   completion_tokens_details=None),

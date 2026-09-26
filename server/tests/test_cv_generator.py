@@ -1,4 +1,4 @@
-"""The generate -> review -> render -> condense loop, without a model or LaTeX."""
+"""The generate -> validate -> regenerate loop, without a model or LaTeX."""
 
 from __future__ import annotations
 
@@ -13,16 +13,20 @@ from resumix_server.pipeline.errors import ModelOutputError
 
 from server_helpers import FakeSelector, sample_cv_data
 
-OK_REVIEW = '{"status": "OK", "violations": []}'
+OK_REVIEW = ""                          # the reviewer's "nothing to fix"
 
 
 def cv_json(**overrides) -> str:
     return sample_cv_data(**overrides).model_dump_json()
 
 
-def build(bundle, candidate, tmp_path, cv_model, highlight_model=None, **kw) -> CVGenerator:
+def build(bundle, candidate, tmp_path, cv_model, highlight_model=None,
+          reviewer=None, **kw) -> CVGenerator:
+    """A generator over fakes. The reviewer approves unless a test says
+    otherwise, so a test about writing need not script the review too."""
     return CVGenerator(
         cv_model=cv_model,
+        review_model=reviewer if reviewer is not None else FakeSelector(OK_REVIEW),
         highlight_model=highlight_model,
         bundle=bundle,
         candidate=candidate,
@@ -47,7 +51,7 @@ def no_latex(monkeypatch):
 def test_returns_the_document_the_latex_and_the_pdf(bundle, candidate, tmp_path, no_latex):
     """One call, everything a client needs to file: no second round trip to
     turn the content into a PDF."""
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     document, tex, pdf, summary = build(bundle, candidate, tmp_path, model).generate("JD text")
 
     assert document["job_title"] == "Staff Platform Engineer"
@@ -58,7 +62,7 @@ def test_returns_the_document_the_latex_and_the_pdf(bundle, candidate, tmp_path,
 def test_your_own_data_wins_over_the_model_s(bundle, candidate, tmp_path, no_latex):
     """The two halves are one namespace now, so a field the model invents must
     not be able to replace a real contact detail."""
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
     assert document["name"] == candidate.data["name"]
 
@@ -67,17 +71,17 @@ def test_progress_names_each_step_and_what_the_one_before_cost(
     bundle, candidate, tmp_path, no_latex
 ):
     steps = []
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     build(bundle, candidate, tmp_path, model,
           progress=lambda status, detail: steps.append((status, detail))).generate("JD")
 
-    assert [status for status, _ in steps] == [
-        "generate", "review", "page_check", "highlight"
-    ]
+    # The review and the render are one step: the render takes a second, and
+    # a status nobody can poll in time is not worth reporting. Later rounds,
+    # which skip the review, are the ones that say "page_check".
+    assert [status for status, _ in steps] == ["generate", "review", "highlight"]
     assert steps[0][1] == ""                                  # nothing has finished yet
     assert "generation finished, tokens used=" in steps[1][1]
-    assert "review passed" in steps[2][1]
-    assert "page check passed: 1 page(s)" in steps[3][1]
+    assert "page check passed: 1 page(s)" in steps[2][1]
 
 
 def test_a_rejected_review_reports_re_generate_with_the_violations(
@@ -85,16 +89,13 @@ def test_a_rejected_review_reports_re_generate_with_the_violations(
 ):
     """Verbatim: the client is shown the words the model is about to be given."""
     steps = []
-    model = FakeSelector(
-        cv_json(),
-        '{"status": "REVIEW", "violations": ["invented a job at NASA"]}',
-        cv_json(), OK_REVIEW,
-    )
-    build(bundle, candidate, tmp_path, model,
+    model = FakeSelector(cv_json())
+    reviewer = FakeSelector("invented a job at NASA", OK_REVIEW)
+    build(bundle, candidate, tmp_path, model, reviewer=reviewer,
           progress=lambda status, detail: steps.append((status, detail))).generate("JD")
 
     status, detail = next(s for s in steps if s[0] == "re-generate")
-    assert "review rejected the CV" in detail
+    assert "CV rejected: 1 violation(s), 1 page(s)" in detail
     assert detail.endswith("- invented a job at NASA")
 
 
@@ -103,36 +104,67 @@ def test_a_review_that_never_passes_still_produces_a_cv(
 ):
     """Consistent with the page-check loop: running out of attempts is not a
     reason to fail a job that produced a usable CV."""
-    model = FakeSelector(
-        cv_json(),
-        '{"status": "REVIEW", "violations": ["invented a job at NASA"]}',
-        cv_json(job_title="Second"),
-        '{"status": "REVIEW", "violations": ["still invented a job at NASA"]}',
-    )
+    model = FakeSelector(cv_json(), cv_json(job_title="Second"))
+    reviewer = FakeSelector("invented a job at NASA", "still invented a job at NASA")
+    steps = []
     document, *_ = build(
-        bundle, candidate, tmp_path, model, max_attempts=2
+        bundle, candidate, tmp_path, model, reviewer=reviewer, max_attempts=2,
+        progress=lambda status, detail: steps.append((status, detail)),
     ).generate("JD")
     assert document["job_title"] == "Second"
+    # Giving up is still a step the client is told about, not a silent jump.
+    status, detail = steps[-1]
+    assert status == "highlight"
+    assert "out of attempts with 1 violation(s) open" in detail
 
 
 def test_an_overlong_pdf_reports_the_condense_instruction(
     bundle, candidate, tmp_path, no_latex
 ):
+    """A CV that never fits is still delivered, at the length the last round
+    reached — the page limit is best-effort."""
     steps = []
     no_latex["n"] = 3
-    model = FakeSelector(cv_json(), OK_REVIEW)
-    with pytest.raises(ModelOutputError):
-        build(bundle, candidate, tmp_path, model, max_attempts=2,
-              progress=lambda status, detail: steps.append((status, detail))).generate("JD")
+    model = FakeSelector(cv_json())
+    document, *_ = build(bundle, candidate, tmp_path, model, max_attempts=2,
+                         progress=lambda status, detail: steps.append((status, detail))
+                         ).generate("JD")
+    assert document["job_title"] == "Staff Platform Engineer"
+
+    # Too long is a violation like any other now, quoted verbatim.
+    _, detail = next(s for s in steps if s[0] == "re-generate")
+    assert "CV rejected: 1 violation(s), 3 page(s)" in detail
+    assert detail.endswith("- REMOVE 1 duty.")
+
+
+def test_a_bad_and_over_long_cv_is_told_about_both_at_once(
+    bundle, candidate, tmp_path, no_latex
+):
+    """Why every attempt renders: the round that catches an overstatement
+    catches the overflow too, instead of spending one attempt on each."""
+    steps = []
+    no_latex["n"] = 3
+    model = FakeSelector(cv_json(), cv_json(job_title="Second"))
+    reviewer = FakeSelector("invented a job at NASA", OK_REVIEW)
+    build(bundle, candidate, tmp_path, model, reviewer=reviewer, max_attempts=2,
+          progress=lambda status, detail: steps.append((status, detail))).generate("JD")
 
     _, detail = next(s for s in steps if s[0] == "re-generate")
-    assert detail == "page check failed: 3 page(s)\nREMOVE 1 duty."
+    assert "CV rejected: 2 violation(s), 3 page(s)" in detail
+    assert "- invented a job at NASA" in detail
+    assert detail.endswith("- REMOVE 1 duty.")          # length complaint last
+
+    # And the model is handed both in the one prompt it gets next.
+    second = [c for c in model.calls
+              if any("Please tailor my CV" in (m["content"] or "") for m in c["messages"])][-1]
+    retry = second["messages"][-1]["content"]
+    assert "- invented a job at NASA" in retry and "- REMOVE 1 duty." in retry
 
 
 def test_the_prompt_carries_the_system_prompt_schema_profile_and_jd(
     bundle, candidate, tmp_path, no_latex
 ):
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     build(bundle, candidate, tmp_path, model).generate("SENTINEL JD")
 
     first = model.calls[0]["messages"]
@@ -149,7 +181,7 @@ def test_the_prompt_carries_the_system_prompt_schema_profile_and_jd(
 def test_an_endpoint_that_takes_the_schema_is_not_sent_it_twice(
     bundle, candidate, tmp_path, no_latex
 ):
-    model = FakeSelector(cv_json(), OK_REVIEW, structured_output="json_schema_strict")
+    model = FakeSelector(cv_json(), structured_output="json_schema_strict")
     build(bundle, candidate, tmp_path, model).generate("JD")
 
     first = model.calls[0]
@@ -159,13 +191,13 @@ def test_an_endpoint_that_takes_the_schema_is_not_sent_it_twice(
 
 def test_an_overridden_prompt_is_what_the_model_sees(bundle, candidate, tmp_path, no_latex):
     custom = bundle.with_overrides(sys_prompt_cv="WRITE IT MY WAY")
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     build(custom, candidate, tmp_path, model).generate("JD")
     assert model.calls[0]["messages"][0]["content"] == "WRITE IT MY WAY"
 
 
 def test_invalid_json_is_fed_back_and_retried(bundle, candidate, tmp_path, no_latex):
-    model = FakeSelector("not json at all", cv_json(), OK_REVIEW)
+    model = FakeSelector("not json at all", cv_json())
     build(bundle, candidate, tmp_path, model).generate("JD")
     retry_prompt = model.calls[1]["messages"][-1]["content"]
     assert "NOT valid against the TailoredCVData schema" in retry_prompt
@@ -181,13 +213,10 @@ def test_giving_up_names_the_stage(bundle, candidate, tmp_path, no_latex):
 def test_review_violations_are_fed_back_and_the_cv_regenerated(
     bundle, candidate, tmp_path, no_latex
 ):
-    model = FakeSelector(
-        cv_json(),
-        '{"status": "REVIEW", "violations": ["invented a job at NASA"]}',
-        cv_json(job_title="Rewritten"),
-        OK_REVIEW,
-    )
-    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
+    model = FakeSelector(cv_json(), cv_json(job_title="Rewritten"))
+    reviewer = FakeSelector("invented a job at NASA", OK_REVIEW)
+    document, *_ = build(bundle, candidate, tmp_path, model,
+                         reviewer=reviewer).generate("JD")
     assert document["job_title"] == "Rewritten"
     assert any("invented a job at NASA" in (m["content"] or "")
                for call in model.calls for m in call["messages"])
@@ -200,14 +229,12 @@ def test_a_regeneration_does_not_carry_the_previous_round_s_conversation(
     near-identical CVs in front of the model, which then copy-edited its own
     last reply — garbling and all — instead of writing a CV."""
     model = FakeSelector(
-        cv_json(job_title="First"),
-        '{"status": "REVIEW", "violations": ["invented a job at NASA"]}',
-        cv_json(job_title="Second"),
-        '{"status": "REVIEW", "violations": ["still invented a job at NASA"]}',
-        cv_json(job_title="Third"),
-        OK_REVIEW,
+        cv_json(job_title="First"), cv_json(job_title="Second"), cv_json(job_title="Third"),
     )
-    build(bundle, candidate, tmp_path, model).generate("JD")
+    reviewer = FakeSelector(
+        "invented a job at NASA", "still invented a job at NASA", OK_REVIEW,
+    )
+    build(bundle, candidate, tmp_path, model, reviewer=reviewer).generate("JD")
 
     third = [c for c in model.calls
              if any("Please tailor my CV" in (m["content"] or "") for m in c["messages"])][-1]
@@ -220,56 +247,48 @@ def test_a_regeneration_does_not_carry_the_previous_round_s_conversation(
     assert "Second" in last and "First" not in last
 
 
-def test_only_the_review_call_pins_the_temperature(bundle, candidate, tmp_path, no_latex):
-    """Writing a CV wants the provider's default sampling; judging one does
-    not, or the same CV draws different violations every round."""
-    model = FakeSelector(cv_json(), OK_REVIEW)
-    build(bundle, candidate, tmp_path, model).generate("JD")
-
-    write, review = model.calls
-    assert "temperature" not in write
-    assert review["temperature"] == 0
-
-
-def test_review_without_violations_is_treated_as_a_pass(bundle, candidate, tmp_path, no_latex):
-    model = FakeSelector(cv_json(), '{"status": "REVIEW", "violations": []}')
-    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
+def test_an_empty_review_is_a_pass(bundle, candidate, tmp_path, no_latex):
+    """Nothing to fix is an empty reply: one CV written, none rewritten."""
+    model = FakeSelector(cv_json())
+    reviewer = FakeSelector("")
+    document, *_ = build(bundle, candidate, tmp_path, model,
+                         reviewer=reviewer).generate("JD")
     assert document["job_title"] == "Staff Platform Engineer"
+    assert len(model.calls) == 1
 
 
-def test_a_second_round_exaggeration_violation_is_dropped(bundle, candidate, tmp_path, no_latex):
-    """Round 2's prompt asks the reviewer to flag only Syntax and Logic, but
-    that is a request, not a guarantee -- a model that reports an
-    Exaggeration violation anyway must not stall the loop on it."""
+def test_a_violation_on_the_second_round_regenerates_again(
+    bundle, candidate, tmp_path, no_latex
+):
+    """Every round the reviewer rejects costs a round. What it complains about
+    is not the loop's business: the violations are text to hand back."""
     model = FakeSelector(
-        cv_json(),
-        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
-        'Offending quote: q. FIX: f. Reason: r."]}',
-        cv_json(job_title="Rewritten"),
-        '{"status": "REVIEW", "violations": ["Location: X. Category: Exaggeration. '
-        'Offending quote: q. FIX: f. Reason: r."]}',
+        cv_json(), cv_json(job_title="Second"), cv_json(job_title="Third"),
     )
-    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
-    assert document["job_title"] == "Rewritten"
-
-
-def test_a_second_round_logic_violation_still_regenerates(bundle, candidate, tmp_path, no_latex):
-    model = FakeSelector(
-        cv_json(),
-        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
-        'Offending quote: q. FIX: f. Reason: r."]}',
-        cv_json(job_title="Second"),
-        '{"status": "REVIEW", "violations": ["Location: X. Category: Logic. '
-        'Offending quote: still bad. FIX: f. Reason: r."]}',
-        cv_json(job_title="Third"),
+    reviewer = FakeSelector(
+        "Location: X. Offending quote: q. FIX: f. Reason: r.",
+        "Location: X. Offending quote: still bad. FIX: f. Reason: r.",
         OK_REVIEW,
     )
-    document, *_ = build(bundle, candidate, tmp_path, model).generate("JD")
+    document, *_ = build(bundle, candidate, tmp_path, model,
+                         reviewer=reviewer).generate("JD")
     assert document["job_title"] == "Third"
 
 
+def test_a_violation_too_short_to_act_on_is_not_a_rejection(
+    bundle, candidate, tmp_path, no_latex
+):
+    """The list decides: a reply with nothing actionable in it is a pass, or
+    the loop spends every attempt on a reviewer that cannot say why."""
+    model = FakeSelector(cv_json())
+    reviewer = FakeSelector("too short")
+    document, *_ = build(bundle, candidate, tmp_path, model,
+                         reviewer=reviewer).generate("JD")
+    assert document["job_title"] == "Staff Platform Engineer"
+
+
 def test_highlighting_failure_keeps_the_unhighlighted_cv(bundle, candidate, tmp_path, no_latex):
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     highlighter = FakeSelector("}{ not json")
     document, *_ = build(bundle, candidate, tmp_path, model,
                          highlight_model=highlighter).generate("JD")
@@ -277,7 +296,7 @@ def test_highlighting_failure_keeps_the_unhighlighted_cv(bundle, candidate, tmp_
 
 
 def test_highlighting_replaces_the_content_when_it_works(bundle, candidate, tmp_path, no_latex):
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     highlighter = FakeSelector(cv_json(summary="**Bold** summary."))
     document, *_ = build(bundle, candidate, tmp_path, model,
                          highlight_model=highlighter).generate("JD")
@@ -287,7 +306,7 @@ def test_highlighting_replaces_the_content_when_it_works(bundle, candidate, tmp_
 def test_the_time_budget_stops_the_loop(bundle, candidate, tmp_path, no_latex):
     from resumix_server.pipeline.errors import BudgetExceededError
 
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     gen = build(bundle, candidate, tmp_path, model, deadline=0.0)
     with pytest.raises(BudgetExceededError):
         gen.generate("JD")
@@ -296,7 +315,7 @@ def test_the_time_budget_stops_the_loop(bundle, candidate, tmp_path, no_latex):
 @pytest.mark.skipif(shutil.which("pdflatex") is None, reason="pdflatex not installed")
 def test_end_to_end_with_a_real_compile(bundle, candidate, tmp_path):
     """No model, but a real render: the page check runs on a real PDF."""
-    model = FakeSelector(cv_json(), OK_REVIEW)
+    model = FakeSelector(cv_json())
     document, tex, pdf, _ = build(bundle, candidate, tmp_path, model).generate("JD")
     assert document["job_title"] == "Staff Platform Engineer"
     assert (tmp_path / "attempt_1.pdf").is_file()

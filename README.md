@@ -34,16 +34,15 @@ You need to provide:
 It started as my own personal lab to learn AI assisted coding and to pass the ATS with flying colors. It's not tested across different cv formats and sizes. It's sized for a well established professional with >10 
 years of experience and 3-8 working experiences. 
 
-It is focused on getting the content of the CV right instead of customization of presentations.
+It is focused on getting the content of the CV "right" instead of customization of presentations. It will give you full control on every aspect of the CV, but you must be prepared to invest some time in it before you can get it to work well. It will be always less than if you implement it from scratch (I hope). Ask on the [forum](https://github.com/gcontini/resumix/discussions) for help or open an issue. I will be happy to help.
 
-If it doesn't work for you "out of the box" check for options, it is extremely *tunable* but you may need some investment. Ask on the [forum](https://github.com/gcontini/resumix/discussions) for help or open an issue.
-
-It took me a couple of weeks to get it to work well. If you do on your own the points you're going to spend time on are:
+It took me a couple of weeks to get it to this point. If you start from scratch the points you're going to spend time on are:
 
 * prepare the templates for your cv
 * the models will continue exaggerate your experiences and to pass the lenght limits until you put in place a review step.
 * the whole review process has to be tuned (temperature=0, retries...) or it will not converge nor find errors.
 * the models thinking budgets need to be tuned or they will consume all your token plan with no added benefit.
+....
 
 ## Download and run
 
@@ -116,9 +115,6 @@ uv run resumix-api            # the server, from source
 uv run resumix --help         # the client, from source
 uv run --group docs mkdocs serve  # the documentation site, on :8000
 ```
-
-Tests that need `pdflatex` skip themselves without it. The engineering rules
-the code follows are in [AGENTS.md](AGENTS.md).
 
 ## License
 

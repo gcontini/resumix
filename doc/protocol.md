@@ -151,6 +151,7 @@ Returns a `JDAnalysis`:
 | `work_mode` | str | `full_remote` \| `hybrid` \| `on_site` \| `not_specified` |
 | `expected_salary` | str? | As stated, e.g. `"EUR 60k-80k"` |
 | `max_salary` | int? | Upper bound, or `-1` if not found |
+| `salary_match` | bool? | Whether the JD's salary meets your preferences; `null` if the JD states none |
 | `experience_level` | enum | `entry_level` \| `intermediate` \| `professional` \| `manager` \| `director` |
 | `hard_skills`, `soft_skills` | str[] | Up to 4 each |
 | `company_name` | str | The employer, or the agency |

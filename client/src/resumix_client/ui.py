@@ -42,6 +42,8 @@ def print_analysis(analysis: JDAnalysis) -> None:
     print(f"Expected salary   : {analysis.expected_salary or 'not specified'}")
     print(f"Max salary        : "
           f"{analysis.max_salary if analysis.max_salary not in (None, -1) else 'not found'}")
+    print(f"Salary match      : "
+          f"{'not specified' if analysis.salary_match is None else analysis.salary_match}")
     print(f"Experience level  : {analysis.experience_level}")
     print(f"Hard skills       : {', '.join(analysis.hard_skills) or 'n/a'}")
     print(f"Soft skills       : {', '.join(analysis.soft_skills) or 'n/a'}")

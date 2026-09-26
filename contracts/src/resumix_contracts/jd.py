@@ -35,6 +35,14 @@ class JDAnalysis(BaseModel):
             "number if it is just a number); -1 if not found"
         ),
     )
+    salary_match: Optional[bool] = Field(
+        None,
+        description=(
+            "True if the JD's stated salary meets the candidate's salary "
+            "expectations from PERSONAL_PREFERENCES, False if it falls short; "
+            "None if the JD states no salary"
+        ),
+    )
     experience_level: Literal[
         "entry_level", "intermediate", "professional", "manager", "director"
     ] = Field(

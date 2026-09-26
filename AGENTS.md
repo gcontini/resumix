@@ -36,6 +36,11 @@ because breaking it has a cost we have already paid once.
 - **Simple over clever.** The watcher processes one posting at a time because
   it asks you a question about each one; concurrency would buy nothing and
   cost a queue.
+- **KISS: this runs for one person, not at scale.** Resumix is personal
+  tooling, not a production service with many tenants. Don't add retries,
+  caching layers, queues, connection pools, horizontal scaling or config
+  knobs to handle load that will never arrive. If a single-process,
+  single-user solution works, ship that one.
 
 ## Correctness
 

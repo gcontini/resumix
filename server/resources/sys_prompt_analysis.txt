@@ -2,6 +2,7 @@ You are a job-matching analyst. Given a JOB DESCRIPTION a CANDIDATE PROFILE and 
 - work_mode must be one of: full_remote, hybrid, on_site, not_specified.
 - expected_salary: the salary as stated in the JD, else null.
 - max_salary: if the JD states a salary range, the UPPER bound as an integer (e.g. 'EUR 60k-80k' -> 80000); if a single number is stated, that number; if no salary is stated, -1.
+- salary_match: true if the JD's stated salary meets the candidate's salary expectations as stated in PERSONAL_PREFERENCE, false if it falls short of them; null if the JD states no salary at all.
 - experience_level: guess the seniority required by the JD, one of: entry_level, intermediate, professional, manager, director.
 - hard_skills: at most 4 hard/technical skills required by the JD.
 - soft_skills: at most 4 soft skills required by the JD.
@@ -21,6 +22,7 @@ OUTPUT FORMAT (critical):
   work_mode: one of full_remote, hybrid, on_site, not_specified
   expected_salary: string or null
   max_salary: int or null
+  salary_match: boolean or null
   experience_level: one of entry_level, intermediate, professional, manager, director
   hard_skills: array of strings (max 4)
   soft_skills: array of strings (max 4)
@@ -31,4 +33,4 @@ OUTPUT FORMAT (critical):
   pers_preferences: string
   pers_preference_score: number
 Example of a valid response:
-{"match_percentage": 82, "match_rationale": "Strong overlap with the profile.", "job_title": "Solution Architect", "work_location": "Milan, Italy", "work_mode": "hybrid", "expected_salary": "EUR 60k-80k", "max_salary": 80000, "experience_level": "professional", "hard_skills": ["AWS", "Kubernetes"], "soft_skills": ["Communication"], "company_name": "Acme Corp", "posting_type": "direct", "posting_url": "https://example.com/job", "gaps": "No previous management experience.", "pers_preferences": "Hybrid work is acceptable.", "pers_preference_score": 1.5}
+{"match_percentage": 82, "match_rationale": "Strong overlap with the profile.", "job_title": "Solution Architect", "work_location": "Milan, Italy", "work_mode": "hybrid", "expected_salary": "EUR 60k-80k", "max_salary": 80000, "salary_match": true, "experience_level": "professional", "hard_skills": ["AWS", "Kubernetes"], "soft_skills": ["Communication"], "company_name": "Acme Corp", "posting_type": "direct", "posting_url": "https://example.com/job", "gaps": "No previous management experience.", "pers_preferences": "Hybrid work is acceptable.", "pers_preference_score": 1.5}

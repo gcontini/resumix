@@ -260,7 +260,7 @@ class JobRunner:
             )
         (job_dir / artifacts.tex).write_text(rendered.tex, encoding="utf-8")
         (job_dir / artifacts.pdf).write_bytes(rendered.pdf_bytes())
-        log.step(f"✅ {artifacts.pdf}")
+        log.step(f"CV Path: {artifacts.pdf}")
 
     def _letter(
         self, job_dir: Path, jd_text: str, analysis: JDAnalysis, log: JobLog
@@ -275,7 +275,7 @@ class JobRunner:
             temperature=self.config.temperature,
         ))
         (job_dir / LETTER_FILENAME).write_text(letter.text, encoding="utf-8")
-        log.step(f"✅ {LETTER_FILENAME} ({letter.words} words)")
+        log.step(f"Letter Path: {LETTER_FILENAME}")
 
     # --- endings ------------------------------------------------------------
     def _reject(self, candidate: JDCandidate, log: JobLog) -> Outcome:

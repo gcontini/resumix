@@ -36,9 +36,9 @@ from . import __version__
 #: One multipart part: the field name, then the file name, bytes and type.
 Part = Tuple[str, Tuple[str, Any, str]]
 
-#: No call blocks for long any more — a CV job is polled, not waited on — but
-#: a render still has to sit through pdflatex.
-REQUEST_TIMEOUT = 180.0
+#: A CV job is polled, but analysis, letters and renders are waited on, and a
+#: model call with retries can take minutes.
+REQUEST_TIMEOUT = 240.0
 CONNECT_TIMEOUT = 10.0
 
 #: How many times to knock on /healthz before giving up on a cold server.

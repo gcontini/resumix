@@ -19,3 +19,10 @@ examples
 **/__pycache__
 **/*.py[cod]
 **/*.egg-info
+resumix-data
+build
+.claude
+.github
+.venv_win
+.vscode
+tests

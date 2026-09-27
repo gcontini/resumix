@@ -36,6 +36,7 @@ examples:
   resumix clipboard --out ~/applications
   resumix watch --in ~/Downloads/jds --out ~/applications --cover-letter yes
   resumix submit posting.txt --out ~/applications --yes
+  resumix submit posting.txt analysis.json --out ~/applications
   resumix submit-raw posting.txt -o cv.pdf -o cv.json
   resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
   resumix logs 0f9c1a7b-2f4e-4f2a-9a31-5c0d2f1e8b44
@@ -105,6 +106,9 @@ def build_parser() -> argparse.ArgumentParser:
     submit = modes.add_parser("submit", help="Process one job description file.",
                               parents=[common])
     submit.add_argument("jd_file", type=Path, help="The job description to process.")
+    submit.add_argument("analysis", nargs="?", type=Path,
+                        help="Its analysis.json, if you have one: skip detection "
+                             "and analysis and go straight to the CV.")
     submit.add_argument("--resume", metavar="REQUEST_ID",
                         help="Pick up a CV job already in progress instead of "
                              "submitting a new one (starts from its /status).")
@@ -182,7 +186,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return clipboard_mode.run(config, out, **common)
         if args.mode == "watch":
             return watch_mode.run(config, args.inbox, out, **common)
-        return submit_mode.run(config, args.jd_file, out, resume=args.resume, **common)
+        return submit_mode.run(config, args.jd_file, out, analysis=args.analysis,
+                               resume=args.resume, **common)
     except ConfigError as exc:
         fail(str(exc))
     except KeyboardInterrupt:

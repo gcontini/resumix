@@ -17,8 +17,11 @@ class JDCandidate:
     """One thing that might be a job description.
 
     ``origin`` is the file it arrived as, already claimed into ``working/``
-    when there is one; the clipboard has none, so its text is written out
-    later under :data:`~resumix_client.workspace.JD_FILENAME`.
+    when there is one; the clipboard has none. Either way the job folder
+    holds it as :data:`~resumix_client.workspace.JD_FILENAME`.
+
+    ``origin`` may also be a claimed *folder* — an already-analysed job
+    holding ``jd.txt`` and ``analysis.json`` — in which case ``text`` is empty.
     """
 
     text: str
@@ -26,10 +29,8 @@ class JDCandidate:
     label: str = "clipboard"
 
     @property
-    def filename(self) -> str:
-        from ..workspace import JD_FILENAME, strip_timestamp
-
-        return strip_timestamp(self.origin.name) if self.origin else JD_FILENAME
+    def is_job_folder(self) -> bool:
+        return self.origin is not None and self.origin.is_dir()
 
 
 class JDSource(Protocol):

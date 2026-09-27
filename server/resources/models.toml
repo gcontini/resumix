@@ -1,7 +1,8 @@
 # resumix model configuration
 # =============================
 # resumix calls exactly four models, one per job, all through the SAME
-# provider (resumix assumes a single API key):
+# provider — unless a model sets use_alternate_provider = true, in which case
+# it calls [alternate_provider] instead:
 #
 #   summary    JD detection, JD analysis and the cover letter
 #   cv         CV writing
@@ -22,6 +23,12 @@
 [provider]
 api_key_env  = "MODEL_API_KEY"
 base_url_env = "MODEL_BASE_URL"
+
+# Only for models that set use_alternate_provider = true. Its key is required
+# only when at least one model uses it.
+[alternate_provider]
+api_key_env  = "MODEL_API_KEY2"
+base_url_env = "MODEL_BASE_URL2"
 
 [defaults]
 timeout_seconds = 600
@@ -47,6 +54,8 @@ timeout_seconds = 600
 #                   hint) | "json_object" (JSON but no schema) | "none".
 #                   resumix also restates the schema in the prompt and
 #                   validates every reply, so "json_object" still works.
+# use_alternate_provider  true to call [alternate_provider] (MODEL_API_KEY2 /
+#                 MODEL_BASE_URL2) instead of [provider]; default false
 # Note: reasoning_effort and thinking_budget are mutually exclusive — a
 # declared thinking_budget always wins and reasoning_effort is dropped.
 

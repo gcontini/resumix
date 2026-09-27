@@ -40,10 +40,11 @@ def analysis(**overrides) -> JDAnalysis:
     data = dict(
         match_percentage=82, match_rationale="Strong overlap.", job_title="Head of IT",
         work_location="Milan, Italy", work_mode="hybrid", expected_salary=None,
-        max_salary=-1, experience_level="manager", hard_skills=["AWS"],
-        soft_skills=["Communication"], company_name="Acme Corp", posting_type="direct",
+        max_salary=-1, hard_skills=["AWS"],
+        soft_skills=["Communication"], company_name="Acme Corp",
         posting_url=None, gaps="No SAP.", pers_preferences="Hybrid is fine.",
-        pers_preference_score=1.5,
+        pers_preference_score=1.5, should_apply="CHECK",
+        should_apply_reason="Good match, salary not stated.",
     )
     data.update(overrides)
     return JDAnalysis(**data)

@@ -105,7 +105,9 @@ flowchart TB
 ## The four models
 
 One provider, one API key, one endpoint — declared once in the `[provider]`
-table of `resources/models.toml`. Four roles call it:
+table of `resources/models.toml`. Four roles call it; a role that sets
+`use_alternate_provider = true` calls the `[alternate_provider]` table's
+endpoint (`MODEL_API_KEY2` / `MODEL_BASE_URL2`) instead:
 
 | Role | Used for | Shipped as |
 |---|---|---|

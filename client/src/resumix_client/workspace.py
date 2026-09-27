@@ -50,11 +50,6 @@ def sanitize_name(text: str, max_len: int = 40) -> str:
     return clean[:max_len].strip("_") or "unknown"
 
 
-def strip_timestamp(name: str) -> str:
-    """``26-01-15-09-30-00_JD.txt`` -> ``JD.txt``."""
-    return _TS_PREFIX.sub("", name)
-
-
 @dataclass(frozen=True)
 class Artifacts:
     """What a finished job folder is called, all derived from your name."""
@@ -111,6 +106,20 @@ class Workspace:
         else:
             shutil.copy2(str(path), str(target))
         return target
+
+    def take_in_job(self, jd: Path, analysis: Path) -> Path:
+        """Claim a posting that was analysed already, as a job folder.
+
+        ``working/<timestamp>_<jd stem>/`` holding copies of both files under
+        :data:`JD_FILENAME` and :data:`ANALYSIS_FILENAME` — the same shape as
+        a job folder dropped into a watched inbox. Copied, never moved: both
+        files were named by path and stay where they are.
+        """
+        folder = self._free(self.working / f"{timestamp()}_{jd.stem}")
+        folder.mkdir(parents=True)
+        shutil.copy2(str(jd), str(folder / JD_FILENAME))
+        shutil.copy2(str(analysis), str(folder / ANALYSIS_FILENAME))
+        return folder
 
     def open_job(self, company: str, title: str) -> Path:
         """The working folder for an analyzed job: ``working/<Company>_<Title>``."""
@@ -185,6 +194,6 @@ class Workspace:
 
 
 __all__ = [
-    "Workspace", "Artifacts", "sanitize_name", "strip_timestamp", "timestamp", "day",
+    "Workspace", "Artifacts", "sanitize_name", "timestamp", "day",
     "JD_FILENAME", "ANALYSIS_FILENAME", "LOG_FILENAME", "LETTER_FILENAME",
 ]

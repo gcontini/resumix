@@ -192,7 +192,6 @@ Both are single calls to the `summary` model, and neither has a loop:
   against your profile and your stated preferences. Two attempts, the
   validation error fed back between them.
 - **`letter_generator.generate`** — prose in, prose out; 180–450 words,
-  validated. When the analysis says the posting is direct from a named
-  employer *and* the endpoint supports server-side web search, the model is
+  validated. When the analysis names the employer *and* the endpoint supports server-side web search, the model is
   told to research the company; an endpoint that rejects the flag falls back
   to writing without it.

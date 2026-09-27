@@ -16,15 +16,15 @@ VALID = {
     "work_mode": "hybrid",
     "expected_salary": "EUR 70k-90k",
     "max_salary": 90000,
-    "experience_level": "professional",
     "hard_skills": ["Kubernetes", "Go"],
     "soft_skills": ["Communication"],
     "company_name": "Globex",
-    "posting_type": "direct",
     "posting_url": "https://example.com/job",
     "gaps": "No formal people management.",
     "pers_preferences": "Hybrid is acceptable.",
     "pers_preference_score": 1.5,
+    "should_apply": "YES",
+    "should_apply_reason": "Salary above threshold and 82% match.",
 }
 
 
@@ -43,8 +43,12 @@ def test_unwraps_a_nested_payload():
     assert JDValidator._parse_jd_analysis(wrapped).job_title == "Staff Platform Engineer"
 
 
-def test_rejects_an_invalid_experience_level():
-    bad = dict(VALID, experience_level="wizard")
+@pytest.mark.parametrize("field, value", [
+    ("should_apply", "MAYBE"),
+    ("should_apply_reason", "x" * 91),
+])
+def test_rejects_an_invalid_should_apply(field, value):
+    bad = dict(VALID, **{field: value})
     with pytest.raises(ValidationError):
         JDValidator._parse_jd_analysis(json.dumps(bad))
 
@@ -55,8 +59,4 @@ def test_optional_fields_may_be_absent():
                             "max_salary", "posting_url")}
     analysis = JDAnalysis.model_validate(minimal)
     assert analysis.posting_url is None
-
-
-def test_clamp_list_caps_and_coerces():
-    assert JDValidator._clamp_list([1, 2, 3, 4, 5, 6], 4) == ["1", "2", "3", "4"]
-    assert JDValidator._clamp_list(None, 4) == []
+    assert analysis.max_salary == -1

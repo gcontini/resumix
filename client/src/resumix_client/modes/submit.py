@@ -11,13 +11,17 @@ from ..ui import fail
 from . import Session
 
 
-def run(config: Config, jd_file: Path, out: Path, *, assume_yes: bool = False,
-        track: bool = True, resume: Optional[str] = None) -> int:
+def run(config: Config, jd_file: Path, out: Path, *, analysis: Optional[Path] = None,
+        assume_yes: bool = False, track: bool = True, resume: Optional[str] = None) -> int:
     jd_file = Path(jd_file).expanduser()
     if not jd_file.is_file():
         fail(f"no such file: {jd_file}")
+    if analysis is not None:
+        analysis = Path(analysis).expanduser()
+        if not analysis.is_file():
+            fail(f"no such file: {analysis}")
 
     # Single shot: no recovery prompt. Whatever a previous run left behind is
     # its own business, and a one-off run must not start by asking about it.
     session = Session.build(config, out, assume_yes=assume_yes, track=track, resume=resume)
-    return session.drain(SingleFileSource(jd_file, session.workspace))
+    return session.drain(SingleFileSource(jd_file, session.workspace, analysis))

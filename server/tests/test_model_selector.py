@@ -140,6 +140,40 @@ def test_unknown_provider_key_is_rejected(tmp_path):
         ms.load_model_config(write(tmp_path, toml))
 
 
+# --- [alternate_provider] ----------------------------------------------------
+ALTERNATE = """
+[alternate_provider]
+api_key_env = "ALT_KEY"
+base_url = "https://alt.example/v1"
+"""
+
+
+def test_a_model_can_call_the_alternate_provider(tmp_path, monkeypatch, provider_key):
+    monkeypatch.setenv("ALT_KEY", "y")
+    toml = ALTERNATE + TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
+    config = ms.load_model_config(write(tmp_path, toml))
+    models = ms.build_models(config, quiet=True)
+    assert str(models["cv"].llm.base_url).startswith("https://alt.example/v1")
+    assert models["cv"].llm.api_key == "y"
+    assert str(models["summary"].llm.base_url).startswith("https://provider.example/v1")
+    assert models["summary"].llm.api_key == "x"
+
+
+def test_the_alternate_key_is_only_needed_by_models_that_use_it(tmp_path, monkeypatch, provider_key):
+    monkeypatch.delenv("ALT_KEY", raising=False)
+    toml = ALTERNATE + TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
+    config = ms.load_model_config(write(tmp_path, toml))
+    ms.build_model("summary", config, quiet=True)
+    with pytest.raises(RuntimeError, match="ALT_KEY"):
+        ms.build_model("cv", config, quiet=True)
+
+
+def test_using_the_alternate_provider_without_declaring_it_is_rejected(tmp_path):
+    toml = TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
+    with pytest.raises(ValueError, match=r"\[alternate_provider\]"):
+        ms.load_model_config(write(tmp_path, toml))
+
+
 def test_base_url_env_wins_over_literal(config, monkeypatch):
     provider = config.provider
     monkeypatch.setenv("PROVIDER_URL", "https://override.example/v1")

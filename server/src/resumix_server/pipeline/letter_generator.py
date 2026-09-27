@@ -2,8 +2,7 @@
 
 Much simpler than the CV pipeline — no schema, no renderer, no highlighter,
 no content review. The one piece of machinery is the optional web research:
-when the posting is a direct one from a named employer and the endpoint can
-search, the model is told to look the company up, and a provider that rejects
+when the analysis names the employer and the endpoint can search, the model is told to look the company up, and a provider that rejects
 the flag falls back to writing without it.
 """
 
@@ -51,15 +50,10 @@ class LetterGenerator:
         self._system_message = {"role": "system", "content": system_prompt}
 
     def _should_research(self, analysis: Mapping[str, Any]) -> bool:
-        """Web research is worth doing only for a direct posting from a named,
-        real employer, and only when the endpoint can actually run it. A
-        headhunter/agency posting has no employer to research — searching it
-        wastes tokens and risks the letter describing the agency instead of
-        the company actually hiring.
+        """Web research is worth doing only for a named employer, and only
+        when the endpoint can actually run it.
         """
         if not self.summary_model.supports_web_search:
-            return False
-        if analysis.get("posting_type") != "direct":
             return False
         return bool(analysis.get("company_name"))
 

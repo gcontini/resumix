@@ -39,10 +39,11 @@ JD_TEXT = "We are hiring a Head of IT in Milan. Responsibilities and requirement
 ANALYSIS = {
     "match_percentage": 77, "match_rationale": "Good overlap.", "job_title": "Head of IT",
     "work_location": "Milan, Italy", "work_mode": "hybrid", "expected_salary": None,
-    "max_salary": -1, "experience_level": "manager", "hard_skills": ["AWS"],
-    "soft_skills": ["Communication"], "company_name": "Acme Corp", "posting_type": "direct",
+    "max_salary": -1, "hard_skills": ["AWS"],
+    "soft_skills": ["Communication"], "company_name": "Acme Corp",
     "posting_url": None, "gaps": "No SAP.", "pers_preferences": "Hybrid is fine.",
     "pers_preference_score": 1.5,
+    "should_apply": "CHECK", "should_apply_reason": "Good match, salary not stated.",
 }
 
 

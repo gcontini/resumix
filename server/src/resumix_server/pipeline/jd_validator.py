@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from resumix_contracts import (
     MAX_JD_CHARS,
@@ -83,13 +83,6 @@ class JDValidator:
         """
         return parse_model_json(text, JDAnalysis, unwrap_nested=True)
 
-    @staticmethod
-    def _clamp_list(items, limit: int) -> List[str]:
-        """Coerce to strings and keep at most ``limit`` items."""
-        if not items:
-            return []
-        return [str(i) for i in items][:limit]
-
     # --- public API ---------------------------------------------------------
     def detect(self, text: str) -> JDDetection:
         """Is ``text`` a job description? Static checks first, model second.
@@ -123,14 +116,15 @@ class JDValidator:
             {
                 "role": "user",
                 "content": (
-                    "JOB DESCRIPTION:\n"
-                    f"{job_description}\n\n"
+                    "CANDIDATE_PROFILE:\n"
+                    f"{json.dumps(dict(candidate.profile), indent=2)}\n\n"
                     "--------------------------------------------\n"
-                    "CANDIDATE PROFILE (candidate_profile.json):\n"
-                    f"{json.dumps(dict(candidate.profile), indent=2)}\n"
+                    "PERSONAL_PREFERENCES:\n"
+                    f"{candidate.preferences}\n\n"
                     "--------------------------------------------\n"
-                    "PERSONAL PREFERENCES:\n"
-                    f"{candidate.preferences}\n"
+                    "JOB_DESCRIPTION:\n"
+                    f"{job_description}\n"
+
                 ),
             },
         ]
@@ -178,10 +172,6 @@ class JDValidator:
             raise ModelOutputError(
                 "Could not obtain valid JDAnalysis from the model.", stage="jd.analysis"
             )
-
-        # Clamp skill lists to the requested 4 items.
-        analysis.hard_skills = self._clamp_list(analysis.hard_skills, 4)
-        analysis.soft_skills = self._clamp_list(analysis.soft_skills, 4)
 
         return analysis
 

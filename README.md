@@ -15,7 +15,7 @@ Produces an honest CV that you can actually defend in a job interview. Though yo
 </div>
 
 Features:
-- **Analyses** the Job Description you select against your profile — match score, salary, seniority, skills, gaps (optional).
+- **Analyses** the Job Description you select against your profile — match score, salary, skills, gaps (optional).
 - **Writes** an honest CV tailored to the posting, reviewed against your profile for
   invented claims, condensed until it fits two pages, with matching keywords
   highlighted.

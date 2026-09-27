@@ -28,8 +28,8 @@ class JDAnalysis(BaseModel):
     expected_salary: Optional[str] = Field(
         None, description="Expected salary if stated, e.g. 'EUR 60k-80k'; null if absent"
     )
-    max_salary: Optional[int] = Field(
-        None,
+    max_salary: int = Field(
+        -1,
         description=(
             "Upper bound of the salary range if a range is stated (or the single "
             "number if it is just a number); -1 if not found"
@@ -38,15 +38,10 @@ class JDAnalysis(BaseModel):
     salary_match: Optional[bool] = Field(
         None,
         description=(
-            "True if the JD's stated salary meets the candidate's salary "
-            "expectations from PERSONAL_PREFERENCES, False if it falls short; "
-            "None if the JD states no salary"
+            "True if max_salary meets the PERSONAL_PREFERENCES salary rule, False if it falls short; always true or false when "
+            "max_salary is stated, null only when max_salary is -1 or salary "
+            "rule fails to apply"
         ),
-    )
-    experience_level: Literal[
-        "entry_level", "intermediate", "professional", "manager", "director"
-    ] = Field(
-        description="Guessed experience level required for this job"
     )
     hard_skills: List[str] = Field(
         description="Up to 4 hard/technical skills required by the JD"
@@ -57,9 +52,6 @@ class JDAnalysis(BaseModel):
     company_name: str = Field(
         description="The company that posted the job (or the headhunter agency)"
     )
-    posting_type: str = Field(
-        description="'direct' if posted by the hiring company, 'headhunter' if by a recruiter agency"
-    )
     posting_url: Optional[str] = Field(
         None, description="URL of the job posting, if present in the JD; else null"
     )
@@ -67,14 +59,25 @@ class JDAnalysis(BaseModel):
         description="Describe the gaps between the candidate and the job description"
     )
     pers_preferences: str = Field(
-        description="Textual analysis of the gaps between the PERSONAL PREFERENCES and the job description"
+        description="Textual analysis of the gaps between the PERSONAL_PREFERENCES and the job description"
     )
     pers_preference_score: float = Field(
         description=(
             "Numeric (real) score, e.g. 2.5 or 0.5, obtained by summing the "
-            "validated PERSONAL_PREFERENCE points against the job description; "
+            "validated PERSONAL_PREFERENCES points against the job description; "
             "0.0 if none apply"
         ),
+    )
+    should_apply: Literal["NO", "CHECK", "YES"] = Field(
+        description=(
+            "NO = skip the job, CHECK = flag it for a human check, YES = apply "
+            "automatically. Decided by the should_apply rules in "
+            "PERSONAL_PREFERENCES; if there are none, by salary_match"
+        ),
+    )
+    should_apply_reason: str = Field(
+        max_length=90,
+        description="Why should_apply has that value, at most 90 characters",
     )
 
 

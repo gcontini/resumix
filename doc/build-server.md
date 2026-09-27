@@ -101,6 +101,9 @@ Any OpenAI-compatible `/chat/completions` endpoint works — OpenAI, DeepSeek, a
 local Ollama. Switching providers is replacing those two values; `models.toml`
 names the same two variables and does not need to change.
 
+A model that sets `use_alternate_provider = true` calls a second endpoint,
+from `MODEL_API_KEY2` / `MODEL_BASE_URL2`, instead.
+
 Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
 `SUMMARY`, `CV`, `REVIEW` and `HIGHLIGHT`:
 
@@ -117,6 +120,7 @@ RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 |---|---|---|
 | `MODEL_API_KEY` | — | The provider key. Without it the server starts but every model call fails |
 | `MODEL_BASE_URL` | DashScope intl. | The OpenAI-compatible endpoint |
+| `MODEL_API_KEY2` / `MODEL_BASE_URL2` | — | Second key/endpoint, for models with `use_alternate_provider = true` |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where uvicorn listens |
 | `WEB_CONCURRENCY` | `1` | uvicorn worker processes. **Keep it at 1** per work root |
 | `RESUMIX_KEEPALIVE` | `75` | uvicorn keep-alive timeout, seconds |

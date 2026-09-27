@@ -150,19 +150,16 @@ Returns a `JDAnalysis`:
 | `work_location` | str? | e.g. `"Milan, Italy"` |
 | `work_mode` | str | `full_remote` \| `hybrid` \| `on_site` \| `not_specified` |
 | `expected_salary` | str? | As stated, e.g. `"EUR 60k-80k"` |
-| `max_salary` | int? | Upper bound, or `-1` if not found |
+| `max_salary` | int | Upper bound, or `-1` if not found |
 | `salary_match` | bool? | Whether the JD's salary meets your preferences; `null` if the JD states none |
-| `experience_level` | enum | `entry_level` \| `intermediate` \| `professional` \| `manager` \| `director` |
 | `hard_skills`, `soft_skills` | str[] | Up to 4 each |
 | `company_name` | str | The employer, or the agency |
-| `posting_type` | str | `direct` \| `headhunter` |
 | `posting_url` | str? | If the posting text carries one |
 | `gaps` | str | Where you fall short of the posting |
 | `pers_preferences` | str | How the posting reads against your preferences |
 | `pers_preference_score` | float | The summed score of the preferences it satisfies |
-
-`posting_type` is load-bearing beyond the report: `direct` plus a named
-company is what lets the letter endpoint spend a web search.
+| `should_apply` | str | `NO` (skip) \| `CHECK` (human check) \| `YES` (apply) — per the `should_apply` rules in your preferences, else `salary_match` |
+| `should_apply_reason` | str | Why, at most 90 characters |
 
 ## `POST /v1/cv` → `GET /v1/cv/{id}/status` → `GET /v1/cv/{id}`
 
@@ -298,7 +295,7 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 | `temperature` | optional | Sampling temperature |
 
 Returns `{"text": "…", "words": 312}`, validated between 180 and 450 words.
-When the analysis says the posting is direct from a named employer *and* the
+When the analysis names the employer *and* the
 endpoint supports server-side web search, the model is told to research the
 company; an endpoint that rejects the flag falls back to writing without it.
 

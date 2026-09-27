@@ -34,7 +34,7 @@ def test_a_short_letter_is_rejected_and_retried(client, fake_models, candidate):
 
 def test_the_analysis_is_optional(client, fake_models, candidate):
     fake_models["summary"].replies = [LETTER]
-    analysis = {"company_name": "Acme Corp", "posting_type": "direct", "job_title": "Head of IT"}
+    analysis = {"company_name": "Acme Corp", "job_title": "Head of IT"}
     files = letter_parts(candidate,
                          analysis=("analysis.json", json.dumps(analysis), "application/json"))
     client.post("/v1/letter", data={"jd_text": "a jd"}, files=files)

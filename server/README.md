@@ -62,6 +62,10 @@ local Ollama. Switching providers is just replacing those two values in
 `.env`; `models.toml`'s `[provider]` table names the same two variables and
 doesn't need to change.
 
+A model that sets `use_alternate_provider = true` in `models.toml` calls a
+second endpoint instead, from `MODEL_API_KEY2` / `MODEL_BASE_URL2` (the
+`[alternate_provider]` table).
+
 | Role | What it does | Shipped as |
 |---|---|---|
 | `summary` | JD detection, JD analysis, cover letters | `qwen-plus`, thinking on, low effort |
@@ -200,9 +204,9 @@ curl -F jd=@JD.txt \
 
 Required: `jd`, `candidate_profile`, `pers_preferences`. Optional:
 `temperature`. Returns a `JDAnalysis` — match percentage and rationale, title,
-location, work mode, salary, seniority, hard and soft skills, company, whether
-it is a direct or agency posting, the gaps against your profile and a score
-against your stated preferences.
+location, work mode, salary, hard and soft skills, company, the gaps against
+your profile, a score against your stated preferences and a `should_apply`
+verdict (`NO`, `CHECK` or `YES`) with a one-line reason.
 
 ### `POST /v1/cv` → `GET /v1/cv/{id}/status` → `GET /v1/cv/{id}`
 
@@ -300,8 +304,8 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 Required: `jd`, `candidate_profile`, `candidate_data` (the header block's name,
 email, phone, LinkedIn — the letter is prose the model writes directly, not a
 template, so it needs the real contact details). Optional: `analysis` (makes
-the letter more targeted), `sys_prompt_letter`, `temperature`. When the analysis says the
-posting is direct from a named employer and the endpoint supports server-side
+the letter more targeted), `sys_prompt_letter`, `temperature`. When the analysis names the
+employer and the endpoint supports server-side
 web search, the model is told to research the company; an endpoint that
 rejects the flag falls back to writing without it.
 

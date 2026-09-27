@@ -2,7 +2,9 @@
 
 resumix calls exactly four models, one per job, all declared in
 ``resources/models.toml`` and sharing one provider (one API key/endpoint,
-declared once in the ``[provider]`` table):
+declared once in the ``[provider]`` table) — except a model that sets
+``use_alternate_provider = true``, which calls the ``[alternate_provider]``
+table's endpoint instead:
 
 ``summary``
     JD detection, JD analysis and the cover letter — mid-size, light thinking,
@@ -80,11 +82,12 @@ THINKING_BUDGET = "thinking_budget"
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class ProviderConfig:
-    """The one LLM provider every role calls, as written in ``models.toml``.
+    """An LLM endpoint, as written in ``models.toml``.
 
-    resumix assumes a single provider/single API key — there is nothing to
-    fall back to, so a missing key is a hard startup error naming this one
-    variable rather than a per-role concern.
+    ``[provider]`` is the one every role calls; ``[alternate_provider]`` is
+    used only by the models that set ``use_alternate_provider``. Neither is a
+    fallback for the other, so a missing key is a hard startup error naming
+    the variable.
     """
 
     api_key_env: str
@@ -127,6 +130,7 @@ class ModelSpec:
     # "json_schema_strict" | "json_schema" | "json_object" | "none"
     structured_output: str = "json_object"
     max_tokens: Optional[int] = None       # overrides [defaults].max_tokens
+    use_alternate_provider: bool = False   # call [alternate_provider] instead
 
     # --- request shaping ---------------------------------------------------
     def thinking_extra_body(self) -> Optional[Dict[str, Any]]:
@@ -179,11 +183,19 @@ class ModelSpec:
 
 @dataclass
 class ModelConfig:
-    """Parsed ``models.toml``: the provider, the four models, ``[defaults]``."""
+    """Parsed ``models.toml``: the providers, the four models, ``[defaults]``."""
 
     provider: ProviderConfig
     models: Dict[str, ModelSpec] = field(default_factory=dict)
     defaults: Dict[str, Any] = field(default_factory=dict)
+    alternate_provider: Optional[ProviderConfig] = None
+
+    def provider_for(self, spec: ModelSpec) -> ProviderConfig:
+        """The endpoint ``spec`` calls: the alternate one when it asks for it."""
+        if spec.use_alternate_provider:
+            assert self.alternate_provider is not None  # checked at load time
+            return self.alternate_provider
+        return self.provider
 
     @property
     def max_tokens(self) -> Optional[int]:
@@ -257,6 +269,23 @@ def _validate(spec: ModelSpec, path: Path) -> None:
 
 
 
+def _parse_provider(
+    table: str, body: Dict[str, Any], path: Path
+) -> ProviderConfig:
+    """Validate one ``[provider]``-shaped table and build its config."""
+    unknown = set(body) - _PROVIDER_ALLOWED_KEYS
+    if unknown:
+        raise ValueError(
+            f"{path}: [{table}] has unknown key(s) {sorted(unknown)}; "
+            f"allowed: {sorted(_PROVIDER_ALLOWED_KEYS)}"
+        )
+    if not body.get("api_key_env"):
+        raise ValueError(f"{path}: [{table}] is missing 'api_key_env'")
+    if not body.get("base_url_env") and not body.get("base_url"):
+        raise ValueError(f"{path}: [{table}] needs 'base_url_env' or 'base_url'")
+    return ProviderConfig(**body)
+
+
 def _models_path(resources_dir: Optional[Path] = None) -> Path:
     """Locate ``models.toml``: an explicit directory wins, else the shipped copy."""
     if resources_dir is not None:
@@ -287,17 +316,13 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
             f"{path}: no [provider] table — resumix needs one provider's "
             "endpoint, shared by all four models"
         )
-    unknown_provider_keys = set(provider_body) - _PROVIDER_ALLOWED_KEYS
-    if unknown_provider_keys:
-        raise ValueError(
-            f"{path}: [provider] has unknown key(s) {sorted(unknown_provider_keys)}; "
-            f"allowed: {sorted(_PROVIDER_ALLOWED_KEYS)}"
-        )
-    if not provider_body.get("api_key_env"):
-        raise ValueError(f"{path}: [provider] is missing 'api_key_env'")
-    if not provider_body.get("base_url_env") and not provider_body.get("base_url"):
-        raise ValueError(f"{path}: [provider] needs 'base_url_env' or 'base_url'")
-    provider = ProviderConfig(**provider_body)
+    provider = _parse_provider("provider", provider_body, path)
+    alternate_body = raw.get("alternate_provider")
+    alternate = (
+        _parse_provider("alternate_provider", alternate_body, path)
+        if alternate_body
+        else None
+    )
 
     declared = raw.get("models") or {}
     unknown_roles = set(declared) - set(MODEL_ROLES)
@@ -328,9 +353,19 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
             )
         spec = ModelSpec(role=role, **body)
         _validate(spec, path)
+        if spec.use_alternate_provider and alternate is None:
+            raise ValueError(
+                f"{path}: [models.{role}] sets use_alternate_provider but there "
+                "is no [alternate_provider] table"
+            )
         models[role] = spec
 
-    return ModelConfig(provider=provider, models=models, defaults=raw.get("defaults") or {})
+    return ModelConfig(
+        provider=provider,
+        models=models,
+        defaults=raw.get("defaults") or {},
+        alternate_provider=alternate,
+    )
 
 
 def describe_response_format(
@@ -616,8 +651,8 @@ def build_model(
     Sampling and thinking settings come from the model's own table (after any
     env override); anything it leaves out is omitted from the request so the
     provider's default applies. Raises ``KeyError`` for an unknown role and
-    ``RuntimeError`` when the provider's API key is not set in the
-    environment. Callers that want a one-off variation clone the result with
+    ``RuntimeError`` when the API key of the provider this role calls is not
+    set in the environment. Callers that want a one-off variation clone the result with
     :meth:`ModelSelector.with_` instead of rebuilding it.
     """
     load_dotenv()
@@ -626,20 +661,21 @@ def build_model(
 
     if role not in config.models:
         raise KeyError(f"unknown model role {role!r}; expected one of {list(MODEL_ROLES)}")
-    if not config.provider.is_usable():
+    spec = config.models[role]
+    provider = config.provider_for(spec)
+    if not provider.is_usable():
         raise RuntimeError(
-            f"No model is usable: {config.provider.api_key_env} is not set. "
+            f"Model {role!r} is not usable: {provider.api_key_env} is not set. "
             "Set it in your .env."
         )
 
-    spec = config.models[role]
     if not quiet:
         logger.info("  🧠 %s: %s", role, spec.summary_line())
 
     return ModelSelector(
         profile=role,
-        api_key=config.provider.resolved_api_key() or "",
-        base_url=config.provider.resolved_base_url() or "",
+        api_key=provider.resolved_api_key() or "",
+        base_url=provider.resolved_base_url() or "",
         model=spec.model,
         max_tokens=spec.max_tokens if spec.max_tokens is not None else config.max_tokens,
         temperature=spec.temperature,
@@ -660,8 +696,8 @@ def build_models(
 ) -> Dict[str, ModelSelector]:
     """Build all four models, keyed by role (see :data:`MODEL_ROLES`).
 
-    Raises ``RuntimeError`` when the provider's API key is not set — with one
-    provider there is no fallback, so all four roles fail together.
+    Raises ``RuntimeError`` when a provider some role calls has no API key
+    set — there is no fallback between providers.
     """
     load_dotenv()
     if config is None:

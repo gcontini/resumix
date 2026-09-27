@@ -107,11 +107,13 @@ def test_the_working_folder_is_left_empty(runner, workspace):
     assert workspace.pending() == ([], [])
 
 
-def test_a_dropped_file_keeps_its_own_name(api, workspace, config):
+def test_a_dropped_file_becomes_jd_txt(api, workspace, config):
+    """Whatever it was called, the job folder holds it under one name, so a
+    delivered folder can be dropped back in as it is."""
     runner = build(api, workspace, config)
     outcome = runner.handle(dropped(workspace, "ENGIE_infra_lead.txt"))
-    assert (outcome.path / "ENGIE_infra_lead.txt").is_file()
-    assert not (outcome.path / "jd.txt").exists()
+    assert (outcome.path / "jd.txt").read_text() == JD_TEXT
+    assert not (outcome.path / "ENGIE_infra_lead.txt").exists()
 
 
 def test_the_log_records_the_client_steps(runner):
@@ -306,3 +308,100 @@ def test_resuming_a_folder_without_an_analysis_fails_it(runner, workspace):
     outcome = runner.resume(job)
     assert outcome.status == "failed"
     assert outcome.path.parent == workspace.error
+
+
+# --- a dropped job folder ---------------------------------------------------
+def dropped_folder(workspace: Workspace, files: dict, name: str = "old_job"):
+    """A folder claimed into working/, as the watcher would hand it over."""
+    folder = workspace.root.parent / "inbox" / name
+    folder.mkdir(parents=True)
+    for filename, content in files.items():
+        (folder / filename).write_text(content, encoding="utf-8")
+    claimed = workspace.take_in(folder)
+    return JDCandidate(text="", origin=claimed, label=name)
+
+
+def analysed(**extra) -> dict:
+    from conftest import analysis
+
+    return {"jd.txt": JD_TEXT, "analysis.json": analysis().model_dump_json(), **extra}
+
+
+def test_a_dropped_folder_skips_detection_and_analysis(runner, workspace, api):
+    outcome = runner.handle(dropped_folder(workspace, analysed()))
+
+    assert outcome.status == "delivered"
+    assert outcome.path.parent.parent == workspace.cv
+    assert outcome.path.name.endswith("_old_job"), "claimed like a file, never renamed"
+    assert "detect" not in api.calls and "analyze" not in api.calls
+    assert (outcome.path / "cv_Jordan_Rivera.pdf").is_file()
+    assert workspace.pending() == ([], [])
+
+
+def test_a_dropped_folder_with_its_document_only_re_renders(runner, workspace, api):
+    outcome = runner.handle(dropped_folder(
+        workspace, analysed(**{"cv_Jordan_Rivera.json": json.dumps(document())})
+    ))
+    assert outcome.status == "delivered"
+    assert api.calls == ["render"]
+
+
+def test_a_dropped_folder_still_asks_before_spending(api, workspace, config):
+    runner = build(api, workspace, config, Decision(submit=False))
+    outcome = runner.handle(dropped_folder(workspace, analysed()))
+
+    assert outcome.status == "discarded"
+    assert outcome.path.parent.parent == workspace.discarded
+    assert api.calls == []
+
+
+def test_a_dropped_folder_without_jd_txt_goes_to_error(runner, workspace, api):
+    files = analysed()
+    files["posting.txt"] = files.pop("jd.txt")
+    outcome = runner.handle(dropped_folder(workspace, files))
+
+    assert outcome.status == "rejected"
+    assert outcome.path.parent == workspace.error
+    assert "jd.txt" in (outcome.path / "log.log").read_text()
+    assert api.calls == []
+
+
+def test_a_dropped_folder_with_a_bad_analysis_goes_to_error(runner, workspace, api):
+    outcome = runner.handle(dropped_folder(workspace, analysed(**{"analysis.json": "{}"})))
+
+    assert outcome.status == "rejected"
+    assert outcome.path.parent == workspace.error
+    assert "analysis.json" in (outcome.path / "log.log").read_text()
+    assert api.calls == []
+
+
+# --- submit with an analysis.json -------------------------------------------
+def test_submit_with_an_analysis_skips_straight_to_the_cv(runner, workspace, api, tmp_path):
+    from conftest import analysis
+    from resumix_client.sources.single import SingleFileSource
+
+    jd = tmp_path / "posting.txt"
+    jd.write_text(JD_TEXT, encoding="utf-8")
+    given = tmp_path / "analysis.json"
+    given.write_text(analysis(match_percentage=64).model_dump_json(), encoding="utf-8")
+
+    [candidate] = SingleFileSource(jd, workspace, given).candidates()
+    outcome = runner.handle(candidate)
+
+    assert outcome.status == "delivered"
+    assert "detect" not in api.calls and "analyze" not in api.calls
+    delivered = JDAnalysis.model_validate_json((outcome.path / "analysis.json").read_text())
+    assert delivered.match_percentage == 64, "the analysis passed in, not a new one"
+    assert (outcome.path / "jd.txt").read_text() == JD_TEXT
+    assert (outcome.path / "cv_Jordan_Rivera.pdf").is_file()
+    assert jd.exists() and given.exists()
+
+
+def test_submit_with_a_missing_analysis_claims_nothing(workspace, tmp_path):
+    from resumix_client.sources.single import SingleFileSource
+
+    jd = tmp_path / "posting.txt"
+    jd.write_text(JD_TEXT, encoding="utf-8")
+    with pytest.raises(FileNotFoundError):
+        list(SingleFileSource(jd, workspace, tmp_path / "nope.json").candidates())
+    assert workspace.pending() == ([], [])

@@ -26,6 +26,7 @@ from .tracking import TEMPLATE_NAME, Tracker
 from .ui import Confirmer
 from .workspace import (
     ANALYSIS_FILENAME,
+    JD_FILENAME,
     LETTER_FILENAME,
     LOG_FILENAME,
     Artifacts,
@@ -73,6 +74,8 @@ class JobRunner:
     # --- entry points -------------------------------------------------------
     def handle(self, candidate: JDCandidate) -> Outcome:
         """A new posting: detect, analyze, ask, produce."""
+        if candidate.is_job_folder:
+            return self.adopt(candidate.origin)
         log = JobLog()
         try:
             detection = self._detect(candidate, log)
@@ -80,24 +83,31 @@ class JobRunner:
                 return self._reject(candidate, log)
 
             analysis, job_dir = self._analyze(candidate, log)
-            decision = self.confirmer.confirm(analysis)
-            if decision.quit:
-                log.step("⏹ stopped before submitting")
-                self._finish_log(job_dir, log)
-                return Outcome("quit", "stopped by the user", self.workspace.discard(job_dir))
-            if not decision.submit:
-                log.step("⏭ skipped")
-                self._finish_log(job_dir, log)
-                return Outcome("discarded", "skipped", self.workspace.discard(job_dir))
-
-            if decision.url:
-                analysis.posting_url = decision.url
-                self._write_analysis(job_dir, analysis)
-            return self._produce(job_dir, candidate.text, analysis, log)
+            return self._decide(job_dir, candidate.text, analysis, log)
         except ResumixError as exc:
             # Nothing has a job folder yet, so the claimed file itself is what
             # gets filed under error/ — never left behind in working/.
             return self._failed(log, exc, candidate=candidate)
+
+    def adopt(self, folder: Path) -> Outcome:
+        """A dropped folder that was analysed already: ask, produce."""
+        log = JobLog()
+        log.step(f"📂 {folder.name}: using its {ANALYSIS_FILENAME} (no detection, no analysis)")
+        jd = folder / JD_FILENAME
+        if not jd.is_file():
+            return self._reject_folder(folder, f"no {JD_FILENAME} in {folder.name}", log)
+        try:
+            analysis = JDAnalysis.model_validate_json(
+                (folder / ANALYSIS_FILENAME).read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            return self._reject_folder(
+                folder, f"{ANALYSIS_FILENAME} is missing or invalid: {exc}", log
+            )
+        try:
+            return self._decide(folder, jd.read_text(encoding="utf-8"), analysis, log)
+        except ResumixError as exc:
+            return self._failed(log, exc, job_dir=folder)
 
     def resume(self, job_dir: Path) -> Outcome:
         """A folder left in ``working/``: it was analyzed, so pick up there."""
@@ -166,14 +176,33 @@ class JobRunner:
         ))
 
         job_dir = self.workspace.open_job(analysis.company_name, analysis.job_title)
-        target = job_dir / candidate.filename
+        target = job_dir / JD_FILENAME
         if candidate.origin is not None and candidate.origin.exists():
-            candidate.origin.rename(target)  # keeps the name you gave it
+            candidate.origin.rename(target)
         else:
             target.write_text(candidate.text, encoding="utf-8")
         self._write_analysis(job_dir, analysis)
         log.step(f"📥 {job_dir.name}")
         return analysis, job_dir
+
+    def _decide(
+        self, job_dir: Path, jd_text: str, analysis: JDAnalysis, log: JobLog
+    ) -> Outcome:
+        """Ask before spending, then produce or put it aside."""
+        decision = self.confirmer.confirm(analysis)
+        if decision.quit:
+            log.step("⏹ stopped before submitting")
+            self._finish_log(job_dir, log)
+            return Outcome("quit", "stopped by the user", self.workspace.discard(job_dir))
+        if not decision.submit:
+            log.step("⏭ skipped")
+            self._finish_log(job_dir, log)
+            return Outcome("discarded", "skipped", self.workspace.discard(job_dir))
+
+        if decision.url:
+            analysis.posting_url = decision.url
+            self._write_analysis(job_dir, analysis)
+        return self._produce(job_dir, jd_text, analysis, log)
 
     def _produce(
         self, job_dir: Path, jd_text: str, analysis: JDAnalysis, log: JobLog
@@ -254,6 +283,11 @@ class JobRunner:
             "rejected", "not a job description", self._park(candidate, log)
         )
 
+    def _reject_folder(self, folder: Path, reason: str, log: JobLog) -> Outcome:
+        log.step(f"✗ {reason}")
+        self._finish_log(folder, log)
+        return Outcome("rejected", reason, self.workspace.to_error(folder))
+
     def _failed(
         self,
         log: JobLog,
@@ -303,8 +337,6 @@ class JobRunner:
 
     def _stored_jd(self, job_dir: Path) -> str:
         """The JD text a resumed folder was built from, whatever it is called."""
-        from .workspace import JD_FILENAME
-
         candidates = [job_dir / JD_FILENAME, *sorted(job_dir.glob("*.txt"))]
         for path in candidates:
             if path.is_file() and path.name not in (LETTER_FILENAME, LOG_FILENAME):

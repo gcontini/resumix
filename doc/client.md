@@ -67,11 +67,27 @@ use `watch`, which needs no clipboard at all.
 resumix watch --in ~/Downloads/postings --out ~/applications
 ```
 
-Every file dropped into `--in` is **claimed immediately** — moved into
+Everything dropped into `--in` is **claimed immediately** — moved into
 `working/` under a timestamp — so nothing is ever processed twice and a crash
-leaves it somewhere recoverable. A file still being copied in is left alone
-until its size stops changing. One posting at a time, because each one asks
-you a question.
+leaves it somewhere recoverable. Anything still being copied in is left alone
+until it stops changing. One posting at a time, because each one asks you a
+question.
+
+What you can drop:
+
+- **A file** — any name, any extension, read as UTF-8 text. It has to look
+  like a posting (the local check, then the server's), otherwise it lands in
+  `error/` with a `.log` beside it. A PDF or `.docx` is not read: paste its
+  text into a `.txt`.
+- **A folder** holding `jd.txt` and a valid `analysis.json` — a folder from
+  `cv/` or `discarded/`, for instance. Detection and analysis are skipped; you
+  are still asked before anything is spent. It keeps its own name (under the
+  timestamp) wherever it ends up. If it also holds `cv_<name>.json`, the CV is
+  re-rendered from it — one LaTeX compile, no model call. A folder with no
+  `jd.txt`, or whose `analysis.json` does not validate, goes to `error/` with
+  a `log.log` inside saying why.
+
+Names starting with `.` are ignored.
 
 `--in` defaults to `./incoming`, created if missing. It may not be the same
 folder as `--out`.
@@ -86,6 +102,17 @@ The same pipeline for a single file, then it exits. No recovery prompt: a
 one-off run must not start by asking about someone else's leftovers. The file
 you name is **copied**, not consumed — unlike `watch`, which empties the
 folder it watches.
+
+```bash
+resumix submit posting.txt analysis.json --out ~/applications
+```
+
+With an `analysis.json` for the posting — from an earlier run's folder, say —
+detection and analysis are skipped and it goes straight to the CV; you are
+still asked first, unless `--yes`. Both files are copied into the job folder
+as `jd.txt` and `analysis.json`, so the analysis you passed is the one
+delivered beside the CV. One that does not validate sends the job to `error/`
+with a `log.log` saying why.
 
 ### `submit-raw` — just the CV, right here
 
@@ -255,7 +282,7 @@ Start from the fictional set in the repository's `examples/candidate/`.
 │           ├── cv_Jordan_Rivera.tex     the LaTeX it was compiled from
 │           ├── cv_Jordan_Rivera.json    the content, for re-rendering
 │           ├── analysis.json            match score, salary, skills, gaps
-│           ├── jd.txt                   the posting (or its original filename)
+│           ├── jd.txt                   the posting, whatever the file was called
 │           ├── cover_letter.txt         with --cover-letter
 │           └── log.log                  every step, plus the server's on failure
 ├── discarded/26-01-15/…                 postings you said no to, analysis kept
@@ -313,6 +340,7 @@ newer requests have pushed it out, and keeps nothing else.
 | `429` / `all job slots are busy` | The server is at capacity. Try again shortly. |
 | `clipboard: not a posting (412 chars, nothing sent)` | What you copied is a fragment. Nothing was sent anywhere. |
 | A posting you wanted lands in `error/` | Read the `.log` beside it. A wrong "not a job description" verdict usually means the copy grabbed only part of the page. |
+| A folder you dropped lands in `error/` | It needs `jd.txt` and a valid `analysis.json`. The `log.log` inside it says which was missing. |
 | You need more than the error line | Re-run with `-d`, or `resumix logs <request id>` while the server still has it. |
 | `working/` is not empty | A previous run stopped mid-job. `clipboard` and `watch` offer to resume or clean at startup. |
 | The client died but the job was running | `resumix submit posting.txt --resume <request_id>` picks it back up. |

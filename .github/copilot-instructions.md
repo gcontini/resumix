@@ -185,7 +185,9 @@ required to run it (PyInstaller `--onefile`)
 - LLM access via any OpenAI-compatible endpoint — one provider, one API key
   (`MODEL_API_KEY`/`MODEL_BASE_URL`; see `.env.example`), declared once in
   the `[provider]` table of
-  `server/resources/models.toml`. The four roles
+  `server/resources/models.toml`. A role with `use_alternate_provider = true`
+  calls `[alternate_provider]` (`MODEL_API_KEY2`/`MODEL_BASE_URL2`) instead.
+  The four roles
   (`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
   settings, which can also be overridden per role via
   `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/

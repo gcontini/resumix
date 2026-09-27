@@ -9,11 +9,12 @@ from resumix_contracts import JDAnalysis, static_jd_guess
 ANALYSIS = {
     "match_percentage": 82, "match_rationale": "Strong overlap.",
     "job_title": "Head of IT", "work_location": "Milan, Italy", "work_mode": "hybrid",
-    "expected_salary": "EUR 60k-80k", "max_salary": 80000, "experience_level": "manager",
+    "expected_salary": "EUR 60k-80k", "max_salary": 80000,
     "hard_skills": ["AWS", "Kubernetes", "ITIL", "Budgets", "Extra one"],
-    "soft_skills": ["Communication"], "company_name": "Acme Corp", "posting_type": "direct",
+    "soft_skills": ["Communication"], "company_name": "Acme Corp",
     "posting_url": None, "gaps": "No SAP.", "pers_preferences": "Hybrid is fine.",
     "pers_preference_score": 1.5,
+    "should_apply": "YES", "should_apply_reason": "Salary meets the threshold, strong match.",
 }
 
 
@@ -57,7 +58,7 @@ def test_analysis_returns_a_validated_analysis(client, fake_models, candidate):
 
     analysis = JDAnalysis.model_validate(body["data"])
     assert analysis.company_name == "Acme Corp"
-    assert len(analysis.hard_skills) == 4, "the list is clamped to four"
+    assert len(analysis.hard_skills) == 5, "the list is passed through unclamped"
 
 
 def test_analysis_prompt_carries_the_profile_and_the_preferences(client, fake_models, candidate):

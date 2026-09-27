@@ -52,15 +52,12 @@ class FakeSelector:
 @pytest.mark.parametrize(
     "supports, analysis, expected",
     [
-        (True, {"posting_type": "direct", "company_name": "Globex"}, True),
-        # A headhunter listing has no employer to research; searching it risks
-        # writing about the agency instead of the hiring company.
-        (True, {"posting_type": "headhunter", "company_name": "Acme Recruit"}, False),
-        (True, {"posting_type": "direct", "company_name": ""}, False),
-        (False, {"posting_type": "direct", "company_name": "Globex"}, False),
+        (True, {"company_name": "Globex"}, True),
+        (True, {"company_name": ""}, False),
+        (False, {"company_name": "Globex"}, False),
     ],
 )
-def test_research_only_for_a_named_direct_employer(supports, analysis, expected):
+def test_research_only_for_a_named_employer(supports, analysis, expected):
     gen = LetterGenerator.__new__(LetterGenerator)
     gen.summary_model = FakeSelector(supports)
     assert gen._should_research(analysis) is expected

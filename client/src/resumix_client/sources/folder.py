@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional, Tuple
 
 from . import JDCandidate
 from ..workspace import Workspace
@@ -21,7 +21,7 @@ def read_text(path: Path) -> str:
 
 
 class FolderWatchSource:
-    """Yields every file dropped into ``inbox``, claiming it immediately.
+    """Yields every file or job folder dropped into ``inbox``, claiming it immediately.
 
     Claiming first is the whole trick: the file leaves the watched folder the
     moment it is seen, so nothing is ever processed twice and a crash leaves
@@ -46,13 +46,14 @@ class FolderWatchSource:
     def candidates(self) -> Iterator[JDCandidate]:
         while True:
             for path in sorted(self.inbox.iterdir()) if self.inbox.is_dir() else []:
-                if not path.is_file() or path.name.startswith("."):
+                if path.name.startswith("."):
                     continue
                 if not self._settled(path):
                     continue
                 claimed = self.workspace.take_in(path)
                 print(f"📥 {path.name} -> working/{claimed.name}", flush=True)
-                yield JDCandidate(text=read_text(claimed), origin=claimed, label=path.name)
+                text = "" if claimed.is_dir() else read_text(claimed)
+                yield JDCandidate(text=text, origin=claimed, label=path.name)
             if self.once:
                 return
             time.sleep(self.poll_seconds)
@@ -60,11 +61,21 @@ class FolderWatchSource:
     def _settled(self, path: Path) -> bool:
         """Still being copied in? Let it finish."""
         try:
-            first = path.stat().st_size
+            first = _footprint(path)
             time.sleep(self.settle_seconds)
-            return path.is_file() and path.stat().st_size == first
+            return first is not None and _footprint(path) == first
         except OSError:
             return False
+
+
+def _footprint(path: Path) -> Optional[Tuple[int, int]]:
+    """``(file count, total bytes)`` — a folder's own size says nothing about its contents."""
+    if path.is_file():
+        return 1, path.stat().st_size
+    if path.is_dir():
+        files = [p for p in path.rglob("*") if p.is_file()]
+        return len(files), sum(p.stat().st_size for p in files)
+    return None
 
 
 __all__ = ["FolderWatchSource"]

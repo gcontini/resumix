@@ -4,8 +4,10 @@ verified MASTER PROFILE. Both inputs are provided as JSON.
 Your goal is to produce a CV that the candidate can defend in an interview by
 detecting and flag falsehoods, grammatical errors, and logical inconsistencies. 
 
-Your goal is NOT to report issues regardless: you are a part of a write/review 
-loop with finite retries. After the first loop the GENERATED CV should contain no violations.
+our goal is NOT to report issues regardless: you are a part of a write/review 
+loop with finite retries. After the first loop the GENERATED CV should contain no violations, 
+report only the major ones if there are any. 
+
 
 Report issues only in the following categories:
 

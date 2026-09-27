@@ -11,7 +11,6 @@ from resumix_client.workspace import (
     Workspace,
     day,
     sanitize_name,
-    strip_timestamp,
 )
 
 
@@ -49,6 +48,18 @@ def test_a_named_file_is_copied_not_consumed(ws):
     assert claimed.parent == ws.working
 
 
+def test_a_named_posting_and_analysis_become_a_job_folder(ws):
+    """`resumix submit posting.txt analysis.json`: both copied, renamed, kept."""
+    jd, analysis = drop(ws), drop(ws, "mine.json", "{}")
+    folder = ws.take_in_job(jd, analysis)
+
+    assert jd.exists() and analysis.exists(), "arguments are not an inbox"
+    assert folder.parent == ws.working
+    assert re.match(r"^\d{2}(-\d{2}){5}_posting$", folder.name)
+    assert sorted(p.name for p in folder.iterdir()) == ["analysis.json", "jd.txt"]
+    assert (folder / "jd.txt").read_text() == "a posting"
+
+
 def test_delivery_goes_into_a_daily_folder(ws):
     job = ws.open_job("Acme Corp", "Head of IT")
     delivered = ws.deliver(job)
@@ -73,8 +84,7 @@ def test_error_keeps_an_existing_timestamp(ws):
 def test_error_adds_a_timestamp_when_there_is_none(ws):
     job = ws.open_job("Acme", "Head of IT")
     failed = ws.to_error(job)
-    assert failed.name.endswith("_Acme_Head_of_IT")
-    assert strip_timestamp(failed.name) == "Acme_Head_of_IT"
+    assert re.fullmatch(r"\d{2}(-\d{2}){5}_Acme_Head_of_IT", failed.name)
 
 
 def test_pending_separates_loose_files_from_job_folders(ws):

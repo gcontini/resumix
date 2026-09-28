@@ -38,7 +38,7 @@ Part = Tuple[str, Tuple[str, Any, str]]
 
 #: A CV job is polled, but analysis, letters and renders are waited on, and a
 #: model call with retries can take minutes.
-REQUEST_TIMEOUT = 240.0
+REQUEST_TIMEOUT = 500.0
 CONNECT_TIMEOUT = 10.0
 
 #: How many times to knock on /healthz before giving up on a cold server.

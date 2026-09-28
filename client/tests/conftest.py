@@ -148,13 +148,19 @@ class FakeApi:
 class ScriptedConfirmer:
     """Answers the confirm prompt from a list, without a terminal."""
 
-    def __init__(self, *decisions: Decision):
+    def __init__(self, *decisions: Decision, resubmit: str = "resubmit"):
         self.decisions = list(decisions) or [Decision(submit=True)]
         self.seen: list = []
+        self.answer = resubmit
+        self.asked: list = []
 
     def confirm(self, analysis):
         self.seen.append(analysis)
         return self.decisions.pop(0) if len(self.decisions) > 1 else self.decisions[0]
+
+    def resubmit(self, previous):
+        self.asked.append(previous)
+        return self.answer
 
 
 @pytest.fixture

@@ -20,6 +20,7 @@ from resumix_contracts import JDAnalysis, static_jd_guess
 from .api import ResumixApi, ResumixError, read_text
 from .config import LETTER_PROMPT, Config
 from .cvjob import write_cv
+from .duplicates import find_previous
 from .joblog import JobLog
 from .sources import JDCandidate
 from .tracking import TEMPLATE_NAME, Tracker
@@ -38,7 +39,7 @@ from .workspace import (
 class Outcome:
     """What became of one posting."""
 
-    status: str  # delivered | discarded | rejected | failed | quit
+    status: str  # delivered | discarded | duplicate | rejected | failed | quit
     message: str
     path: Optional[Path] = None
 
@@ -127,6 +128,9 @@ class JobRunner:
         if not decision.submit:
             self._finish_log(job_dir, log)
             return Outcome("discarded", "skipped", self.workspace.discard(job_dir))
+        seen = self._previous(job_dir, analysis, log)
+        if seen:
+            return seen
         try:
             return self._produce(job_dir, jd_text, analysis, log)
         except ResumixError as exc:
@@ -202,7 +206,40 @@ class JobRunner:
         if decision.url:
             analysis.posting_url = decision.url
             self._write_analysis(job_dir, analysis)
+        seen = self._previous(job_dir, analysis, log)
+        if seen:
+            return seen
         return self._produce(job_dir, jd_text, analysis, log)
+
+    def _previous(
+        self, job_dir: Path, analysis: JDAnalysis, log: JobLog
+    ) -> Optional[Outcome]:
+        """A posting already applied to or discarded: settle it before paying.
+
+        ``None`` means go ahead. The new folder is dropped whenever the
+        posting is not submitted — the earlier copy already holds it.
+        """
+        current = analysis.model_dump()
+        applied = find_previous(current, self.workspace.jobs_in(self.workspace.cv))
+        if applied:
+            log.step("warning: already applied")
+            log.step(f"CV: {applied}")
+            self.workspace.remove(job_dir)
+            return Outcome("duplicate", "already applied", applied)
+
+        discarded = find_previous(current, self.workspace.jobs_in(self.workspace.discarded))
+        if not discarded:
+            return None
+        log.step(f"warning: already discarded: {discarded}")
+        choice = self.confirmer.resubmit(discarded)
+        if choice == "resubmit":
+            self.workspace.remove(discarded)
+            log.step(f"🗑 removed the discarded copy {discarded.name}")
+            return None
+        self.workspace.remove(job_dir)
+        if choice == "quit":
+            return Outcome("quit", "stopped by the user", discarded)
+        return Outcome("duplicate", "already discarded", discarded)
 
     def _produce(
         self, job_dir: Path, jd_text: str, analysis: JDAnalysis, log: JobLog

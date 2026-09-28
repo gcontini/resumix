@@ -150,6 +150,15 @@ class Workspace:
         shutil.move(str(entry), str(target))
         return target
 
+    def remove(self, job: Path) -> None:
+        """A job that is not kept at all: a duplicate, or one being redone."""
+        shutil.rmtree(job, ignore_errors=True)
+
+    # --- history ------------------------------------------------------------
+    def jobs_in(self, parent: Path) -> List[Path]:
+        """Every analysed job under ``cv/`` or ``discarded/`` (``<day>/<job>``)."""
+        return sorted(p.parent for p in parent.glob(f"*/*/{ANALYSIS_FILENAME}"))
+
     # --- recovery -----------------------------------------------------------
     def pending(self) -> Tuple[List[Path], List[Path]]:
         """What is left in ``working/``: loose files and job folders.

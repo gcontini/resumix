@@ -79,7 +79,7 @@ class Session:
             ))
 
 
-ICONS = {"delivered": "✅", "discarded": "🗑", "rejected": "⚠", "failed": "❌", "quit": "⏹"}
+ICONS = {"delivered": "✅", "discarded": "🗑", "duplicate": "🗑", "rejected": "⚠", "failed": "❌", "quit": "⏹"}
 
 
 def report(outcome: Outcome) -> None:

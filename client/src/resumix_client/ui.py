@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Protocol
 
 from resumix_contracts import JDAnalysis
@@ -27,6 +28,10 @@ class Confirmer(Protocol):
     """Asked once per posting, before anything is spent on it."""
 
     def confirm(self, analysis: JDAnalysis) -> Decision: ...
+
+    def resubmit(self, previous: Path) -> str:
+        """The posting was discarded before: ``resubmit``, ``skip`` or ``quit``."""
+        ...
 
 
 def print_analysis(analysis: JDAnalysis) -> None:
@@ -85,14 +90,34 @@ class PromptConfirmer:
             # what let a mistyped skip turn into a submission.
             print("⚠ y = submit, n/s = skip, q = quit, or paste the posting URL.", flush=True)
 
+    def resubmit(self, previous: Path) -> str:
+        print("r = resubmit (delete the discarded copy), s = skip, q = quit", flush=True)
+        while True:
+            try:
+                answer = input("> ").strip().lower()
+            except EOFError:
+                return "quit"
+            if answer in ("r", "resubmit"):
+                return "resubmit"
+            if answer in ("s", "skip"):
+                return "skip"
+            if answer in ("q", "quit"):
+                return "quit"
+            print("⚠ r = resubmit, s = skip, q = quit.", flush=True)
+
 
 class AutoConfirmer:
-    """Says yes to everything — ``--yes``, for an unattended run."""
+    """Says yes to every new posting — ``--yes``, for an unattended run."""
 
     def confirm(self, analysis: JDAnalysis) -> Decision:
         print_analysis(analysis)
         print("→ submitting automatically (--yes)", flush=True)
         return Decision(submit=True, url=analysis.posting_url)
+
+    def resubmit(self, previous: Path) -> str:
+        # Unattended: never wait for an answer and never stop the run.
+        print("→ skipping automatically (--yes)", flush=True)
+        return "skip"
 
 
 def ask_recovery(files: int, folders: int) -> str:

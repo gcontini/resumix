@@ -405,3 +405,113 @@ def test_submit_with_a_missing_analysis_claims_nothing(workspace, tmp_path):
     with pytest.raises(FileNotFoundError):
         list(SingleFileSource(jd, workspace, tmp_path / "nope.json").candidates())
     assert workspace.pending() == ([], [])
+
+
+# --- a posting handled before ------------------------------------------------
+def previous(parent, name="Acme_Corp_Head_of_IT", **fields):
+    """A finished or discarded job folder, as an earlier run left it."""
+    folder = parent / "26-09-01" / name
+    folder.mkdir(parents=True)
+    data = {"company_name": "Acme Corp", "job_title": "Head of IT", **fields}
+    (folder / "analysis.json").write_text(json.dumps(data), encoding="utf-8")
+    return folder
+
+
+def with_confirmer(api, workspace, config, confirmer) -> JobRunner:
+    return JobRunner(api=api, workspace=workspace, config=config, confirmer=confirmer,
+                     tracker=build_tracker(workspace.root, False))
+
+
+def test_an_applied_posting_is_not_submitted_again(runner, workspace, api, capsys):
+    applied = previous(workspace.cv)
+    outcome = runner.handle(dropped(workspace))
+
+    assert outcome.status == "duplicate"
+    assert outcome.path == applied
+    assert api.calls == ["detect", "analyze"], "nothing expensive ran"
+    assert workspace.pending() == ([], []), "the new copy is dropped"
+    assert sorted(p.name for p in applied.iterdir()) == ["analysis.json"]
+    out = capsys.readouterr().out
+    assert "warning: already applied\n" in out
+    assert str(applied) in out
+
+
+def test_yes_never_resubmits_an_applied_posting(api, workspace, config, monkeypatch):
+    from resumix_client.ui import AutoConfirmer
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": pytest.fail("prompted"))
+    previous(workspace.cv)
+    outcome = with_confirmer(api, workspace, config, AutoConfirmer()).handle(
+        JDCandidate(text=JD_TEXT))
+    assert outcome.status == "duplicate"
+    assert "create_cv" not in api.calls
+
+
+def test_a_pasted_url_is_enough_to_match(api, workspace, config):
+    applied = previous(workspace.cv, "Other", company_name="Other", job_title="Else",
+                       posting_url="https://jobs.example/42")
+    runner = build(api, workspace, config, Decision(submit=True, url="https://JOBS.example/42"))
+    outcome = runner.handle(JDCandidate(text=JD_TEXT))
+    assert (outcome.status, outcome.path) == ("duplicate", applied)
+
+
+def test_saying_no_never_looks_for_duplicates(api, workspace, config):
+    previous(workspace.cv)
+    outcome = build(api, workspace, config, Decision(submit=False)).handle(
+        JDCandidate(text=JD_TEXT))
+    assert outcome.status == "discarded"
+
+
+def test_resubmitting_a_discarded_posting_replaces_it(api, workspace, config, capsys):
+    old = previous(workspace.discarded)
+    confirmer = ScriptedConfirmer(Decision(submit=True), resubmit="resubmit")
+    outcome = with_confirmer(api, workspace, config, confirmer).handle(
+        JDCandidate(text=JD_TEXT))
+
+    assert outcome.status == "delivered"
+    assert confirmer.asked == [old]
+    assert not old.exists(), "the discarded copy is deleted"
+    assert "warning: already discarded" in capsys.readouterr().out
+
+
+def test_skipping_a_discarded_posting_keeps_the_old_copy(api, workspace, config):
+    old = previous(workspace.discarded)
+    confirmer = ScriptedConfirmer(Decision(submit=True), resubmit="skip")
+    outcome = with_confirmer(api, workspace, config, confirmer).handle(dropped(workspace))
+
+    assert (outcome.status, outcome.path) == ("duplicate", old)
+    assert old.is_dir()
+    assert workspace.pending() == ([], [])
+    assert "create_cv" not in api.calls
+
+
+def test_quitting_at_a_discarded_posting_stops_the_run(api, workspace, config):
+    previous(workspace.discarded)
+    confirmer = ScriptedConfirmer(Decision(submit=True), resubmit="quit")
+    outcome = with_confirmer(api, workspace, config, confirmer).handle(
+        JDCandidate(text=JD_TEXT))
+    assert outcome.status == "quit"
+    assert workspace.pending() == ([], [])
+
+
+def test_yes_skips_a_discarded_posting_and_keeps_going(api, workspace, config, monkeypatch):
+    from resumix_client.ui import AutoConfirmer
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": pytest.fail("prompted"))
+    old = previous(workspace.discarded)
+    outcome = with_confirmer(api, workspace, config, AutoConfirmer()).handle(
+        JDCandidate(text=JD_TEXT))
+
+    assert outcome.status == "duplicate", "not quit: an unattended run goes on"
+    assert old.is_dir()
+    assert "create_cv" not in api.calls
+
+
+def test_an_applied_match_wins_over_a_discarded_one(api, workspace, config):
+    applied = previous(workspace.cv)
+    previous(workspace.discarded)
+    confirmer = ScriptedConfirmer(Decision(submit=True))
+    outcome = with_confirmer(api, workspace, config, confirmer).handle(
+        JDCandidate(text=JD_TEXT))
+    assert outcome.path == applied
+    assert confirmer.asked == []

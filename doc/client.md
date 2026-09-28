@@ -169,6 +169,27 @@ The number comes from the package metadata bundled into the executable, so it
 is the version the release workflow built — there is no string in the source to
 forget to bump.
 
+## Postings you have seen before
+
+In `clipboard`, `watch` and `submit`, once you say to submit (`y`, a URL, or
+`--yes`) and before anything is spent, every `analysis.json` under `cv/` and
+`discarded/` is read back. A posting is the same job when its URL matches, or
+when its company *and* title match — case, accents and spacing ignored. A side
+without a URL is compared by company and title only; one without a company or
+title, by URL only. Old files are read as they are, never validated: one that
+cannot be read is skipped.
+
+- **Already in `cv/`** — it prints `warning: already applied` and the earlier
+  folder, and submits nothing, `--yes` or not. The mode carries on: the
+  clipboard keeps waiting, the watcher keeps watching, `submit` exits.
+- **Already in `discarded/`** — it warns and asks `r` (resubmit: delete the
+  discarded copy and write the CV), `s` (skip) or `q` (quit). With `--yes` it
+  skips without asking.
+
+A posting that is not submitted leaves nothing behind: the earlier copy
+already holds it. So a folder you drop back into `watch` to redo it should be
+*moved* out of `cv/` or `discarded/`, not copied.
+
 ## Options
 
 ### Global
@@ -191,7 +212,7 @@ forget to bump.
 | `--out DIR` | clipboard, watch, submit | The output folder (`working/`, `error/`, `discarded/`, `cv/`). Default: the current folder. |
 | `--in DIR` | watch | The folder to watch. Default: `./incoming`, created if missing. |
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
-| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. |
+| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. A posting already applied to or discarded is skipped, still without asking. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |
 | `--resume REQUEST_ID` | submit, submit-raw | Pick up a CV job already running on the server instead of submitting a new one: start from its `/status`. For a job whose answer never came back. |
 | `-o FILE` | submit-raw | Write one output here: `.pdf`, `.json` or `.tex`. Repeatable. |

@@ -1,12 +1,15 @@
-"""``PromptConfirmer``: only y/n/s/q or a URL are ever accepted."""
+"""``PromptConfirmer``: only y/n/s/q or a URL are ever accepted.
+
+And for a posting discarded before, only r/s/q."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Iterator, List
 
 import pytest
 
-from resumix_client.ui import PromptConfirmer
+from resumix_client.ui import AutoConfirmer, PromptConfirmer
 
 from conftest import analysis
 
@@ -66,3 +69,39 @@ def test_eof_quits(monkeypatch):
     monkeypatch.setattr("builtins.input", fake_input)
     decision = PromptConfirmer().confirm(analysis())
     assert not decision.submit and decision.quit
+
+
+# --- a posting discarded before ---------------------------------------------
+def _resubmit(monkeypatch, *answers: str) -> str:
+    it: Iterator[str] = iter(answers)
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(it))
+    return PromptConfirmer().resubmit(Path("discarded/26-09-01/Acme_Corp_Head_of_IT"))
+
+
+@pytest.mark.parametrize("answer, expected", [
+    ("r", "resubmit"), ("R", "resubmit"), ("resubmit", "resubmit"),
+    ("s", "skip"), ("skip", "skip"), ("q", "quit"), ("  Q ", "quit"),
+])
+def test_a_discarded_posting_asks_resubmit_skip_or_quit(monkeypatch, answer, expected):
+    assert _resubmit(monkeypatch, answer) == expected
+
+
+@pytest.mark.parametrize("garbage", ["y", "", "n", "maybe"])
+def test_a_discarded_posting_asks_again_on_anything_else(monkeypatch, garbage):
+    assert _resubmit(monkeypatch, garbage, "s") == "skip"
+
+
+def test_a_discarded_posting_quits_on_eof(monkeypatch):
+    def fake_input(prompt: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    assert PromptConfirmer().resubmit(Path("x")) == "quit"
+
+
+def test_yes_skips_a_discarded_posting_without_asking(monkeypatch):
+    def no_input(prompt: str = "") -> str:
+        raise AssertionError("--yes must never wait for an answer")
+
+    monkeypatch.setattr("builtins.input", no_input)
+    assert AutoConfirmer().resubmit(Path("x")) == "skip"

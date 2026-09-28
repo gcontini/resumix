@@ -1,12 +1,12 @@
 """Reading a job description: detection, then structured analysis.
 
-Two jobs, both the ``summary`` model's:
+Two jobs, each on its own model:
 
 - :meth:`JDValidator.detect` — is this text a job posting at all? The free
   structural checks run first (see
-  :func:`resumix_contracts.static_jd_guess`); the model is only asked when
-  they pass, so a clipboard full of code costs nothing.
-- :meth:`JDValidator.analyze` — score the posting against the candidate
+  :func:`resumix_contracts.static_jd_guess`); the model (``detect``) is only
+  asked when they pass, so a clipboard full of code costs nothing.
+- :meth:`JDValidator.analyze` — on the ``summary`` model, score the posting against the candidate
   profile and extract the facts a CV and a cover letter need.
 
 The profile and the preferences arrive with the call, never from disk: the
@@ -49,14 +49,37 @@ JD_SYSTEM_PROMPT = read_text_default("sys_prompt_analysis.txt")
 DETECT_PROMPT = read_text_default("sys_prompt_jd_detect.txt")
 
 
+def _correction_prompt(error: ValueError) -> str:
+    """What was wrong with the rejected reply, one field per line.
+
+    Pydantic's own message buries the field name under the whole echoed
+    payload; the model answered it by resending the same object unchanged.
+    """
+    if isinstance(error, ValidationError):
+        problems = [
+            f"- {'.'.join(str(p) for p in err['loc']) or '(whole object)'}: {err['msg']}"
+            for err in error.errors()
+        ]
+    else:
+        problems = [f"- {error}"]
+    return (
+        "Your previous JSON object was rejected:\n"
+        + "\n".join(problems)
+        + "\n\nAnswer again with the complete JSON object: every field in the Output "
+        "list of the system message, with the problems above fixed. Keep the other "
+        "values as they were."
+    )
+
+
 class JDValidator:
-    """Analyzes job descriptions with one shared model.
+    """Analyzes job descriptions with one model.
 
     Parameters
     ----------
     model_selector:
-        The ``summary`` model — reading a posting is extraction, not writing,
-        so it does not need the large model.
+        The ``detect`` model for :meth:`detect`, the ``summary`` model for
+        :meth:`analyze` — reading a posting is extraction, not writing, so
+        neither needs the large model.
     min_chars / max_chars:
         The length band :meth:`detect` accepts before it will ask the model.
     """
@@ -155,19 +178,7 @@ class JDValidator:
                 messages.append(
                     {"role": "assistant", "content": response.choices[0].message.content or ""}
                 )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your previous response was not valid JSON data against the required "
-                            "structure.\n"
-                            f"Error: {type(e).__name__}: {e}\n\n"
-                            "Fix the response above: produce the ACTUAL analysis JSON object — use "
-                            "the field list and example from the system message. Do NOT echo the "
-                            "schema/template; output data only, with real values."
-                        ),
-                    }
-                )
+                messages.append({"role": "user", "content": _correction_prompt(e)})
         if analysis is None:
             raise ModelOutputError(
                 "Could not obtain valid JDAnalysis from the model.", stage="jd.analysis"

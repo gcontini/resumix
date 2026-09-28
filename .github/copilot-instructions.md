@@ -78,7 +78,7 @@ dropped when it ends; a request's own directory is the only thing kept
   `prompt_schema()` is the closed variant that goes into the request, because
   strict `json_schema` endpoints refuse `additionalProperties: true`.
 - `model_selector.py` — `ModelSelector`, one OpenAI-compatible endpoint per
-  role (`summary`/`cv`/`highlight`) from `resources/models.toml`. Every LLM
+  role (`detect`/`summary`/`cv`/`review`/`highlight`) from `resources/models.toml`. Every LLM
   call ends with one `logger.info` line carrying model, duration and token
   counts — this is the entire token-accounting story; there is no per-request
   total anywhere.
@@ -185,13 +185,15 @@ required to run it (PyInstaller `--onefile`)
 - LLM access via any OpenAI-compatible endpoint — one provider, one API key
   (`MODEL_API_KEY`/`MODEL_BASE_URL`; see `.env.example`), declared once in
   the `[provider]` table of
-  `server/resources/models.toml`. A role with `use_alternate_provider = true`
-  calls `[alternate_provider]` (`MODEL_API_KEY2`/`MODEL_BASE_URL2`) instead.
-  The four roles
-  (`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
+  `server/resources/models.toml`. A role with `use_alternate_provider = N`
+  (N ≥ 2) calls provider N instead (`MODEL_API_KEY<N>`/`MODEL_BASE_URL<N>`).
+  The five roles
+  (`detect`/`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
   settings, which can also be overridden per role via
   `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
-  structured_output).
+  reasoning_effort/thinking_budget/structured_output/use_alternate_provider;
+  an empty thinking_budget unsets a budget declared in models.toml, which is
+  how reasoning_effort wins back the request).
 - `%`-style lazy logging args, never f-strings inside `logger.*` — sanitized
   LaTeX can reach a log line and a literal `%` would break the formatter.
 - LaTeX templates use Jinja delimiters `\VAR{}`/`\BLOCK{}`; escaping is done

@@ -1,13 +1,16 @@
 """Centralized LLM model selection.
 
-resumix calls exactly four models, one per job, all declared in
+resumix calls exactly five models, one per job, all declared in
 ``resources/models.toml`` and sharing one provider (one API key/endpoint,
 declared once in the ``[provider]`` table) — except a model that sets
-``use_alternate_provider = true``, which calls the ``[alternate_provider]``
-table's endpoint instead:
+``use_alternate_provider = N`` (N ≥ 2), which calls provider N instead: the
+``[provider]`` table's env var names with ``N`` appended (``MODEL_API_KEY2``
+/ ``MODEL_BASE_URL2`` for 2):
 
+``detect``
+    JD detection, a one-word YES/NO — small, thinking off, tiny budget.
 ``summary``
-    JD detection, JD analysis and the cover letter — mid-size, light thinking,
+    JD analysis and the cover letter — mid-size, light thinking,
     and the only model allowed to run server-side web research.
 ``cv``
     CV writing — the large one, with a thinking budget.
@@ -21,16 +24,21 @@ table's endpoint instead:
 A :class:`ModelSelector` bundles everything needed to call one of them —
 endpoint credentials, model name, generation parameters and the provider
 capabilities that matter — so callers never construct an OpenAI client or pick
-parameters themselves: ask :func:`build_models` for all four (or
+parameters themselves: ask :func:`build_models` for all five (or
 :func:`build_model` for one), then call
 :meth:`ModelSelector.completions_create`.
 
 Nothing here knows about a specific provider — provider quirks are declared as
 capability flags rather than written as ``if name == ...`` branches. The
 fundamental per-role settings (``model``, ``temperature``, ``thinking``,
-``structured_output``) can each be overridden by an env var named
+``reasoning_effort``, ``thinking_budget``, ``structured_output``,
+``use_alternate_provider``) can each be overridden by an env var named
 ``RESUMIX_<ROLE>_<FIELD>`` (e.g. ``RESUMIX_CV_TEMPERATURE``), so a Docker
-deployment can tune a role without editing ``models.toml``.
+deployment can tune a role without editing ``models.toml``. An empty value
+unsets ``thinking_budget``/``reasoning_effort`` rather than setting them to
+``""`` — the way to let ``reasoning_effort`` win back over a
+``thinking_budget`` declared in ``models.toml``, since a declared budget
+otherwise always wins (see :meth:`ModelSpec.effective_reasoning_effort`).
 """
 
 from __future__ import annotations
@@ -54,8 +62,8 @@ logger = logging.getLogger(f"{LOGGER_ROOT}.models")
 
 MODELS_FILE = "models.toml"
 
-#: The four jobs resumix has a model for, in the order a run uses them.
-MODEL_ROLES = ("summary", "cv", "review", "highlight")
+#: The five jobs resumix has a model for, in the order a run uses them.
+MODEL_ROLES = ("detect", "summary", "cv", "review", "highlight")
 
 # Fallback used when models.toml omits it. max_tokens has no fallback: when
 # neither a model nor [defaults] declares it, the request omits max_tokens
@@ -84,10 +92,10 @@ THINKING_BUDGET = "thinking_budget"
 class ProviderConfig:
     """An LLM endpoint, as written in ``models.toml``.
 
-    ``[provider]`` is the one every role calls; ``[alternate_provider]`` is
-    used only by the models that set ``use_alternate_provider``. Neither is a
-    fallback for the other, so a missing key is a hard startup error naming
-    the variable.
+    ``[provider]`` is the one every role calls, unless the role sets
+    ``use_alternate_provider = N``; provider N is derived from it by
+    :meth:`ModelConfig.provider_for`. No provider is a fallback for another,
+    so a missing key is a hard startup error naming the variable.
     """
 
     api_key_env: str
@@ -130,7 +138,7 @@ class ModelSpec:
     # "json_schema_strict" | "json_schema" | "json_object" | "none"
     structured_output: str = "json_object"
     max_tokens: Optional[int] = None       # overrides [defaults].max_tokens
-    use_alternate_provider: bool = False   # call [alternate_provider] instead
+    use_alternate_provider: int = 1        # provider N; 1 is [provider] itself
 
     # --- request shaping ---------------------------------------------------
     def thinking_extra_body(self) -> Optional[Dict[str, Any]]:
@@ -183,19 +191,27 @@ class ModelSpec:
 
 @dataclass
 class ModelConfig:
-    """Parsed ``models.toml``: the providers, the four models, ``[defaults]``."""
+    """Parsed ``models.toml``: the provider, the four models, ``[defaults]``."""
 
     provider: ProviderConfig
     models: Dict[str, ModelSpec] = field(default_factory=dict)
     defaults: Dict[str, Any] = field(default_factory=dict)
-    alternate_provider: Optional[ProviderConfig] = None
 
     def provider_for(self, spec: ModelSpec) -> ProviderConfig:
-        """The endpoint ``spec`` calls: the alternate one when it asks for it."""
-        if spec.use_alternate_provider:
-            assert self.alternate_provider is not None  # checked at load time
-            return self.alternate_provider
-        return self.provider
+        """The endpoint ``spec`` calls: provider ``N = use_alternate_provider``.
+
+        1 is ``[provider]`` itself; N ≥ 2 is its env var names with ``N``
+        appended (``MODEL_API_KEY2`` / ``MODEL_BASE_URL2``). The literal
+        ``base_url`` is not carried over — provider N is a different
+        endpoint, so its URL must come from its own variable.
+        """
+        n = spec.use_alternate_provider
+        if n == 1:
+            return self.provider
+        return ProviderConfig(
+            api_key_env=f"{self.provider.api_key_env}{n}",
+            base_url_env=f"{self.provider.base_url_env}{n}",
+        )
 
     @property
     def max_tokens(self) -> Optional[int]:
@@ -212,11 +228,23 @@ _PROVIDER_ALLOWED_KEYS = {f.name for f in ProviderConfig.__dataclass_fields__.va
 
 #: Per-role fields a Docker deployment can override without editing
 #: models.toml, via RESUMIX_<ROLE>_<FIELD> (e.g. RESUMIX_CV_TEMPERATURE).
-ENV_OVERRIDABLE_FIELDS = ("model", "temperature", "thinking", "structured_output")
+ENV_OVERRIDABLE_FIELDS = (
+    "model", "temperature", "thinking", "reasoning_effort", "thinking_budget",
+    "structured_output", "use_alternate_provider",
+)
 
 
 def _apply_env_overrides(role: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    """Per-role env vars win over models.toml for the fundamental settings."""
+    """Per-role env vars win over models.toml for the fundamental settings.
+
+    An empty value (``RESUMIX_<ROLE>_THINKING_BUDGET=`` with nothing after the
+    ``=``) unsets ``thinking_budget``/``reasoning_effort`` instead of setting
+    them to the literal string ``""`` — the only way to bring a role's
+    ``reasoning_effort`` back into effect from the environment when
+    models.toml also declares a ``thinking_budget`` for it, since a declared
+    budget always wins over reasoning_effort (see
+    :meth:`ModelSpec.effective_reasoning_effort`).
+    """
     body = dict(body)
     for field_name in ENV_OVERRIDABLE_FIELDS:
         env_var = f"RESUMIX_{role.upper()}_{field_name.upper()}"
@@ -228,6 +256,21 @@ def _apply_env_overrides(role: str, body: Dict[str, Any]) -> Dict[str, Any]:
                 value = float(value)
             except ValueError:
                 raise ValueError(f"{env_var}={value!r} is not a number") from None
+        elif field_name == "use_alternate_provider":
+            try:
+                value = int(value)
+            except ValueError:
+                raise ValueError(f"{env_var}={value!r} is not an integer") from None
+        elif field_name == "thinking_budget":
+            if value == "":
+                value = None
+            else:
+                try:
+                    value = int(value)
+                except ValueError:
+                    raise ValueError(f"{env_var}={value!r} is not an integer") from None
+        elif field_name == "reasoning_effort" and value == "":
+            value = None
         body[field_name] = value
     return body
 
@@ -266,6 +309,13 @@ def _validate(spec: ModelSpec, path: Path) -> None:
             f"{where}: max_tokens = {spec.max_tokens}; expected a positive "
             "number of tokens"
         )
+    # bool is an int in Python: a leftover `= true` would silently mean 1.
+    n = spec.use_alternate_provider
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(
+            f"{where}: use_alternate_provider = {n!r}; expected a provider "
+            "number — 1 for [provider], N for its env vars suffixed with N"
+        )
 
 
 
@@ -302,10 +352,10 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     Raises ``ValueError`` when ``[provider]`` or a role is missing or unknown,
     when a key is misspelled or carries a value nothing acts on, or when a
     model omits ``model`` — a typo in the config surfaces at startup instead
-    of halfway through a job. ``model``, ``temperature``, ``thinking`` and
-    ``structured_output`` are read after applying any
-    ``RESUMIX_<ROLE>_<FIELD>`` env override (see
-    :data:`ENV_OVERRIDABLE_FIELDS`).
+    of halfway through a job. ``model``, ``temperature``, ``thinking``,
+    ``reasoning_effort``, ``thinking_budget``, ``structured_output`` and
+    ``use_alternate_provider`` are read after applying any
+    ``RESUMIX_<ROLE>_<FIELD>`` env override (see :data:`ENV_OVERRIDABLE_FIELDS`).
     """
     path = _models_path(resources_dir)
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -314,15 +364,9 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
     if not provider_body:
         raise ValueError(
             f"{path}: no [provider] table — resumix needs one provider's "
-            "endpoint, shared by all four models"
+            "endpoint, shared by all five models"
         )
     provider = _parse_provider("provider", provider_body, path)
-    alternate_body = raw.get("alternate_provider")
-    alternate = (
-        _parse_provider("alternate_provider", alternate_body, path)
-        if alternate_body
-        else None
-    )
 
     declared = raw.get("models") or {}
     unknown_roles = set(declared) - set(MODEL_ROLES)
@@ -353,10 +397,11 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
             )
         spec = ModelSpec(role=role, **body)
         _validate(spec, path)
-        if spec.use_alternate_provider and alternate is None:
+        if spec.use_alternate_provider > 1 and not provider.base_url_env:
             raise ValueError(
-                f"{path}: [models.{role}] sets use_alternate_provider but there "
-                "is no [alternate_provider] table"
+                f"{path}: [models.{role}] sets use_alternate_provider = "
+                f"{spec.use_alternate_provider} but [provider] has no "
+                "base_url_env to number"
             )
         models[role] = spec
 
@@ -364,7 +409,6 @@ def load_model_config(resources_dir: Optional[Path] = None) -> ModelConfig:
         provider=provider,
         models=models,
         defaults=raw.get("defaults") or {},
-        alternate_provider=alternate,
     )
 
 
@@ -664,8 +708,11 @@ def build_model(
     spec = config.models[role]
     provider = config.provider_for(spec)
     if not provider.is_usable():
+        missing = (
+            provider.base_url_env if provider.resolved_api_key() else provider.api_key_env
+        )
         raise RuntimeError(
-            f"Model {role!r} is not usable: {provider.api_key_env} is not set. "
+            f"Model {role!r} is not usable: {missing} is not set. "
             "Set it in your .env."
         )
 
@@ -694,7 +741,7 @@ def build_models(
     resources_dir: Optional[Path] = None,
     quiet: bool = False,
 ) -> Dict[str, ModelSelector]:
-    """Build all four models, keyed by role (see :data:`MODEL_ROLES`).
+    """Build all five models, keyed by role (see :data:`MODEL_ROLES`).
 
     Raises ``RuntimeError`` when a provider some role calls has no API key
     set — there is no fallback between providers.

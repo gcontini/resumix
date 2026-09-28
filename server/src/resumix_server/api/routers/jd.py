@@ -27,7 +27,7 @@ async def detect_jd(
         jd, jd_text, name="jd", max_bytes=state.settings.max_part_bytes, required=True
     )
     validator = JDValidator(
-        state.models["summary"],
+        state.models["detect"],
         min_chars=state.settings.jd_min_chars,
         max_chars=state.settings.jd_max_chars,
     )

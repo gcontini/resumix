@@ -30,22 +30,22 @@ def test_detect_rejects_short_text_without_calling_the_model(client, fake_models
     body = client.post("/v1/jd/detect", data={"jd_text": "too short"}).json()
 
     assert body["data"] == {"is_job_description": False}
-    assert fake_models["summary"].calls == [], "the free check must come first"
+    assert fake_models["detect"].calls == [], "the free check must come first"
 
 
 def test_detect_asks_the_model_when_the_text_is_plausible(client, fake_models):
-    fake_models["summary"].replies = ["YES"]
+    fake_models["detect"].replies = ["YES"]
     text = "Job posting. " * 120
     assert static_jd_guess(text)
 
     body = client.post("/v1/jd/detect", data={"jd_text": text}).json()
 
     assert body["data"]["is_job_description"] is True
-    assert len(fake_models["summary"].calls) == 1
+    assert len(fake_models["detect"].calls) == 1
 
 
 def test_detect_takes_the_model_at_its_word_when_it_says_no(client, fake_models):
-    fake_models["summary"].replies = ["NO, this is a privacy policy"]
+    fake_models["detect"].replies = ["NO, this is a privacy policy"]
     body = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120}).json()
     assert body["data"]["is_job_description"] is False
 

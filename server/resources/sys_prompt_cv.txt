@@ -15,7 +15,7 @@ Follow these strict rules:
     * certifications: From MASTER PROFILE's certifications list, select AT MOST 5 -- the ones most relevant to the JD, breaking ties in favor of the most recent. Do not invent certifications. Preserve each selected certification's date and name exactly as given, sort most recent first.
     * experiences: 
       - Order & relevance: anticronological, recent first. Use the experiences relevant to the target JD (omit irrelevant experiences).
-      - role_summary: General introduction of the role scope, mission, team or context, grounded in MASTER PROFILE->experiences->role_summary, feel free also to use general informations from duties if necessary. Offer a short overview. Try not to repeat verbatim duties.
+      - role_summary: General introduction of the role scope, mission, team or context, grounded in MASTER PROFILE->experiences->role_summary, feel free also to use general informations from duties if necessary. Offer a short overview MAX 180 characters. Try not to repeat verbatim duties.
       - duties:
          - Actual responsibilites/tasks held in that experience. Take them from the current MASTER PROFILE->experiences->duties.
          - Freely select, adapt, merge or split (one duty can be arranged in two points) MASTER PROFILE->experiences->duties under the same company. 
@@ -34,7 +34,7 @@ Follow these strict rules:
 3. TONE, LANGUAGE & AGENCY
    * Tone: Natural, grounded, professional, and hyper-concrete. No fabrications or exaggerations.
    * Style & Language: follow the `writing_style` field of the MASTER PROFILE when it is present. If it is absent, default to C1 English: polished, direct, highly structured.
-   * Banned Words: Eliminate AI clichés ("spearheaded", "seasoned professional", "passionate", "dynamic", "significantly impact", "exceptional", "go-to").
+   * Banned Words: Eliminate AI clichés ("spearheaded", "seasoned professional", "passionate", "dynamic", "significantly impact", "exceptional", "go-to", "known for"...).
    * Agency: In EACH "experiences->duty" the candidate or a team/role they owned must be the grammatical subject performing the action. A tool, framework, API, or system must NEVER be the subject of an action verb. Use ownership frames: "The library I managed...", "A JNI bridge I engineered...", "My architecture...".
    * VARY SENTENCE OPENINGS: In EACH experiences->duty, observe these variance rules:
      - AT MOST ONE duty starting with a Past-Tense Action Verb ("Led", "Delivered", "Engineered").

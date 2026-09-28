@@ -15,6 +15,7 @@ resumix.toml
 # Anything a run produced: CVs, spreadsheets, scratch folders.
 /applications/
 /out/
+/examples/out
 /resumix-data/*
 !/resumix-data/.gitkeep
 
@@ -24,6 +25,7 @@ resumix.toml
 
 # --- Python -----------------------------------------------------------------
 .venv/
+.venv_win/
 __pycache__/
 *.py[cod]
 *.egg-info/

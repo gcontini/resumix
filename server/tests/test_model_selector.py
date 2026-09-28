@@ -1,4 +1,4 @@
-"""The four models are declarative config, and capabilities are flags."""
+"""The five models are declarative config, and capabilities are flags."""
 
 import pytest
 
@@ -13,6 +13,11 @@ base_url = "https://provider.example/v1"
 [defaults]
 max_tokens = 8000
 timeout_seconds = 30
+
+[models.detect]
+model = "detect-1"
+structured_output = "none"
+max_tokens = 100
 
 [models.summary]
 model = "summary-1"
@@ -45,6 +50,12 @@ def write(tmp_path, toml):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def no_dotenv(monkeypatch):
+    """build_model loads .env; the developer's own must not leak in here."""
+    monkeypatch.setattr(ms, "load_dotenv", lambda: None)
+
+
 @pytest.fixture
 def config(tmp_path):
     return ms.load_model_config(write(tmp_path, TOML))
@@ -56,8 +67,8 @@ def provider_key(monkeypatch):
 
 
 # --- parsing + validation ---------------------------------------------------
-def test_parses_the_four_roles(config):
-    assert sorted(config.models) == ["cv", "highlight", "review", "summary"]
+def test_parses_the_five_roles(config):
+    assert sorted(config.models) == ["cv", "detect", "highlight", "review", "summary"]
     assert config.models["review"].structured_output == "none"
     assert config.models["review"].temperature == 0.0
     assert config.models["cv"].thinking_budget == 6000
@@ -140,18 +151,18 @@ def test_unknown_provider_key_is_rejected(tmp_path):
         ms.load_model_config(write(tmp_path, toml))
 
 
-# --- [alternate_provider] ----------------------------------------------------
-ALTERNATE = """
-[alternate_provider]
-api_key_env = "ALT_KEY"
-base_url = "https://alt.example/v1"
-"""
+# --- numbered providers (use_alternate_provider = N) ------------------------
+CV_ON_PROVIDER_2 = TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = 2')
 
 
-def test_a_model_can_call_the_alternate_provider(tmp_path, monkeypatch, provider_key):
-    monkeypatch.setenv("ALT_KEY", "y")
-    toml = ALTERNATE + TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
-    config = ms.load_model_config(write(tmp_path, toml))
+@pytest.fixture
+def provider_2(monkeypatch):
+    monkeypatch.setenv("PROVIDER_KEY2", "y")
+    monkeypatch.setenv("PROVIDER_URL2", "https://alt.example/v1")
+
+
+def test_a_model_can_call_a_numbered_provider(tmp_path, provider_key, provider_2):
+    config = ms.load_model_config(write(tmp_path, CV_ON_PROVIDER_2))
     models = ms.build_models(config, quiet=True)
     assert str(models["cv"].llm.base_url).startswith("https://alt.example/v1")
     assert models["cv"].llm.api_key == "y"
@@ -159,18 +170,35 @@ def test_a_model_can_call_the_alternate_provider(tmp_path, monkeypatch, provider
     assert models["summary"].llm.api_key == "x"
 
 
-def test_the_alternate_key_is_only_needed_by_models_that_use_it(tmp_path, monkeypatch, provider_key):
-    monkeypatch.delenv("ALT_KEY", raising=False)
-    toml = ALTERNATE + TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
-    config = ms.load_model_config(write(tmp_path, toml))
+def test_a_numbered_key_is_only_needed_by_models_that_use_it(tmp_path, monkeypatch, provider_key):
+    monkeypatch.delenv("PROVIDER_KEY2", raising=False)
+    config = ms.load_model_config(write(tmp_path, CV_ON_PROVIDER_2))
     ms.build_model("summary", config, quiet=True)
-    with pytest.raises(RuntimeError, match="ALT_KEY"):
+    with pytest.raises(RuntimeError, match="PROVIDER_KEY2"):
         ms.build_model("cv", config, quiet=True)
 
 
-def test_using_the_alternate_provider_without_declaring_it_is_rejected(tmp_path):
-    toml = TOML.replace('model = "cv-1"', 'model = "cv-1"\nuse_alternate_provider = true')
-    with pytest.raises(ValueError, match=r"\[alternate_provider\]"):
+def test_a_numbered_provider_does_not_inherit_the_literal_base_url(tmp_path, monkeypatch):
+    # [provider]'s literal base_url is a different endpoint; provider 2 must
+    # name its own.
+    monkeypatch.setenv("PROVIDER_KEY2", "y")
+    monkeypatch.delenv("PROVIDER_URL2", raising=False)
+    config = ms.load_model_config(write(tmp_path, CV_ON_PROVIDER_2))
+    with pytest.raises(RuntimeError, match="PROVIDER_URL2"):
+        ms.build_model("cv", config, quiet=True)
+
+
+def test_numbering_a_provider_without_base_url_env_is_rejected(tmp_path):
+    toml = CV_ON_PROVIDER_2.replace('base_url_env = "PROVIDER_URL"', "")
+    with pytest.raises(ValueError, match="base_url_env"):
+        ms.load_model_config(write(tmp_path, toml))
+
+
+@pytest.mark.parametrize("bad", ["true", "0", '"2"'])
+def test_use_alternate_provider_must_be_a_provider_number(tmp_path, bad):
+    # `true` is the trap: Python's True == 1 would silently mean [provider].
+    toml = TOML.replace('model = "cv-1"', f'model = "cv-1"\nuse_alternate_provider = {bad}')
+    with pytest.raises(ValueError, match="use_alternate_provider"):
         ms.load_model_config(write(tmp_path, toml))
 
 
@@ -206,6 +234,55 @@ def test_a_non_numeric_temperature_override_is_rejected(tmp_path, monkeypatch):
         ms.load_model_config(write(tmp_path, TOML))
 
 
+def test_env_moves_a_role_to_a_numbered_provider(tmp_path, monkeypatch, provider_2):
+    monkeypatch.setenv("RESUMIX_CV_USE_ALTERNATE_PROVIDER", "2")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    cv = ms.build_model("cv", config, quiet=True)
+    assert str(cv.llm.base_url).startswith("https://alt.example/v1")
+    assert config.models["summary"].use_alternate_provider == 1
+
+
+def test_a_non_integer_provider_override_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESUMIX_CV_USE_ALTERNATE_PROVIDER", "yes")
+    with pytest.raises(ValueError, match="RESUMIX_CV_USE_ALTERNATE_PROVIDER"):
+        ms.load_model_config(write(tmp_path, TOML))
+
+
+def test_env_overrides_reasoning_effort_and_thinking_budget(tmp_path, monkeypatch):
+    # summary has no thinking_budget in the fixture, so it can take one from
+    # the environment without first needing to clear anything.
+    monkeypatch.setenv("RESUMIX_SUMMARY_REASONING_EFFORT", "high")
+    monkeypatch.setenv("RESUMIX_SUMMARY_THINKING_BUDGET", "4000")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    summary = config.models["summary"]
+    assert summary.reasoning_effort == "high"
+    assert summary.thinking_budget == 4000
+
+
+def test_a_non_integer_thinking_budget_override_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESUMIX_SUMMARY_THINKING_BUDGET", "lots")
+    with pytest.raises(ValueError, match="RESUMIX_SUMMARY_THINKING_BUDGET"):
+        ms.load_model_config(write(tmp_path, TOML))
+
+
+def test_an_empty_thinking_budget_override_unsets_it(tmp_path, monkeypatch):
+    # cv declares both thinking_budget and reasoning_effort in the fixture;
+    # the budget normally wins (test_thinking_budget_drops_conflicting_
+    # reasoning_effort). Unsetting it from the environment is how
+    # reasoning_effort gets back into the request without editing models.toml.
+    monkeypatch.setenv("RESUMIX_CV_THINKING_BUDGET", "")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    cv = config.models["cv"]
+    assert cv.thinking_budget is None
+    assert cv.effective_reasoning_effort() == "high"
+
+
+def test_an_empty_reasoning_effort_override_unsets_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESUMIX_SUMMARY_REASONING_EFFORT", "")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    assert config.models["summary"].reasoning_effort is None
+
+
 # --- request shaping --------------------------------------------------------
 def test_thinking_on_sends_the_switch_and_the_budget(config):
     assert config.models["cv"].thinking_extra_body() == {
@@ -239,13 +316,14 @@ def test_thinking_budget_drops_conflicting_reasoning_effort(config):
 # --- building ---------------------------------------------------------------
 def test_build_models_carries_the_declared_settings(config, provider_key):
     models = ms.build_models(config, quiet=True)
-    assert sorted(models) == ["cv", "highlight", "review", "summary"]
+    assert sorted(models) == ["cv", "detect", "highlight", "review", "summary"]
     summary = models["summary"]
     assert summary.model == "summary-1"
     assert summary.temperature == 0.1
     assert summary.reasoning_effort == "low"
     assert summary.supports_web_search is True
     assert summary.max_tokens == 8000
+    assert models["detect"].max_tokens == 100  # its own, over [defaults]
     assert models["cv"].extra_body == {"enable_thinking": True, "thinking_budget": 6000}
     assert models["highlight"].temperature is None  # not declared -> provider default
     # 0.0 is a value, not "unset": it must reach the request.

@@ -101,18 +101,26 @@ Any OpenAI-compatible `/chat/completions` endpoint works — OpenAI, DeepSeek, a
 local Ollama. Switching providers is replacing those two values; `models.toml`
 names the same two variables and does not need to change.
 
-A model that sets `use_alternate_provider = true` calls a second endpoint,
-from `MODEL_API_KEY2` / `MODEL_BASE_URL2`, instead.
+A model that sets `use_alternate_provider = 2` calls a second endpoint,
+from `MODEL_API_KEY2` / `MODEL_BASE_URL2`, instead; `3` uses
+`MODEL_API_KEY3` / `MODEL_BASE_URL3`, and so on.
 
 Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
-`SUMMARY`, `CV`, `REVIEW` and `HIGHLIGHT`:
+`DETECT`, `SUMMARY`, `CV`, `REVIEW` and `HIGHLIGHT`:
 
 ```bash
 RESUMIX_CV_MODEL=qwen-max
 RESUMIX_CV_TEMPERATURE=0.2
 RESUMIX_CV_THINKING=off            # auto | on | off
+RESUMIX_CV_REASONING_EFFORT=high   # low | medium | high
+RESUMIX_CV_THINKING_BUDGET=        # empty unsets a budget declared in models.toml
 RESUMIX_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_USE_ALTERNATE_PROVIDER=2  # MODEL_API_KEY2 / MODEL_BASE_URL2
 ```
+
+`thinking_budget` and `reasoning_effort` are mutually exclusive: a declared
+budget always wins, so unsetting it (empty value) is what lets
+`REASONING_EFFORT` take effect for a role that has a budget in `models.toml`.
 
 ### Environment
 
@@ -120,7 +128,7 @@ RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 |---|---|---|
 | `MODEL_API_KEY` | — | The provider key. Without it the server starts but every model call fails |
 | `MODEL_BASE_URL` | DashScope intl. | The OpenAI-compatible endpoint |
-| `MODEL_API_KEY2` / `MODEL_BASE_URL2` | — | Second key/endpoint, for models with `use_alternate_provider = true` |
+| `MODEL_API_KEY<N>` / `MODEL_BASE_URL<N>` | — | Key/endpoint N (2, 3, …), for models with `use_alternate_provider = N` |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Where uvicorn listens |
 | `WEB_CONCURRENCY` | `1` | uvicorn worker processes. **Keep it at 1** per work root |
 | `RESUMIX_KEEPALIVE` | `75` | uvicorn keep-alive timeout, seconds |

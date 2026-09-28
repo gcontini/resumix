@@ -69,7 +69,7 @@ def test_a_provider_failure_is_a_gateway_error_not_a_bug(client, fake_models, mo
     def explode(**kwargs):
         raise APIConnectionError(request=httpx.Request("POST", "http://provider.invalid"))
 
-    monkeypatch.setattr(fake_models["summary"].llm.chat.completions, "create", explode)
+    monkeypatch.setattr(fake_models["detect"].llm.chat.completions, "create", explode)
 
     response = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120})
 

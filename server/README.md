@@ -47,7 +47,7 @@ settings below already wired.
 
 ### API keys
 
-The server calls four models, all through one provider (resumix assumes a
+The server calls five models, all through one provider (resumix assumes a
 single API key). The endpoint is declared once, in the `[provider]` table of
 `resources/models.toml`; the key itself comes from the
 environment:
@@ -62,13 +62,11 @@ local Ollama. Switching providers is just replacing those two values in
 `.env`; `models.toml`'s `[provider]` table names the same two variables and
 doesn't need to change.
 
-A model that sets `use_alternate_provider = true` in `models.toml` calls a
-second endpoint instead, from `MODEL_API_KEY2` / `MODEL_BASE_URL2` (the
-`[alternate_provider]` table).
 
 | Role | What it does | Shipped as |
 |---|---|---|
-| `summary` | JD detection, JD analysis, cover letters | `qwen-plus`, thinking on, low effort |
+| `detect` | JD detection, a one-word YES/NO | `qwen3.8-flash`, thinking **off**, 100 max tokens |
+| `summary` | JD analysis, cover letters | `qwen-plus`, thinking on, low effort |
 | `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget |
 | `review` | Reviewing each CV against your profile, in plain text | `qwen3.8-max`, thinking on, temperature 0 |
 | `highlight` | The `**bold**` keyword pass | `qwen-plus`, thinking **off** |
@@ -77,19 +75,27 @@ Thinking is off for the highlighter deliberately: letting a reasoning model
 think about inserting markers burns the output budget and returns truncated
 JSON.
 
-Each role's `model`, `temperature`, `thinking` and `structured_output` (JSON
-output mode) can also be overridden per role with an env var, without editing
-`models.toml` — handy for a Docker deployment:
+Each role's `model`, `temperature`, `thinking`, `reasoning_effort`,
+`thinking_budget`, `structured_output` (JSON output mode) and
+`use_alternate_provider` can also be overridden per role with an env var,
+without editing `models.toml` — handy for a Docker deployment:
 
 ```bash
 RESUMIX_CV_MODEL=qwen-max
 RESUMIX_CV_TEMPERATURE=0.2
 RESUMIX_CV_THINKING=off
+RESUMIX_CV_REASONING_EFFORT=high
+RESUMIX_CV_THINKING_BUDGET=
 RESUMIX_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_USE_ALTERNATE_PROVIDER=2
 ```
 
-The pattern is `RESUMIX_<ROLE>_<FIELD>` for `SUMMARY`, `CV`, `REVIEW` and
-`HIGHLIGHT`; see `.env.example` for the full list.
+An empty `THINKING_BUDGET` unsets a budget declared in `models.toml` — a
+declared budget always wins over `REASONING_EFFORT`, so unsetting it is what
+lets the effort override take effect.
+
+The pattern is `RESUMIX_<ROLE>_<FIELD>` for `DETECT`, `SUMMARY`, `CV`,
+`REVIEW` and `HIGHLIGHT`; see `.env.example` for the full list.
 
 ### Environment
 

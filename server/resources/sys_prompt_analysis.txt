@@ -3,6 +3,8 @@ Given a JOB_DESCRIPTION (from now on called JD), a CANDIDATE_PROFILE and PERSONA
 If needed you can use search  
 
 Output:
+- job_title: copy it from the JD - if none write NA
+- work_location: 
 - match_percentage: int[0-100] - Scoring guidance for match_percentage: weigh hard-skill overlap first, domain and industry relevance, seniority, soft skills.
 - match_rationale: Criteria and evaluations that brought to the match_percentage above. Max 90 characters.
 - work_mode: [full_remote|hybrid|on_site|not_specified] take it from JD.

@@ -102,24 +102,30 @@ flowchart TB
   `TEXMFVAR`. A request may supply both the template and a whole `.tex`, so
   both are treated as hostile input.
 
-## The four models
+## The five models
 
 One provider, one API key, one endpoint — declared once in the `[provider]`
-table of `resources/models.toml`. Four roles call it; a role that sets
-`use_alternate_provider = true` calls the `[alternate_provider]` table's
-endpoint (`MODEL_API_KEY2` / `MODEL_BASE_URL2`) instead:
+table of `resources/models.toml`. Five roles call it; a role that sets
+`use_alternate_provider = N` (N ≥ 2) calls provider N instead — the
+`[provider]` variable names with N appended (`MODEL_API_KEY2` /
+`MODEL_BASE_URL2` for 2):
 
 | Role | Used for | Shipped as |
 |---|---|---|
-| `summary` | JD detection, JD analysis, cover letters. The only role allowed server-side web search. | `qwen3.8-flash`, thinking on, low effort |
+| `detect` | JD detection: a one-word YES/NO on text that passed the free checks | `qwen3.8-flash`, thinking **off**, 100 max tokens, no JSON mode |
+| `summary` | JD analysis, cover letters. The only role allowed server-side web search. | `qwen3.8-flash`, thinking on, low effort |
 | `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget, strict JSON schema |
 | `review` | Reviewing each CV against the master profile; answers in plain text, one violation per line | `qwen3.8-max`, thinking on, temperature 0, no JSON mode |
 | `highlight` | The `**bold**` keyword pass over validated CV JSON | `qwen3.8-flash`, thinking **off** |
 
 Provider differences are declared as capabilities (`web_search`, `thinking`,
 `structured_output`), never branched on by name. Each role's `model`,
-`temperature`, `thinking` and `structured_output` can be overridden with a
-`RESUMIX_<ROLE>_<FIELD>` environment variable without editing the file.
+`temperature`, `thinking`, `reasoning_effort`, `thinking_budget`,
+`structured_output` and `use_alternate_provider` can be overridden with a
+`RESUMIX_<ROLE>_<FIELD>` environment variable without editing the file. An
+empty `RESUMIX_<ROLE>_THINKING_BUDGET=` unsets a budget declared here, which
+is how `RESUMIX_<ROLE>_REASONING_EFFORT` wins back the request — a declared
+budget otherwise always overrides reasoning effort.
 
 Every model reply is re-validated: the JSON schema goes into the prompt *and*
 into `response_format`, and the reply is parsed by pydantic. A weak

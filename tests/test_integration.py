@@ -60,9 +60,9 @@ class Scripted:
 @pytest.fixture
 def models():
     return {
-        # YES to the detection call, then the analysis; the CV model follows.
-        "summary": FakeSelector("YES", json.dumps(ANALYSIS),
-                                profile="summary", model="fake-summary"),
+        # YES to the detection call; the analysis and the CV model follow.
+        "detect": FakeSelector("YES", profile="detect", model="fake-detect"),
+        "summary": FakeSelector(json.dumps(ANALYSIS), profile="summary", model="fake-summary"),
         "cv": FakeSelector(sample_cv_data().model_dump_json(),
                            profile="cv", model="fake-cv"),
         # An empty reply: the reviewer finds nothing to fix.
@@ -166,7 +166,7 @@ def test_the_rendered_pdf_can_be_re_rendered_from_its_document(runner, api, tmp_
 
 
 def test_a_server_error_reaches_the_client_as_a_typed_failure(runner, api, models, tmp_path):
-    models["summary"].replies = ["YES", "not an analysis"]
+    models["summary"].replies = ["not an analysis"]
     dropped = tmp_path / "posting.txt"
     dropped.write_text(JD_TEXT)
     claimed = runner.workspace.take_in(dropped)

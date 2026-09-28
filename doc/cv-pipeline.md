@@ -183,7 +183,7 @@ it. One `pdflatex` pass, not two: the shipped template has no `\ref`,
 
 ## The other two pipelines
 
-Both are single calls to the `summary` model, and neither has a loop:
+None has a loop. Detection runs on the `detect` model, the rest on `summary`:
 
 - **`jd_validator.detect`** — the free structural checks first (length band,
   no binary payload: `static_jd_guess`, shared with the client), and only if

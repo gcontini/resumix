@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 class JDAnalysis(BaseModel):
     """Structured summary of a job description vs. the master profile."""
     match_percentage: int = Field(description="0-100 how well the JD fits the profile")
-    match_rationale: Optional[str] = Field(
-        None, description="One-line reason for the match score"
+    match_rationale: str = Field(
+        description="One-line reason for the match score"
     )
     job_title: str = Field(description="Job title extracted from the JD")
     work_location: Optional[str] = Field(

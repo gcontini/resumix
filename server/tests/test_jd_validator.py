@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from resumix_contracts import JDAnalysis
 from resumix_server.pipeline.jd_validator import JDValidator
+from server_helpers import FakeSelector
 
 VALID = {
     "match_percentage": 82,
@@ -55,8 +56,20 @@ def test_rejects_an_invalid_should_apply(field, value):
 
 def test_optional_fields_may_be_absent():
     minimal = {k: v for k, v in VALID.items()
-               if k not in ("match_rationale", "work_location", "expected_salary",
+               if k not in ("work_location", "expected_salary",
                             "max_salary", "posting_url")}
     analysis = JDAnalysis.model_validate(minimal)
     assert analysis.posting_url is None
     assert analysis.max_salary == -1
+
+
+def test_retry_names_the_missing_field(candidate):
+    """The second round is told which field was missing, not handed a raw dump."""
+    no_title = {k: v for k, v in VALID.items() if k != "job_title"}
+    model = FakeSelector(json.dumps(no_title), json.dumps(VALID))
+
+    analysis = JDValidator(model).analyze("a posting", candidate)
+
+    assert analysis.job_title == "Staff Platform Engineer"
+    correction = model.calls[1]["messages"][-1]["content"]
+    assert "- job_title: Field required" in correction

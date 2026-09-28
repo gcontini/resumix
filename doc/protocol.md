@@ -71,8 +71,8 @@ No auth. What this server is and whether it can do its job.
   "status": "ok",                 // "degraded" when pdflatex is missing
   "version": "0.2.0",
   "pdflatex": true,
-  "models": {"summary": "qwen3.8-flash", "cv": "qwen3.8-max",
-             "highlight": "qwen3.8-flash"},
+  "models": {"detect": "qwen3.8-flash", "summary": "qwen3.8-flash",
+             "cv": "qwen3.8-max", "highlight": "qwen3.8-flash"},
   "auth_required": false
 }}
 ```

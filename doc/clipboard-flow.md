@@ -75,7 +75,7 @@ flowchart LR
     CLIP["clipboard"] --> WORK["working/Acme_Corp_Head_of_IT/<br/>jd.txt · analysis.json"]
     WORK -->|"delivered"| CV["cv/26-01-15/Acme_Corp_Head_of_IT/"]
     WORK -->|"s or q"| DISC["discarded/26-01-15/…<br/><i>analysis kept</i>"]
-    WORK -->|"a call failed"| ERR["error/26-01-15-09-30-00_…<br/><i>with its .log</i>"]
+    WORK -->|"a call failed"| ERR["error/26-01-15/26-01-15-09-30-00_…<br/><i>with its .log</i>"]
 ```
 
 A job is assembled under `working/` and moved into place in one step when it

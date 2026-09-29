@@ -307,7 +307,7 @@ Start from the fictional set in the repository's `examples/candidate/`.
 │           ├── cover_letter.txt         with --cover-letter
 │           └── log.log                  every step, plus the server's on failure
 ├── discarded/26-01-15/…                 postings you said no to, analysis kept
-├── error/26-01-15-09-30-00_notes.txt    rejected or failed, with a .log beside it
+├── error/26-01-15/…                     rejected or failed, with a .log beside it
 ├── working/                             in flight; empty when nothing is running
 └── applications.xlsx                    one row per delivered CV
 ```

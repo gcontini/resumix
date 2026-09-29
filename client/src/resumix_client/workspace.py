@@ -4,7 +4,7 @@ One directory holds the whole workflow::
 
     <out>/
         working/      in flight, and nothing else
-        error/        rejected or failed, timestamp-prefixed
+        error/        rejected or failed, by day, timestamp-prefixed
         discarded/    you said no, by day
         cv/           delivered, by day
         applications.xlsx
@@ -25,7 +25,7 @@ from typing import List, Optional, Tuple
 
 #: Prefix for a file in flight or in error — sorts chronologically.
 TS_FORMAT = "%y-%m-%d-%H-%M-%S"
-#: Daily folders under cv/ and discarded/.
+#: Daily folders under cv/, discarded/ and error/.
 DAY_FORMAT = "%y-%m-%d"
 
 _TS_PREFIX = re.compile(r"^\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}_")
@@ -139,14 +139,15 @@ class Workspace:
         return self._move_into(job, self.discarded / day())
 
     def to_error(self, entry: Path) -> Path:
-        """Failed or not a job description: ``error/<timestamp>_<name>``.
+        """Failed or not a job description: ``error/<day>/<timestamp>_<name>``.
 
         A file that already carries a timestamp keeps it — the time it arrived
-        is more useful than the time it failed.
+        is more useful than the time it failed. The day folder is the day it
+        failed, like ``cv/`` and ``discarded/``.
         """
         name = entry.name if _TS_PREFIX.match(entry.name) else f"{timestamp()}_{entry.name}"
-        self.error.mkdir(parents=True, exist_ok=True)
-        target = self._free(self.error / name)
+        target = self._free(self.error / day() / name)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(entry), str(target))
         return target
 

@@ -75,6 +75,12 @@ def test_a_second_run_of_the_same_job_does_not_overwrite_the_first(ws):
     assert first != second
 
 
+def test_error_goes_into_a_daily_folder(ws):
+    failed = ws.to_error(ws.take_in(drop(ws)))
+    assert failed.parent.name == day()
+    assert failed.parent.parent == ws.error
+
+
 def test_error_keeps_an_existing_timestamp(ws):
     claimed = ws.take_in(drop(ws))
     failed = ws.to_error(claimed)

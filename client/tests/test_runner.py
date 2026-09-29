@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from resumix_contracts import JDAnalysis
@@ -171,6 +172,17 @@ def test_the_spreadsheet_gets_a_row(runner, workspace):
     assert [c.value for c in sheet[2]][:2] == ["Acme Corp", "Head of IT"]
 
 
+def test_the_row_points_at_the_delivered_pdf(runner, workspace):
+    import openpyxl
+
+    outcome = runner.handle(JDCandidate(text=JD_TEXT))
+    sheet = openpyxl.load_workbook(workspace.root / "applications.xlsx").active
+    headers = [c.value for c in sheet[1]]
+    cv_path = sheet.cell(row=2, column=headers.index("cv_path") + 1).value
+    assert Path(cv_path).parent == outcome.path
+    assert Path(cv_path).is_file() and cv_path.endswith(".pdf")
+
+
 def test_tracking_can_be_turned_off(api, workspace, config):
     build(api, workspace, config, track=False).handle(JDCandidate(text=JD_TEXT))
     assert not (workspace.root / "applications.xlsx").exists()
@@ -182,7 +194,7 @@ def test_a_broken_spreadsheet_costs_a_warning_and_not_the_job(api, workspace, co
     watch mode, kill the loop that is waiting for the next posting."""
 
     class Broken:
-        def record(self, job_dir, analysis):
+        def record(self, job_dir, analysis, cv=None):
             raise RuntimeError(f"{workspace.root}/applications.xlsx has no date column")
 
     runner = JobRunner(
@@ -210,7 +222,7 @@ def test_a_rejected_file_lands_in_error_with_a_timestamp(api, workspace, config)
     outcome = runner.handle(dropped(workspace, "not_a_posting.txt"))
 
     assert outcome.status == "rejected"
-    assert outcome.path.parent == workspace.error
+    assert outcome.path.parent.parent == workspace.error
     assert outcome.path.name.endswith("_not_a_posting.txt")
     assert outcome.path.name[:2].isdigit(), "timestamp prefix"
 
@@ -238,7 +250,7 @@ def test_a_failure_lands_in_error_with_its_log(api, workspace, config):
     outcome = runner.handle(dropped(workspace))
 
     assert outcome.status == "failed"
-    assert outcome.path.parent == workspace.error
+    assert outcome.path.parent.parent == workspace.error
     assert "model_output" in (outcome.path / "log.log").read_text()
     assert (outcome.path / "analysis.json").is_file()
 
@@ -307,7 +319,7 @@ def test_resuming_a_folder_without_an_analysis_fails_it(runner, workspace):
     job = workspace.open_job("Broken", "Folder")
     outcome = runner.resume(job)
     assert outcome.status == "failed"
-    assert outcome.path.parent == workspace.error
+    assert outcome.path.parent.parent == workspace.error
 
 
 # --- a dropped job folder ---------------------------------------------------
@@ -361,7 +373,7 @@ def test_a_dropped_folder_without_jd_txt_goes_to_error(runner, workspace, api):
     outcome = runner.handle(dropped_folder(workspace, files))
 
     assert outcome.status == "rejected"
-    assert outcome.path.parent == workspace.error
+    assert outcome.path.parent.parent == workspace.error
     assert "jd.txt" in (outcome.path / "log.log").read_text()
     assert api.calls == []
 
@@ -370,7 +382,7 @@ def test_a_dropped_folder_with_a_bad_analysis_goes_to_error(runner, workspace, a
     outcome = runner.handle(dropped_folder(workspace, analysed(**{"analysis.json": "{}"})))
 
     assert outcome.status == "rejected"
-    assert outcome.path.parent == workspace.error
+    assert outcome.path.parent.parent == workspace.error
     assert "analysis.json" in (outcome.path / "log.log").read_text()
     assert api.calls == []
 

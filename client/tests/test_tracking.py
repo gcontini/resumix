@@ -7,7 +7,13 @@ from datetime import date
 import openpyxl
 import pytest
 
-from resumix_client.tracking import STATUS_VALUES, NullTracker, XlsxTracker, build_tracker
+from resumix_client.tracking import (
+    HEADERS,
+    STATUS_VALUES,
+    NullTracker,
+    XlsxTracker,
+    build_tracker,
+)
 
 from conftest import analysis
 
@@ -36,6 +42,27 @@ def test_seeds_the_spreadsheet_and_fills_a_row(tracker, tmp_path):
     assert row["application status"] == STATUS_VALUES[0] == "not applied"
     assert row["notes"] is None
     assert row["weblink"] is None
+    assert row["cv_path"] is None
+
+
+def test_the_cv_path_is_recorded(tracker, tmp_path):
+    cv = tmp_path / "job" / "cv_jane_doe.pdf"
+    tracker.record(tmp_path / "job", analysis(), cv)
+    assert read_row(tracker.xlsx_path)["cv_path"] == str(cv)
+
+
+def test_discarded_is_in_the_status_dropdown(tracker, tmp_path):
+    assert "discarded" in STATUS_VALUES
+    tracker.record(tmp_path / "job", analysis())
+    sheet = openpyxl.load_workbook(tracker.xlsx_path).active
+    (dropdown,) = sheet.data_validations.dataValidation
+    assert dropdown.formula1.strip('"').split(",") == list(STATUS_VALUES)
+
+
+def test_the_template_has_every_column(tracker, tmp_path):
+    tracker.record(tmp_path / "job", analysis())
+    sheet = openpyxl.load_workbook(tracker.xlsx_path).active
+    assert tuple(c.value for c in sheet[1]) == HEADERS
 
 
 def test_the_posting_url_becomes_the_weblink(tracker, tmp_path):

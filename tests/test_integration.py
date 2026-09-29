@@ -174,7 +174,7 @@ def test_a_server_error_reaches_the_client_as_a_typed_failure(runner, api, model
     outcome = runner.handle(JDCandidate(text=JD_TEXT, origin=claimed, label="posting.txt"))
 
     assert outcome.status == "failed"
-    assert outcome.path.parent == runner.workspace.error, "never left in working/"
+    assert outcome.path.parent.parent == runner.workspace.error, "never left in working/"
     log = Path(str(outcome.path) + ".log").read_text()
     assert "jd.analysis" in log and "model_output" in log
 

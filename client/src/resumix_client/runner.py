@@ -255,8 +255,11 @@ class JobRunner:
 
         self._finish_log(job_dir, log)
         delivered = self.workspace.deliver(job_dir)
+        cv = None
+        if self.config.cover_letter != "letter_only":
+            cv = delivered / self._artifacts().pdf
         try:
-            self.tracker.record(delivered, analysis)
+            self.tracker.record(delivered, analysis, cv)
         except Exception as exc:
             # The CV is delivered and was paid for; a broken or locked
             # spreadsheet is bookkeeping, and must not turn that into a

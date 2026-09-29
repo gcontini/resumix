@@ -23,7 +23,13 @@ from resumix_contracts import JDAnalysis
 TEMPLATE_NAME = "applications.xlsx"
 
 #: The states an application moves through (the template's dropdown).
-STATUS_VALUES = ("not applied", "applied", "wait 1st interview", "wait follow up")
+STATUS_VALUES = (
+    "not applied",
+    "applied",
+    "wait 1st interview",
+    "wait follow up",
+    "discarded",
+)
 
 #: Column names of a freshly seeded spreadsheet, in order.
 HEADERS = (
@@ -33,6 +39,7 @@ HEADERS = (
     "application status",
     "notes",
     "webLink",
+    "cv_path",
 )
 
 #: The column the row is keyed on: its first empty cell is the row to fill.
@@ -50,13 +57,17 @@ def _plain(text: Optional[str]) -> str:
 class Tracker(Protocol):
     """Records a delivered job somewhere. Or not."""
 
-    def record(self, job_dir: Path, analysis: JDAnalysis) -> None: ...
+    def record(
+        self, job_dir: Path, analysis: JDAnalysis, cv: Optional[Path] = None
+    ) -> None: ...
 
 
 class NullTracker:
     """Tracking off — ``--no-xlsx``."""
 
-    def record(self, job_dir: Path, analysis: JDAnalysis) -> None:
+    def record(
+        self, job_dir: Path, analysis: JDAnalysis, cv: Optional[Path] = None
+    ) -> None:
         return None
 
 
@@ -66,7 +77,10 @@ class XlsxTracker:
     def __init__(self, xlsx_path: Path) -> None:
         self.xlsx_path = Path(xlsx_path)
 
-    def record(self, job_dir: Path, analysis: JDAnalysis) -> None:
+    def record(
+        self, job_dir: Path, analysis: JDAnalysis, cv: Optional[Path] = None
+    ) -> None:
+        """``cv`` is the delivered PDF, or ``None`` when only a letter was written."""
         values = {
             "company_name": _plain(analysis.company_name),
             "job_title": _plain(analysis.job_title),
@@ -74,6 +88,7 @@ class XlsxTracker:
             "application status": STATUS_VALUES[0],
             "notes": "",
             "weblink": analysis.posting_url or "",
+            "cv_path": str(cv) if cv else "",
         }
         self._ensure_file()
         self._append(values, job_dir.name)

@@ -201,3 +201,46 @@ def runner(api, workspace, config):
 def no_polling_delay(monkeypatch):
     """The fake answers instantly; waiting 4s between polls proves nothing."""
     monkeypatch.setattr("resumix_client.cvjob.POLL_SECONDS", 0)
+
+
+# --- the watch stages ---------------------------------------------------------
+def make_job(parent: Path, name: str = "Acme_Corp_Head_of_IT", *, should_apply="CHECK",
+             approval=None, with_analysis=True, **files) -> Path:
+    """A job folder as the watcher, an earlier run or you might leave it.
+
+    ``files`` are extra files by name, e.g. ``**{"cv_Jordan_Rivera.json": ...}``.
+    """
+    folder = parent / name
+    folder.mkdir(parents=True)
+    (folder / "jd.txt").write_text(JD_TEXT, encoding="utf-8")
+    if with_analysis:
+        (folder / "analysis.json").write_text(
+            analysis(should_apply=should_apply).model_dump_json(), encoding="utf-8")
+    if approval is not None:
+        (folder / "approval_status.txt").write_text(approval, encoding="utf-8")
+    for filename, content in files.items():
+        (folder / filename).write_text(content, encoding="utf-8")
+    return folder
+
+
+@pytest.fixture
+def console():
+    from resumix_client.stages.terminal import Console
+
+    return Console()
+
+
+@pytest.fixture
+def writer(api, config):
+    from resumix_client.stages.calls import Calls
+    from resumix_client.stages.generation import CvWriter
+
+    return CvWriter(Calls(api), config)
+
+
+@pytest.fixture
+def processor(workspace, writer, console):
+    from resumix_client.stages.working import WorkingProcessor
+    from resumix_client.tracking import build_tracker
+
+    return WorkingProcessor(workspace, writer, build_tracker(workspace.root, True), console)

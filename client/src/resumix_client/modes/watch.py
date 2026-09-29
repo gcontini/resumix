@@ -1,14 +1,32 @@
-"""``resumix watch`` — watch a folder for job descriptions."""
+"""``resumix watch`` — watch a folder; each posting goes through four stages.
+
+The stages live in :mod:`resumix_client.stages`. This checks the folders and
+your files, builds the stages and runs them.
+"""
 
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 from typing import Optional
 
+from ..api import HttpApi
 from ..config import Config
-from ..sources.folder import FolderWatchSource
+from ..stages.approval import HumanApproval, TerminalReviewer
+from ..stages.calls import Calls
+from ..stages.generation import CvWriter, GenerationWorker
+from ..stages.inbox import InputProcessor
+from ..stages.terminal import Console, Keyboard
+from ..stages.watcher import Watcher
+from ..stages.working import WorkingProcessor
+from ..tracking import build_tracker
 from ..ui import fail, warn
-from . import Session
+from ..workspace import Workspace
+
+#: Every posting needs these. Checked before anything starts, so a missing one
+#: fails here with a clear message rather than on a background thread.
+REQUIRED = ("candidate_profile.json", "candidate_data.json", "candidate_preferences.md")
 
 
 def run(config: Config, inbox: Optional[Path], out: Path, *, assume_yes: bool = False,
@@ -21,15 +39,43 @@ def run(config: Config, inbox: Optional[Path], out: Path, *, assume_yes: bool = 
         inbox = Path(inbox).expanduser().resolve()
         if not inbox.is_dir():
             fail(f"input folder does not exist: {inbox}")
+    if not os.access(inbox, os.W_OK):
+        # Each posting is deleted once handed over; one that cannot be would
+        # be analysed, and paid for, again on every pass.
+        fail(f"cannot delete files from {inbox}: the watcher removes each posting it hands over")
+    for name in REQUIRED:
+        config.require(name)
 
-    session = Session.build(config, out, assume_yes=assume_yes, track=track)
-    if session.workspace.root == inbox:
+    workspace = Workspace(out).ensure()
+    if workspace.root == inbox:
         fail("the input folder and the output folder must be different")
-    session.recover()
-    print(f"👀 watching {inbox}. Output: {session.workspace.root}", flush=True)
-    print("   Drop a job description in. Ctrl+C to stop.", flush=True)
+
+    ask = not assume_yes
+    console = Console()
+    calls = Calls(HttpApi(config.server_url, token=config.token, verbose=config.verbose),
+                  debug=config.debug)
+    writer = CvWriter(calls, config)
+    working = WorkingProcessor(workspace, writer, build_tracker(workspace.root, track), console,
+                               ask=ask)
+    keyboard = Keyboard(sys.stdin)
+    watcher = Watcher(
+        working,
+        InputProcessor(inbox, calls, config, working, console),
+        GenerationWorker(working, writer, console),
+        HumanApproval(working, TerminalReviewer(keyboard), keyboard, console, ask=ask),
+        keyboard,
+        console,
+    )
+
+    print(f"👀 watching {inbox}. Output: {workspace.root}", flush=True)
+    print("   Drop postings (.txt) or analysed job folders in. "
+          "q = let the running work finish, then quit. Ctrl-C = stop now.", flush=True)
+    if assume_yes:
+        print("   --yes: nothing is asked. CHECK postings wait in working/ for a run "
+              "without --yes.", flush=True)
     try:
-        return session.drain(FolderWatchSource(inbox, session.workspace))
+        return watcher.run()
     except KeyboardInterrupt:
-        print("\n⏹ stopped. Anything in working/ resumes at the next start.", flush=True)
+        print("\n⏹ stopped now. Anything in working/ is picked up at the next start, "
+              "anything left in the input folder is read again.", flush=True)
         return 0

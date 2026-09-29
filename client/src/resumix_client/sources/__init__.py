@@ -1,8 +1,9 @@
 """Where job descriptions come from.
 
-The four modes differ in exactly one thing: what hands them the next posting.
-That difference lives here, behind :class:`JDSource`, so ``clipboard``,
-``watch`` and ``submit`` share one pipeline instead of three copies of it.
+``clipboard`` and ``submit`` differ in exactly one thing: what hands them the
+next posting. That difference lives here, behind :class:`JDSource`, so they
+share one pipeline instead of two copies of it. ``watch`` has its own staged
+flow in :mod:`resumix_client.stages`.
 """
 
 from __future__ import annotations

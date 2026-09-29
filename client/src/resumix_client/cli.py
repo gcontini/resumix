@@ -81,14 +81,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     modes = parser.add_subparsers(dest="mode", required=True, metavar="MODE")
 
-    def add_job_flags(sub: argparse.ArgumentParser) -> None:
+    def add_job_flags(sub: argparse.ArgumentParser, *,
+                      yes_help: str = "Submit every valid posting without asking.") -> None:
         sub.add_argument("--out", type=Path,
                          help="Output folder (working/, error/, discarded/, cv/). "
                               "Default: the current folder.")
         sub.add_argument("--cover-letter", choices=COVER_LETTER_MODES,
                          help="Also write a cover letter (default: no).")
-        sub.add_argument("--yes", action="store_true",
-                         help="Submit every valid posting without asking.")
+        sub.add_argument("--yes", action="store_true", help=yes_help)
         sub.add_argument("--no-xlsx", action="store_true",
                          help="Do not record delivered CVs in applications.xlsx.")
 
@@ -101,7 +101,9 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--in", dest="inbox", type=Path,
                        help="Folder to watch for job description files. "
                             "Default: ./incoming (created if missing).")
-    add_job_flags(watch)
+    add_job_flags(watch, yes_help="Never ask: YES postings get a CV, NO postings are "
+                                  "discarded, CHECK postings wait in working/ for a run "
+                                  "without --yes.")
 
     submit = modes.add_parser("submit", help="Process one job description file.",
                               parents=[common])

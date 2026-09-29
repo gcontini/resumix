@@ -49,8 +49,8 @@ def test_a_delivered_job_has_every_artifact(runner, workspace):
     assert folder.parent.parent == workspace.cv
     assert folder.name == "Acme_Corp_Head_of_IT"
     assert sorted(p.name for p in folder.iterdir()) == [
-        "analysis.json", "cv_Jordan_Rivera.json", "cv_Jordan_Rivera.pdf",
-        "cv_Jordan_Rivera.tex", "jd.txt", "log.log",
+        "analysis.json", "candidate_signature.png", "cv_Jordan_Rivera.json",
+        "cv_Jordan_Rivera.pdf", "cv_Jordan_Rivera.tex", "jd.txt", "log.log",
     ]
     assert (folder / "cv_Jordan_Rivera.pdf").read_bytes() == b"%PDF-fake"
     assert (folder / "jd.txt").read_text() == JD_TEXT

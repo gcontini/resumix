@@ -29,7 +29,7 @@ flowchart TD
 | Mode | Asks before spending | Detects + analyses | Writes the folder tree | Spreadsheet | Cover letter |
 |---|---|---|---|---|---|
 | `clipboard` | yes (or `--yes`) | yes | yes | yes | optional |
-| `watch` | yes (or `--yes`) | yes | yes | yes | optional |
+| `watch` | CHECK postings only (none with `--yes`) | yes | yes | yes | optional |
 | `submit` | yes (or `--yes`) | yes | yes | yes | optional |
 | `submit-raw` | **no** | no | no | no | no |
 | `render` | no — costs no model call | no | no | no | no |
@@ -67,30 +67,89 @@ use `watch`, which needs no clipboard at all.
 resumix watch --in ~/Downloads/postings --out ~/applications
 ```
 
-Everything dropped into `--in` is **claimed immediately** — moved into
-`working/` under a timestamp — so nothing is ever processed twice and a crash
-leaves it somewhere recoverable. Anything still being copied in is left alone
-until it stops changing. One posting at a time, because each one asks you a
-question.
+Each posting goes through four stages, and the analysis decides the route:
+`should_apply` YES gets its CV without a question, CHECK waits for you, NO is
+put aside. The CVs are written in the background, one at a time, while you
+read the next posting.
+
+```mermaid
+flowchart LR
+    IN["<b>1 · analysis</b><br/>--in"] -->|"YES"| GEN["<b>3 · waiting for the CV</b><br/>working/"]
+    IN -->|"CHECK"| ASK["<b>2 · waiting for you</b><br/>working/"]
+    IN -->|"NO"| DISC["discarded/"]
+    IN -->|"not a posting,<br/>or a call failed"| ERR["error/"]
+    ASK -->|"y"| GEN
+    ASK -->|"d"| DISC
+    ASK -->|"s / n: later"| ASK
+    GEN -->|"written"| CV["cv/"]
+    GEN -->|"a call failed"| ERR
+```
 
 What you can drop:
 
-- **A file** — any name, any extension, read as UTF-8 text. It has to look
-  like a posting (the local check, then the server's), otherwise it lands in
-  `error/` with a `.log` beside it. A PDF or `.docx` is not read: paste its
-  text into a `.txt`.
-- **A folder** holding `jd.txt` and a valid `analysis.json` — a folder from
-  `cv/` or `discarded/`, for instance. Detection and analysis are skipped; you
-  are still asked before anything is spent. It keeps its own name (under the
-  timestamp) wherever it ends up. If it also holds `cv_<name>.json`, the CV is
-  re-rendered from it — one LaTeX compile, no model call. A folder with no
+- **A `.txt` file** — the posting, read as UTF-8 text. It has to look like a
+  posting (the local check, then the server's), otherwise it lands in
+  `error/` with a `.log` beside it. Once its analysis is filed, the file is
+  deleted from `--in`. Any other file — a PDF, a `.docx` — goes to `error/`
+  with nothing sent: paste its text into a `.txt`.
+- **A folder** holding `jd.txt` and a valid `analysis.json` — one from `cv/`,
+  `discarded/` or `error/`, for instance. Detection and analysis are skipped:
+  it is copied into `working/` under its company and title, removed from
+  `--in`, and goes where its own files say (the table under *Startup*). One
+  that also holds its CV (`cv_<name>.json` or a `.tex`) is re-rendered — one
+  LaTeX compile, no model call, no new spreadsheet row. A folder with no
   `jd.txt`, or whose `analysis.json` does not validate, goes to `error/` with
   a `log.log` inside saying why.
 
-Names starting with `.` are ignored.
+Names starting with `.` are ignored, and anything still being copied in is
+left alone until it stops changing.
+
+**When a posting needs you** (CHECK), you see its text, then the analysis,
+and answer:
+
+```text
+y = write the CV (or paste the posting URL), d = discard, s/n = next, q = quit
+> https://jobs.example.com/12345
+```
+
+- `y`, or the posting URL: its CV is queued. The URL is stored in
+  `analysis.json` and goes to the spreadsheet.
+- `d`: it is filed under `discarded/`.
+- `s` or `n`: it is asked again after the others.
+
+Your answer is kept in the folder as `approval_status.txt` — `APPROVED` or
+`DISCARDED`. Anything typed before a posting was on screen is thrown away, so
+a stray `y` never approves one you have not read, and what the inbox and the
+CV writer print is held back until you have answered.
+
+**Stopping.** `q` works at any time, also when nothing is waiting for you:
+nothing new is started, the posting being analysed and the CV being written
+are finished, then the watcher exits. Ctrl-C stops at once; the next start
+picks up whatever was running, and a posting still in `--in` is read again.
+
+**`--yes`** asks nothing: YES postings get their CV, NO postings are
+discarded, and CHECK postings wait in `working/` for a run without `--yes`.
+
+**Startup.** Whatever an earlier run left in `working/` goes where its own
+files say, before anything new is read. The rules are tried in this order:
+
+| The folder holds | It goes to |
+|---|---|
+| no `jd.txt`, or no valid `analysis.json` | `error/` |
+| its CV: `cv_<name>.json` or a `.tex` | re-rendered, then `cv/` |
+| no `approval_status.txt` | by `should_apply`: YES to the CV queue, CHECK to you, NO to `discarded/` |
+| `approval_status.txt` saying `APPROVED` | the CV queue |
+| `approval_status.txt` saying `DISCARDED` | `discarded/` |
+| `approval_status.txt` saying anything else | `error/` |
+
+A folder dropped into `--in` follows the same table. To retry a job that
+failed, move its folder from `error/` back into `--in`; to have a CHECK
+posting written without being asked, set its `approval_status.txt` to
+`APPROVED` first. A loose file left in `working/` by an older version goes to
+`error/`: move it back into `--in` to have it read again.
 
 `--in` defaults to `./incoming`, created if missing. It may not be the same
-folder as `--out`.
+folder as `--out`, and the watcher has to be allowed to delete from it.
 
 ### `submit` — one file, once
 
@@ -171,20 +230,27 @@ forget to bump.
 
 ## Postings you have seen before
 
-In `clipboard`, `watch` and `submit`, once you say to submit (`y`, a URL, or
-`--yes`) and before anything is spent, every `analysis.json` under `cv/` and
+Before anything is spent on a posting, every `analysis.json` under `cv/` and
 `discarded/` is read back. A posting is the same job when its URL matches, or
 when its company *and* title match — case, accents and spacing ignored. A side
 without a URL is compared by company and title only; one without a company or
 title, by URL only. Old files are read as they are, never validated: one that
 cannot be read is skipped.
 
+In `clipboard` and `submit` the check runs once you say to submit (`y`, a
+URL, or `--yes`):
+
 - **Already in `cv/`** — it prints `warning: already applied` and the earlier
   folder, and submits nothing, `--yes` or not. The mode carries on: the
-  clipboard keeps waiting, the watcher keeps watching, `submit` exits.
+  clipboard keeps waiting, `submit` exits.
 - **Already in `discarded/`** — it warns and asks `r` (resubmit: delete the
   discarded copy and write the CV), `s` (skip) or `q` (quit). With `--yes` it
   skips without asking.
+
+In `watch` it runs as soon as a posting is analysed, and it looks in
+`working/` too. A posting already applied to, discarded or still in flight
+prints `already applied`, `already discarded` or `already in progress` with
+the earlier folder, and is dropped: nothing is asked and nothing is written.
 
 A posting that is not submitted leaves nothing behind: the earlier copy
 already holds it. So a folder you drop back into `watch` to redo it should be
@@ -212,7 +278,7 @@ already holds it. So a folder you drop back into `watch` to redo it should be
 | `--out DIR` | clipboard, watch, submit | The output folder (`working/`, `error/`, `discarded/`, `cv/`). Default: the current folder. |
 | `--in DIR` | watch | The folder to watch. Default: `./incoming`, created if missing. |
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
-| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. A posting already applied to or discarded is skipped, still without asking. |
+| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. A posting already applied to or discarded is skipped, still without asking. In `watch` it only stops the questions: YES postings get their CV, NO postings are discarded, CHECK postings wait in `working/` for a run without `--yes`. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |
 | `--resume REQUEST_ID` | submit, submit-raw | Pick up a CV job already running on the server instead of submitting a new one: start from its `/status`. For a job whose answer never came back. |
 | `-o FILE` | submit-raw | Write one output here: `.pdf`, `.json` or `.tex`. Repeatable. |
@@ -302,13 +368,14 @@ Start from the fictional set in the repository's `examples/candidate/`.
 │           ├── cv_Jordan_Rivera.pdf     the CV
 │           ├── cv_Jordan_Rivera.tex     the LaTeX it was compiled from
 │           ├── cv_Jordan_Rivera.json    the content, for re-rendering
+│           ├── candidate_signature.png  the images your template includes
 │           ├── analysis.json            match score, salary, skills, gaps
 │           ├── jd.txt                   the posting, whatever the file was called
 │           ├── cover_letter.txt         with --cover-letter
 │           └── log.log                  every step, plus the server's on failure
 ├── discarded/26-01-15/…                 postings you said no to, analysis kept
 ├── error/26-01-15/…                     rejected or failed, with a .log beside it
-├── working/                             in flight; empty when nothing is running
+├── working/                             in flight, or waiting for you
 └── applications.xlsx                    one row per delivered CV
 ```
 
@@ -363,5 +430,5 @@ newer requests have pushed it out, and keeps nothing else.
 | A posting you wanted lands in `error/` | Read the `.log` beside it. A wrong "not a job description" verdict usually means the copy grabbed only part of the page. |
 | A folder you dropped lands in `error/` | It needs `jd.txt` and a valid `analysis.json`. The `log.log` inside it says which was missing. |
 | You need more than the error line | Re-run with `-d`, or `resumix logs <request id>` while the server still has it. |
-| `working/` is not empty | A previous run stopped mid-job. `clipboard` and `watch` offer to resume or clean at startup. |
+| `working/` is not empty | A previous run stopped mid-job, or a CHECK posting waits for you. `watch` picks everything up by itself at startup (see its *Startup* table); `clipboard` offers to resume or clean. |
 | The client died but the job was running | `resumix submit posting.txt --resume <request_id>` picks it back up. |

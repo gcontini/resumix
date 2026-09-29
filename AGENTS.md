@@ -33,9 +33,12 @@ because breaking it has a cost we have already paid once.
 - **Prefer deleting.** The three-model rework removed a whole second CV
   pipeline; the client/server split removed a thread pool and a folder
   protocol. Less surface has consistently been the better answer here.
-- **Simple over clever.** The watcher processes one posting at a time because
-  it asks you a question about each one; concurrency would buy nothing and
-  cost a queue.
+- **Simple over clever.** Each stage of the watcher takes one posting at a
+  time. The stages run side by side — the inbox and the CV writer on a thread
+  each, you on the main thread — because most postings no longer need a
+  question: a CV takes minutes, and it is written while you read the next
+  posting. That is the one concurrency there is; nothing inside a stage runs
+  in parallel.
 - **KISS: this runs for one person, not at scale.** Resumix is personal
   tooling, not a production service with many tenants. Don't add retries,
   caching layers, queues, connection pools, horizontal scaling or config

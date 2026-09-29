@@ -114,14 +114,26 @@ required to run it (PyInstaller `--onefile`)
 - `joblog.py` — `JobLog` (per-job `log.log`, client steps + folded-in server
   log), `format_entries()` (same rendering, for `resumix logs <id>`).
 - `workspace.py` — `Workspace`: owns the `working/error/discarded/cv` folder
-  tree, atomic moves, the daily subfolders. `take_in(path, move=...)` — moved
-  for a watched inbox, copied for a named argument (`submit` must not consume
-  the file you pointed it at).
-- `sources/{clipboard,folder,single}.py` — the only difference between the
-  four modes; each yields `JDCandidate`s to the same `JobRunner`.
+  tree, atomic moves, the daily subfolders. `take_in(path, move=...)` — copied
+  for a named argument (`submit` must not consume the file you pointed it at).
+  `new_job()` never replaces a folder of the same name (`watch` may be writing
+  it).
+- `sources/{clipboard,single}.py` — the only difference between `clipboard`
+  and `submit`; each yields `JDCandidate`s to the same `JobRunner`.
+  `sources/folder.py` only keeps `read_text`.
+- `stages/` — `watch`, a line of its own (it imports nothing from `runner`,
+  `sources` or `modes`; `tests/test_architecture.py` checks). Four stages:
+  `inbox.py` (`--in` → detect → analyse, then the file is deleted),
+  `approval.py` (you, on the main thread: y/d/s/n/q or a URL), `generation.py`
+  (the CV queue, on a thread), and `working.py` (`WorkingProcessor`: every
+  move, the duplicate check and both queues, under one lock). A folder goes
+  where `jobfolder.route()` says — the same pure table for new postings,
+  dropped folders and leftovers in `working/`. `watcher.py` runs it all: `q`
+  finishes what is running, Ctrl-C stops at once.
 - `modes/{clipboard,watch,submit,render,logs}.py` — thin: build a source,
-  hand it to `Session`/`JobRunner`, or (for `render`/`logs`) call the API
-  directly. `modes/__init__.py`'s `Session` is the shared wiring.
+  hand it to `Session`/`JobRunner` (`watch`: build the stages and run the
+  `Watcher`), or (for `render`/`logs`) call the API directly.
+  `modes/__init__.py`'s `Session` is the shared wiring.
 - `tracking.py` — `XlsxTracker` (openpyxl, `applications.xlsx`) / `NullTracker`.
 - `ui.py` — `Confirmer` protocol (`PromptConfirmer` / `AutoConfirmer` for
   `--yes`), the analysis table, the recovery prompt.
@@ -168,8 +180,8 @@ required to run it (PyInstaller `--onefile`)
   as hostile input. On a compile failure the TeX log tail goes to the
   server's own log, not into the error body (it is kilobytes; ask for it via
   `/logs` if you need it).
-- **`submit` copies its input; `watch` moves it.** An inbox gets emptied; an
-  argument you named does not disappear.
+- **`submit` copies its input; `watch` deletes it once handed over.** An inbox
+  gets emptied; an argument you named does not disappear.
 - **Concurrency**: one `BoundedSemaphore(RESUMIX_MAX_CONCURRENT_JOBS)`
   (default 10) gates job handlers → `429` + `Retry-After` when full. No
   second gate for the LaTeX compile — it is fast enough not to need one.

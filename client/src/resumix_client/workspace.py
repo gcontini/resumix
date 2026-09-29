@@ -129,6 +129,17 @@ class Workspace:
         job.mkdir(parents=True)
         return job
 
+    def new_job(self, company: str, title: str) -> Path:
+        """A fresh ``working/<Company>_<Title>`` that never replaces another.
+
+        Unlike :meth:`open_job`, a folder of the same name is left alone and
+        this one gets a ``_2`` suffix: while ``watch`` runs, that name can
+        belong to a job still being written.
+        """
+        job = self._free(self.working / f"{sanitize_name(company)}_{sanitize_name(title)}")
+        job.mkdir(parents=True)
+        return job
+
     # --- outcomes -----------------------------------------------------------
     def deliver(self, job: Path) -> Path:
         """Finished: ``cv/<day>/<Company>_<Title>``."""
@@ -159,6 +170,10 @@ class Workspace:
     def jobs_in(self, parent: Path) -> List[Path]:
         """Every analysed job under ``cv/`` or ``discarded/`` (``<day>/<job>``)."""
         return sorted(p.parent for p in parent.glob(f"*/*/{ANALYSIS_FILENAME}"))
+
+    def working_jobs(self) -> List[Path]:
+        """Every analysed job still in flight: ``working/<job>``."""
+        return sorted(p.parent for p in self.working.glob(f"*/{ANALYSIS_FILENAME}"))
 
     # --- recovery -----------------------------------------------------------
     def pending(self) -> Tuple[List[Path], List[Path]]:

@@ -1,9 +1,10 @@
-"""The four things the client does.
+"""The things the client does.
 
-Each mode is thin on purpose: pick a source, build the runner, drain the
-source. Everything else lives in :mod:`resumix_client.runner` and
-:mod:`resumix_client.workspace`, so adding a fifth source would not touch
-the pipeline.
+``clipboard`` and ``submit`` are thin on purpose: pick a source, build the
+runner, drain the source. Everything else lives in
+:mod:`resumix_client.runner` and :mod:`resumix_client.workspace`, so adding a
+source would not touch the pipeline. ``watch`` does not come through here: it
+runs its postings through the stages in :mod:`resumix_client.stages`.
 """
 
 from __future__ import annotations

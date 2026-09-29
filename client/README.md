@@ -89,10 +89,18 @@ On Linux the clipboard needs a helper: `apt install xclip` (X11) or
 resumix watch --in ~/Downloads/postings --out ~/applications
 ```
 
-Every file dropped into `--in` is claimed immediately, checked, analysed and
-put to you for confirmation. Files that are not job postings go to `error/`
-with a timestamp in the name. If a previous run left anything behind, you are
-asked at startup whether to resume it or clean it out.
+Every `.txt` dropped into `--in` is checked and analysed, then deleted from
+`--in`. The analysis decides what happens next: `should_apply` YES gets its CV
+without a question, CHECK is shown to you (`y` = write the CV, `d` = discard,
+`s`/`n` = ask again later), NO goes to `discarded/`. CVs are written in the
+background while you read the next posting. Anything that is not a posting
+goes to `error/` with a timestamp in the name. An analysed job folder can be
+dropped in too, to retry one from `error/` for instance.
+
+`q` lets the running work finish, then quits; Ctrl-C stops at once. Whatever
+a previous run left in `working/` is picked up by itself at startup. With
+`--yes` nothing is asked, and CHECK postings wait in `working/` for a run
+without it. The full rules are in [`doc/client.md`](../doc/client.md).
 
 ### `submit` — one file, once
 
@@ -163,7 +171,7 @@ when `resumix.toml` is wrong. Every `-v` run prints the same line at startup.
 | `-o FILE` | submit-raw | Where to write one output: `.pdf`, `.json` or `.tex`. Repeatable. |
 | `--in DIR` | watch | The folder to watch. Default: `./incoming` (created if missing). |
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
-| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. |
+| `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. In `watch`: never ask, and CHECK postings wait in `working/`. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |
 | `--server`, `--token`, `--temperature` | all | Override the config for one run. |
 | `--pages N` | clipboard, watch, submit, submit-raw | Page limit the CV must fit. Default: 2. |
@@ -192,7 +200,7 @@ Both work on either side of the mode name: `resumix -v submit posting.txt
 │           └── log.log                  every step, plus the server's own on failure
 ├── discarded/26-01-15/…                 postings you said no to, analysis kept
 ├── error/26-01-15/…                     rejected or failed, with a .log beside it
-├── working/                             in flight; empty when nothing is running
+├── working/                             in flight, or waiting for you
 └── applications.xlsx                    one row per delivered CV
 ```
 
@@ -230,6 +238,6 @@ finished, `resumix logs <request id>`.
 | `clipboard: not a posting (412 chars, nothing sent)` | What you copied is a fragment, not a posting. Nothing was sent anywhere. |
 | A posting you wanted lands in `error/` | Read the `.log` beside it: it holds the server's own log for the call that failed. A wrong "not a job description" verdict usually means the copy grabbed only part of the page. |
 | You need more than the error line | Re-run with `-d`, or `resumix logs <request id>` while the server still has it. |
-| `working/` is not empty | A previous run stopped mid-job. `clipboard` and `watch` offer to resume or clean at startup. |
+| `working/` is not empty | A previous run stopped mid-job, or a CHECK posting waits for you. `watch` picks everything up by itself at startup; `clipboard` offers to resume or clean. |
 
 

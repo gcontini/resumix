@@ -1,8 +1,9 @@
 # A run, end to end
 
 One posting, from the moment you press Ctrl+C on a job ad to the folder that
-holds the PDF. This is `resumix clipboard`; `watch` and `submit` differ only
-in what hands the runner the next posting.
+holds the PDF. This is `resumix clipboard`; `submit` differs only in what
+hands the runner the next posting. `watch` runs its postings through four
+stages of its own — see [the client guide](client.md).
 
 ## The call sequence
 

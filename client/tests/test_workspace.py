@@ -75,6 +75,28 @@ def test_a_second_run_of_the_same_job_does_not_overwrite_the_first(ws):
     assert first != second
 
 
+def test_a_new_job_never_replaces_one_in_flight(ws):
+    """watch writes one job while it files the next: a clash of names must
+    not delete the folder that got there first."""
+    first = ws.new_job("Acme Corp", "Head of IT")
+    (first / "jd.txt").write_text("the first posting")
+    second = ws.new_job("Acme Corp", "Head of IT")
+
+    assert first.name == "Acme_Corp_Head_of_IT"
+    assert second.name == "Acme_Corp_Head_of_IT_2"
+    assert (first / "jd.txt").read_text() == "the first posting"
+    assert second.is_dir() and not any(second.iterdir())
+
+
+def test_working_jobs_lists_only_analysed_folders(ws):
+    analysed = ws.new_job("Acme", "Head of IT")
+    (analysed / "analysis.json").write_text("{}")
+    ws.new_job("Other", "Job")  # no analysis.json yet
+    ws.take_in(drop(ws))  # a loose file
+
+    assert ws.working_jobs() == [analysed]
+
+
 def test_error_goes_into_a_daily_folder(ws):
     failed = ws.to_error(ws.take_in(drop(ws)))
     assert failed.parent.name == day()

@@ -11,6 +11,7 @@ terminal.
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -269,7 +270,9 @@ class JobRunner:
         return Outcome("delivered", "done", delivered)
 
     def _cv(self, job_dir: Path, jd_text: str, log: JobLog) -> None:
-        """Write the CV and save all three files — or re-render the one here.
+        """Write the CV and save its files, and the images the ``.tex``
+        includes, so the folder renders again on its own — or re-render the
+        one here.
 
         The server sends the document, the LaTeX and the PDF back together, so
         there is one call and one moment where the folder is complete.
@@ -300,6 +303,8 @@ class JobRunner:
             )
         (job_dir / artifacts.tex).write_text(rendered.tex, encoding="utf-8")
         (job_dir / artifacts.pdf).write_bytes(rendered.pdf_bytes())
+        for name, path in self.config.images.items():
+            shutil.copy2(path, job_dir / name)
         log.step(f"CV Path: {artifacts.pdf}")
 
     def _letter(

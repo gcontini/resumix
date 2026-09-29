@@ -61,3 +61,34 @@ def test_the_client_carries_no_server_side_dependency():
 def test_the_server_carries_no_client_side_dependency():
     """The image has no clipboard and no spreadsheet."""
     assert not (imports_of(PACKAGES["server"]) & {"pyperclip", "openpyxl"})
+
+
+def client_modules_used_by(subpackage: Path) -> Set[str]:
+    """Every ``resumix_client.<module>`` a client subpackage imports, however spelled."""
+    found: Set[str] = set()
+    for path in subpackage.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [alias.name.split(".") for alias in node.names]
+                found.update(parts[1] for parts in names
+                             if parts[0] == "resumix_client" and len(parts) > 1)
+            elif isinstance(node, ast.ImportFrom):
+                parts = (node.module or "").split(".")
+                if node.level == 0 and parts[0] == "resumix_client" and len(parts) > 1:
+                    found.add(parts[1])
+                elif node.level == 2 and node.module:  # from ..module import x
+                    found.add(parts[0])
+                elif node.level == 2:  # from .. import module
+                    found.update(alias.name for alias in node.names)
+    return found
+
+
+def test_the_watch_stages_never_use_the_older_pipeline():
+    """``stages/`` is a line of its own: ``clipboard`` and ``submit`` can move
+    onto it later, or stay where they are, without the two depending on each
+    other in the meantime."""
+    older = {"runner", "sources", "modes"}
+    used = client_modules_used_by(PACKAGES["client"] / "stages")
+    assert "workspace" in used, "the check must see the imports it is checking"
+    assert not used & older

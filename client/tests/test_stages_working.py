@@ -164,6 +164,49 @@ def test_after_close_nothing_is_queued_but_everything_is_kept(processor, workspa
     assert workspace.working_jobs() == [yes, check]
 
 
+# --- a posting you are asked about (clipboard, submit) ------------------------------
+def hold(processor, **fields):
+    return processor.hold(JD_TEXT, analysis(**fields), TaggedLog(processor.console, "clipboard"))
+
+
+@pytest.mark.parametrize("should_apply", ["YES", "CHECK", "NO"])
+def test_a_held_posting_waits_for_you_whatever_its_analysis_says(processor, workspace,
+                                                                 should_apply):
+    folder = hold(processor, should_apply=should_apply)
+
+    assert folder.parent == workspace.working
+    assert names(folder) == ["analysis.json", "approval_status.txt", "jd.txt", "log.log"]
+    assert (folder / "approval_status.txt").read_text().strip() == "PENDING"
+    assert "waiting for your answer" in (folder / "log.log").read_text()
+    assert processor.generations.empty() and processor.approvals.empty(), \
+        "the caller asks at once; nothing is queued"
+
+
+def test_a_held_posting_seen_before_writes_nothing(processor, workspace):
+    previous(workspace.discarded)
+    assert hold(processor, should_apply="YES") is None
+    assert not any(workspace.working.iterdir())
+
+
+def test_a_posting_left_unanswered_is_asked_about_again(processor, workspace):
+    """Quit at the question, or stopped mid-question: never decided for you."""
+    left = hold(processor, should_apply="YES")
+
+    next_run = WorkingProcessor(workspace, processor.writer, processor.tracker,
+                                processor.console)
+    next_run.recover()
+
+    assert queued(next_run.approvals) == [left]
+    assert next_run.generations.empty(), "a YES is not written without your answer"
+
+
+def test_approving_a_held_posting_replaces_pending(processor):
+    folder = hold(processor)
+    processor.approve(folder)
+    assert (folder / "approval_status.txt").read_text().strip() == "APPROVED"
+    assert queued(processor.generations) == [folder]
+
+
 # --- what an earlier run left --------------------------------------------------
 def test_recovery_follows_the_table(processor, workspace, api):
     working = workspace.working
@@ -192,20 +235,20 @@ def test_recovery_follows_the_table(processor, workspace, api):
 def test_a_leftover_holding_its_cv_is_rendered_and_delivered_without_a_row(
         processor, workspace, api):
     make_job(workspace.working, should_apply="CHECK",
-             **{"cv_Jordan_Rivera.json": json.dumps(document())})
+             **{"cv_jordan_rivera_head_of_it.json": json.dumps(document())})
 
     processor.recover()
 
     assert api.calls == ["render"]
     assert api.seen_document == document()
     delivered = workspace.cv / day() / "Acme_Corp_Head_of_IT"
-    assert (delivered / "cv_Jordan_Rivera.pdf").read_bytes() == b"%PDF-fake"
+    assert (delivered / "cv_jordan_rivera_head_of_it.pdf").read_bytes() == b"%PDF-fake"
     assert (delivered / "candidate_signature.png").is_file()
     assert not (workspace.root / "applications.xlsx").exists(), "a render is not an application"
 
 
 def test_a_leftover_with_only_its_tex_is_compiled_as_it_stands(processor, workspace, api):
-    make_job(workspace.working, **{"cv_Jordan_Rivera.tex": r"\documentclass{article}"})
+    make_job(workspace.working, **{"cv_jordan_rivera_head_of_it.tex": r"\documentclass{article}"})
     processor.recover()
     assert api.calls == ["render"]
     assert api.seen_document is None, "the .tex was sent, not a document"
@@ -213,7 +256,7 @@ def test_a_leftover_with_only_its_tex_is_compiled_as_it_stands(processor, worksp
 
 def test_a_failed_render_goes_to_error_with_the_server_log(processor, workspace, api):
     api.fail_on = "render"
-    make_job(workspace.working, **{"cv_Jordan_Rivera.json": json.dumps(document())})
+    make_job(workspace.working, **{"cv_jordan_rivera_head_of_it.json": json.dumps(document())})
 
     processor.recover()
 
@@ -225,7 +268,7 @@ def test_a_failed_render_goes_to_error_with_the_server_log(processor, workspace,
 
 
 def test_a_document_that_is_not_json_fails_without_a_call(processor, workspace, api):
-    make_job(workspace.working, **{"cv_Jordan_Rivera.json": "{not json"})
+    make_job(workspace.working, **{"cv_jordan_rivera_head_of_it.json": "{not json"})
     processor.recover()
     assert api.calls == []
     [failed] = workspace.error.glob("*/*_Acme_Corp_Head_of_IT")
@@ -234,7 +277,7 @@ def test_a_document_that_is_not_json_fails_without_a_call(processor, workspace, 
 
 def test_a_tex_that_is_not_text_fails_without_a_call(processor, workspace, api):
     job = make_job(workspace.working)
-    (job / "cv_Jordan_Rivera.tex").write_bytes(b"\xff\xfe\x00latex")
+    (job / "cv_jordan_rivera_head_of_it.tex").write_bytes(b"\xff\xfe\x00latex")
     processor.recover()
     assert api.calls == []
     [failed] = workspace.error.glob("*/*_Acme_Corp_Head_of_IT")
@@ -256,10 +299,10 @@ def test_a_dropped_folder_is_copied_whole_and_routed(processor, workspace, tmp_p
 
 
 def test_a_dropped_folder_holding_its_cv_is_rendered(processor, workspace, api, tmp_path):
-    source = make_job(tmp_path / "in", **{"cv_Jordan_Rivera.json": json.dumps(document())})
+    source = make_job(tmp_path / "in", **{"cv_jordan_rivera_head_of_it.json": json.dumps(document())})
     processor.submit_folder(source, TaggedLog(processor.console, source.name))
     assert api.calls == ["render"]
-    assert (workspace.cv / day() / "Acme_Corp_Head_of_IT" / "cv_Jordan_Rivera.pdf").is_file()
+    assert (workspace.cv / day() / "Acme_Corp_Head_of_IT" / "cv_jordan_rivera_head_of_it.pdf").is_file()
 
 
 def test_a_dropped_folder_seen_before_writes_nothing(processor, workspace, tmp_path):

@@ -5,7 +5,6 @@ Every wait has a deadline, so a deadlock fails the test instead of hanging it.
 
 from __future__ import annotations
 
-import queue
 import threading
 import time
 
@@ -24,22 +23,6 @@ from resumix_client.tracking import build_tracker
 from conftest import JD_TEXT, FakeApi, analysis, envelope, make_job
 
 DEADLINE = 10.0
-
-
-class Typist:
-    """A stdin the test types into: ``readline`` blocks, like a terminal's."""
-
-    def __init__(self):
-        self._lines: queue.Queue = queue.Queue()
-
-    def readline(self):
-        return self._lines.get()
-
-    def type(self, line):
-        self._lines.put(line + "\n")
-
-    def close(self):
-        self._lines.put("")
 
 
 class ByFirstLine(FakeApi):
@@ -72,10 +55,10 @@ def build(api, config, workspace, inbox, keyboard, reviewer):
     working = WorkingProcessor(workspace, writer, build_tracker(workspace.root, True), console)
     return Watcher(
         working,
-        InputProcessor(inbox, Calls(api), config, working, console,
-                       poll_seconds=0.01, settle_seconds=0),
-        GenerationWorker(working, writer, console, poll_seconds=0.01),
-        HumanApproval(working, reviewer, keyboard, console, poll_seconds=0.01),
+        HumanApproval(working, reviewer, keyboard, console, poll_seconds=0.01).run,
+        {"inbox": InputProcessor(inbox, Calls(api), config, working, console,
+                                 poll_seconds=0.01, settle_seconds=0),
+         "cv": GenerationWorker(working, writer, console, poll_seconds=0.01)},
         keyboard,
         console,
         join_seconds=0.01,
@@ -105,13 +88,6 @@ def inbox(tmp_path):
     folder = tmp_path / "in"
     folder.mkdir()
     return folder
-
-
-@pytest.fixture
-def typist():
-    typist = Typist()
-    yield typist
-    typist.close()
 
 
 def test_postings_flow_through_the_four_stages(config, workspace, inbox, typist):
@@ -188,7 +164,7 @@ def test_a_crashed_stage_stops_the_watcher_loudly(config, workspace, inbox, typi
     def broken(stop):
         raise RuntimeError("the inbox is gone")
 
-    watcher.inbox.run = broken
+    watcher.background["inbox"].run = broken
     thread, result = in_background(watcher)
     thread.join(DEADLINE)
 

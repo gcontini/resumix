@@ -23,7 +23,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-#: Prefix for a file in flight or in error — sorts chronologically.
+#: Prefix for an entry filed under error/ — sorts chronologically.
 TS_FORMAT = "%y-%m-%d-%H-%M-%S"
 #: Daily folders under cv/, discarded/ and error/.
 DAY_FORMAT = "%y-%m-%d"
@@ -52,13 +52,14 @@ def sanitize_name(text: str, max_len: int = 40) -> str:
 
 @dataclass(frozen=True)
 class Artifacts:
-    """What a finished job folder is called, all derived from your name."""
+    """What a finished job folder is called: your name and the job title."""
 
     candidate: str
+    job_title: str
 
     @property
     def stem(self) -> str:
-        return f"cv_{sanitize_name(self.candidate)}"
+        return f"cv_{sanitize_name(self.candidate)}_{sanitize_name(self.job_title)}".lower()
 
     @property
     def pdf(self) -> str:
@@ -89,52 +90,11 @@ class Workspace:
         return self
 
     # --- intake -------------------------------------------------------------
-    def take_in(self, path: Path, *, move: bool = True) -> Path:
-        """Claim an incoming file: put it in ``working/`` under a timestamp.
-
-        Immediate and before anything else happens, so a watched folder never
-        shows the same file twice and a crash leaves the file somewhere
-        recoverable.
-
-        ``move=False`` copies instead, for an input the caller named by path
-        and still owns: ``resumix submit posting.txt`` must not make
-        ``posting.txt`` disappear.
-        """
-        target = self._free(self.working / f"{timestamp()}_{path.name}")
-        if move:
-            shutil.move(str(path), str(target))
-        else:
-            shutil.copy2(str(path), str(target))
-        return target
-
-    def take_in_job(self, jd: Path, analysis: Path) -> Path:
-        """Claim a posting that was analysed already, as a job folder.
-
-        ``working/<timestamp>_<jd stem>/`` holding copies of both files under
-        :data:`JD_FILENAME` and :data:`ANALYSIS_FILENAME` — the same shape as
-        a job folder dropped into a watched inbox. Copied, never moved: both
-        files were named by path and stay where they are.
-        """
-        folder = self._free(self.working / f"{timestamp()}_{jd.stem}")
-        folder.mkdir(parents=True)
-        shutil.copy2(str(jd), str(folder / JD_FILENAME))
-        shutil.copy2(str(analysis), str(folder / ANALYSIS_FILENAME))
-        return folder
-
-    def open_job(self, company: str, title: str) -> Path:
-        """The working folder for an analyzed job: ``working/<Company>_<Title>``."""
-        job = self.working / f"{sanitize_name(company)}_{sanitize_name(title)}"
-        if job.exists():
-            shutil.rmtree(job, ignore_errors=True)
-        job.mkdir(parents=True)
-        return job
-
     def new_job(self, company: str, title: str) -> Path:
         """A fresh ``working/<Company>_<Title>`` that never replaces another.
 
-        Unlike :meth:`open_job`, a folder of the same name is left alone and
-        this one gets a ``_2`` suffix: while ``watch`` runs, that name can
-        belong to a job still being written.
+        A folder of the same name is left alone and this one gets a ``_2``
+        suffix: that name can belong to a job whose CV is still being written.
         """
         job = self._free(self.working / f"{sanitize_name(company)}_{sanitize_name(title)}")
         job.mkdir(parents=True)
@@ -162,10 +122,6 @@ class Workspace:
         shutil.move(str(entry), str(target))
         return target
 
-    def remove(self, job: Path) -> None:
-        """A job that is not kept at all: a duplicate, or one being redone."""
-        shutil.rmtree(job, ignore_errors=True)
-
     # --- history ------------------------------------------------------------
     def jobs_in(self, parent: Path) -> List[Path]:
         """Every analysed job under ``cv/`` or ``discarded/`` (``<day>/<job>``)."""
@@ -179,13 +135,13 @@ class Workspace:
     def pending(self) -> Tuple[List[Path], List[Path]]:
         """What is left in ``working/``: loose files and job folders.
 
-        A loose file was taken in but never analyzed; a folder was analyzed
-        but never finished. They resume at different points, so they are
-        reported apart.
+        A folder was analysed but never finished, and resumes where its own
+        files say; a loose file cannot be resumed (only older clients left
+        them) and goes to ``error/``. Hidden entries are not a run's leftovers.
         """
         if not self.working.is_dir():
             return [], []
-        entries = sorted(self.working.iterdir())
+        entries = [e for e in sorted(self.working.iterdir()) if not e.name.startswith(".")]
         return ([e for e in entries if e.is_file()], [e for e in entries if e.is_dir()])
 
     def clean(self) -> int:

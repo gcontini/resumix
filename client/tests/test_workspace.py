@@ -19,8 +19,9 @@ def ws(tmp_path) -> Workspace:
     return Workspace(tmp_path / "out").ensure()
 
 
-def drop(ws, name="posting.txt", text="a posting"):
-    path = ws.root.parent / name
+def loose(ws, name="26-09-28-16-13-16_posting.txt", text="a posting"):
+    """A loose file in working/, as older clients left them."""
+    path = ws.working / name
     path.write_text(text)
     return path
 
@@ -29,39 +30,8 @@ def test_ensure_builds_the_four_folders(ws):
     assert sorted(p.name for p in ws.root.iterdir()) == ["cv", "discarded", "error", "working"]
 
 
-def test_intake_claims_the_file_immediately(ws):
-    source = drop(ws)
-    claimed = ws.take_in(source)
-
-    assert not source.exists(), "the watched folder must not keep it"
-    assert claimed.parent == ws.working
-    assert re.match(r"^\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}_posting\.txt$", claimed.name)
-
-
-def test_a_named_file_is_copied_not_consumed(ws):
-    """`resumix submit posting.txt` must leave posting.txt where it is."""
-    source = drop(ws)
-    claimed = ws.take_in(source, move=False)
-
-    assert source.exists(), "an argument is not an inbox"
-    assert claimed.read_text() == source.read_text()
-    assert claimed.parent == ws.working
-
-
-def test_a_named_posting_and_analysis_become_a_job_folder(ws):
-    """`resumix submit posting.txt analysis.json`: both copied, renamed, kept."""
-    jd, analysis = drop(ws), drop(ws, "mine.json", "{}")
-    folder = ws.take_in_job(jd, analysis)
-
-    assert jd.exists() and analysis.exists(), "arguments are not an inbox"
-    assert folder.parent == ws.working
-    assert re.match(r"^\d{2}(-\d{2}){5}_posting$", folder.name)
-    assert sorted(p.name for p in folder.iterdir()) == ["analysis.json", "jd.txt"]
-    assert (folder / "jd.txt").read_text() == "a posting"
-
-
 def test_delivery_goes_into_a_daily_folder(ws):
-    job = ws.open_job("Acme Corp", "Head of IT")
+    job = ws.new_job("Acme Corp", "Head of IT")
     delivered = ws.deliver(job)
     assert delivered.parent.name == day()
     assert delivered.parent.parent == ws.cv
@@ -69,14 +39,14 @@ def test_delivery_goes_into_a_daily_folder(ws):
 
 
 def test_a_second_run_of_the_same_job_does_not_overwrite_the_first(ws):
-    first = ws.deliver(ws.open_job("Acme", "Head of IT"))
-    second = ws.deliver(ws.open_job("Acme", "Head of IT"))
+    first = ws.deliver(ws.new_job("Acme", "Head of IT"))
+    second = ws.deliver(ws.new_job("Acme", "Head of IT"))
     assert first.exists() and second.exists()
     assert first != second
 
 
 def test_a_new_job_never_replaces_one_in_flight(ws):
-    """watch writes one job while it files the next: a clash of names must
+    """A CV is written while the next posting is filed: a clash of names must
     not delete the folder that got there first."""
     first = ws.new_job("Acme Corp", "Head of IT")
     (first / "jd.txt").write_text("the first posting")
@@ -92,40 +62,49 @@ def test_working_jobs_lists_only_analysed_folders(ws):
     analysed = ws.new_job("Acme", "Head of IT")
     (analysed / "analysis.json").write_text("{}")
     ws.new_job("Other", "Job")  # no analysis.json yet
-    ws.take_in(drop(ws))  # a loose file
+    loose(ws)
 
     assert ws.working_jobs() == [analysed]
 
 
 def test_error_goes_into_a_daily_folder(ws):
-    failed = ws.to_error(ws.take_in(drop(ws)))
+    failed = ws.to_error(loose(ws))
     assert failed.parent.name == day()
     assert failed.parent.parent == ws.error
 
 
 def test_error_keeps_an_existing_timestamp(ws):
-    claimed = ws.take_in(drop(ws))
-    failed = ws.to_error(claimed)
-    assert failed.name == claimed.name, "the arrival time is the useful one"
+    """A file dropped back from error/ keeps the time it first arrived."""
+    stamped = loose(ws)
+    failed = ws.to_error(stamped)
+    assert failed.name == stamped.name, "the arrival time is the useful one"
 
 
 def test_error_adds_a_timestamp_when_there_is_none(ws):
-    job = ws.open_job("Acme", "Head of IT")
+    job = ws.new_job("Acme", "Head of IT")
     failed = ws.to_error(job)
     assert re.fullmatch(r"\d{2}(-\d{2}){5}_Acme_Head_of_IT", failed.name)
 
 
 def test_pending_separates_loose_files_from_job_folders(ws):
-    ws.take_in(drop(ws, "one.txt"))
-    ws.open_job("Acme", "Head of IT")
+    loose(ws)
+    ws.new_job("Acme", "Head of IT")
     files, folders = ws.pending()
     assert [f.name for f in folders] == ["Acme_Head_of_IT"]
     assert len(files) == 1
 
 
+def test_pending_ignores_hidden_entries(ws):
+    """They are no run's leftovers, and resuming would never clear them: they
+    must not bring the question back at every start."""
+    loose(ws, ".DS_Store")
+    (ws.working / ".cache").mkdir()
+    assert ws.pending() == ([], [])
+
+
 def test_clean_empties_the_working_folder(ws):
-    ws.take_in(drop(ws, "one.txt"))
-    ws.open_job("Acme", "Head of IT")
+    loose(ws)
+    ws.new_job("Acme", "Head of IT")
     assert ws.clean() == 2
     assert ws.pending() == ([], [])
 
@@ -138,7 +117,8 @@ def test_names_are_made_filesystem_safe(raw, expected):
     assert sanitize_name(raw) == expected
 
 
-def test_artifacts_are_named_after_the_candidate():
-    artifacts = Artifacts("Jordan Rivera")
+def test_artifacts_are_named_after_the_candidate_and_the_job():
+    artifacts = Artifacts("Jordan Rivera", "Head of IT / Ops")
     assert (artifacts.pdf, artifacts.tex, artifacts.document) == (
-        "cv_Jordan_Rivera.pdf", "cv_Jordan_Rivera.tex", "cv_Jordan_Rivera.json")
+        "cv_jordan_rivera_head_of_it_ops.pdf", "cv_jordan_rivera_head_of_it_ops.tex",
+        "cv_jordan_rivera_head_of_it_ops.json")

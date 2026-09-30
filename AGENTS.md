@@ -6,9 +6,9 @@ because breaking it has a cost we have already paid once.
 ## Shape
 
 - **One job per class.** `HttpApi` speaks HTTP and nothing else. `Workspace`
-  owns paths and moves and nothing else. `JobRunner` knows the order of steps
-  and delegates every one of them. If you cannot say what a class does in one
-  sentence without "and", split it.
+  owns paths and moves and nothing else. `WorkingProcessor` decides where a
+  job folder goes next and makes every move. If you cannot say what a class
+  does in one sentence without "and", split it.
 - **Depend on protocols, not implementations.** `ResumixApi`, `JDSource`,
   `Confirmer`, `Tracker` exist so the modes can be tested with no server, no
   terminal and no spreadsheet. A new source of job descriptions should be a

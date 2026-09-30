@@ -87,7 +87,7 @@ class TerminalReviewer:
         print(PROMPT, flush=True)
         while True:
             print("> ", end="", flush=True)
-            line = self._next_line()
+            line = self.keyboard.read(self.poll_seconds)
             if line == END_OF_INPUT:
                 print(flush=True)
                 return Answer("quit")
@@ -96,13 +96,6 @@ class TerminalReviewer:
                 return answer
             if line:
                 print(HINT, flush=True)
-
-    def _next_line(self) -> str:
-        # Short waits, so Ctrl-C lands on every platform.
-        while True:
-            line = self.keyboard.get(self.poll_seconds)
-            if line is not None:
-                return line
 
 
 class HumanApproval:

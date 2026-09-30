@@ -20,8 +20,11 @@ sys.path.insert(0, str(REPO_ROOT / "server" / "tests"))
 
 from resumix_client.api import HttpApi, ResumixError          # noqa: E402
 from resumix_client.config import Config                        # noqa: E402
-from resumix_client.runner import JobRunner                     # noqa: E402
-from resumix_client.sources import JDCandidate                  # noqa: E402
+from resumix_client.stages.calls import Calls                   # noqa: E402
+from resumix_client.stages.generation import CvWriter, GenerationWorker  # noqa: E402
+from resumix_client.stages.intake import Intake                 # noqa: E402
+from resumix_client.stages.terminal import Console              # noqa: E402
+from resumix_client.stages.working import WorkingProcessor      # noqa: E402
 from resumix_client.tracking import build_tracker               # noqa: E402
 from resumix_client.ui import Decision                          # noqa: E402
 from resumix_client.workspace import Workspace                  # noqa: E402
@@ -92,11 +95,12 @@ def api(models, tmp_path):
         yield HttpApi("http://server.invalid", client=http)
 
 
-@pytest.fixture
-def make_runner(api, tmp_path):
-    """A runner against the in-process server; ``debug`` picks the log policy."""
-    def build(*, debug: bool = False) -> JobRunner:
-        workspace = Workspace(tmp_path / "out").ensure()
+class Submit:
+    """``resumix submit`` against the in-process server: one posting, analysed,
+    approved, and its CV written on this thread."""
+
+    def __init__(self, api, root: Path, *, debug: bool = False) -> None:
+        self.workspace = Workspace(root).ensure()
         config = Config(
             server_url="http://server.invalid",
             debug=debug,
@@ -105,14 +109,33 @@ def make_runner(api, tmp_path):
                 "candidate_preferences.md")},
             images={"candidate_signature.png": EXAMPLE / "candidate_signature.png"},
         )
-        return JobRunner(api=api, workspace=workspace, config=config,
-                         confirmer=Scripted(), tracker=build_tracker(workspace.root, True))
+        console = Console()
+        calls = Calls(api, debug=debug)
+        writer = CvWriter(calls, config)
+        self.working = WorkingProcessor(self.workspace, writer,
+                                        build_tracker(self.workspace.root, True), console)
+        self.intake = Intake(calls, config, self.working, Scripted(), console)
+        self.generation = GenerationWorker(self.working, writer, console)
+
+    def __call__(self, text: str) -> Path:
+        """The posting's folder once it is filed: under cv/ or error/."""
+        self.intake.take(text, "posting.txt")
+        self.generation.drain()
+        [filed] = [*self.workspace.cv.glob("*/*"), *self.workspace.error.glob("*/*")]
+        return filed
+
+
+@pytest.fixture
+def make_submit(api, tmp_path):
+    """``debug`` picks the log policy."""
+    def build(*, debug: bool = False) -> Submit:
+        return Submit(api, tmp_path / "out", debug=debug)
     return build
 
 
 @pytest.fixture
-def runner(make_runner):
-    return make_runner()
+def run(make_submit):
+    return make_submit()
 
 
 @pytest.fixture(autouse=True)
@@ -122,15 +145,14 @@ def no_polling_delay(monkeypatch):
 
 
 @needs_latex
-def test_a_posting_becomes_a_real_pdf(runner, models):
-    outcome = runner.handle(JDCandidate(text=JD_TEXT))
+def test_a_posting_becomes_a_real_pdf(run, models):
+    folder = run(JD_TEXT)
 
-    assert outcome.status == "delivered", (outcome.path / "log.log").read_text()
-    folder = outcome.path
+    assert folder.parent.parent == run.workspace.cv, (folder / "log.log").read_text()
     assert folder.name == "Acme_Corp_Head_of_IT"
-    pdf = folder / "cv_Jordan_Rivera.pdf"
+    pdf = folder / "cv_jordan_rivera_head_of_it.pdf"
     assert pdf.read_bytes().startswith(b"%PDF")
-    assert r"\documentclass" in (folder / "cv_Jordan_Rivera.tex").read_text()
+    assert r"\documentclass" in (folder / "cv_jordan_rivera_head_of_it.tex").read_text()
 
     log = (folder / "log.log").read_text()
     assert "writing the CV" in log
@@ -143,19 +165,18 @@ def test_a_posting_becomes_a_real_pdf(runner, models):
 
 
 @needs_latex
-def test_debug_pulls_every_request_s_log_off_the_server(make_runner):
+def test_debug_pulls_every_request_s_log_off_the_server(make_submit):
     """The other half of the envelope: /logs/{id} over the same HTTP client."""
-    outcome = make_runner(debug=True).handle(JDCandidate(text=JD_TEXT))
+    folder = make_submit(debug=True)(JD_TEXT)
 
-    log = (outcome.path / "log.log").read_text()
+    log = (folder / "log.log").read_text()
     assert "jd.analysis" in log and "cv.generate" in log
     assert "prompt=" in log, "each model call logs what it spent"
 
 
 @needs_latex
-def test_the_rendered_pdf_can_be_re_rendered_from_its_document(runner, api, tmp_path):
-    runner.handle(JDCandidate(text=JD_TEXT))
-    document = next(tmp_path.rglob("cv_Jordan_Rivera.json"))
+def test_the_rendered_pdf_can_be_re_rendered_from_its_document(run, api):
+    document = run(JD_TEXT) / "cv_jordan_rivera_head_of_it.json"
 
     stored = json.loads(document.read_text())
     assert stored["name"] == "Jordan Rivera", "your own data, merged in server-side"
@@ -165,18 +186,18 @@ def test_the_rendered_pdf_can_be_re_rendered_from_its_document(runner, api, tmp_
     assert envelope.data.pdf_bytes().startswith(b"%PDF")
 
 
-def test_a_server_error_reaches_the_client_as_a_typed_failure(runner, api, models, tmp_path):
+def test_a_server_error_reaches_the_client_as_a_typed_failure(run, api, models, capsys):
     models["summary"].replies = ["not an analysis"]
-    dropped = tmp_path / "posting.txt"
-    dropped.write_text(JD_TEXT)
-    claimed = runner.workspace.take_in(dropped)
 
-    outcome = runner.handle(JDCandidate(text=JD_TEXT, origin=claimed, label="posting.txt"))
+    run.intake.take(JD_TEXT, "posting.txt")
 
-    assert outcome.status == "failed"
-    assert outcome.path.parent.parent == runner.workspace.error, "never left in working/"
-    log = Path(str(outcome.path) + ".log").read_text()
-    assert "jd.analysis" in log and "model_output" in log
+    assert run.working.failures == 1
+    assert not any(run.workspace.working.iterdir()), "nothing is filed before the analysis"
+    out = capsys.readouterr().out
+    assert "model_output" in out
+    request_id = out.split("request id: ", 1)[1].split()[0]
+    stages = {entry.stage for entry in api.logs(request_id).data.entries}
+    assert "jd.analysis" in stages, "the request id leads to the server's own account"
 
 
 def test_the_client_reports_an_unreachable_server_clearly():

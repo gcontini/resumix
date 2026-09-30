@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import threading
 import time
 
@@ -15,16 +14,9 @@ from resumix_client.stages.approval import (
     parse_answer,
 )
 from resumix_client.stages.jobfolder import read_analysis
-from resumix_client.stages.terminal import END_OF_INPUT, Keyboard, TaggedLog
+from resumix_client.stages.terminal import END_OF_INPUT, TaggedLog
 
-from conftest import JD_TEXT, analysis
-
-
-def typed(*lines: str) -> Keyboard:
-    """A keyboard on which these lines, then the end of input, were typed."""
-    keyboard = Keyboard(io.StringIO("".join(f"{line}\n" for line in lines)))
-    keyboard._read()  # what the reader thread does, without the thread
-    return keyboard
+from conftest import JD_TEXT, analysis, typed
 
 
 class Scripted:

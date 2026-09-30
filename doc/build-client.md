@@ -86,9 +86,11 @@ drives the real client against the real app in-process through an
 
 ## Adding a new way to feed it postings
 
-A source of job descriptions is a `JDSource`: one method, yielding
-`JDCandidate`s. `clipboard` and `submit` are two sources over one pipeline,
-so a third — an IMAP folder, a browser extension, a queue — is a new file
-under `client/src/resumix_client/sources/`, a thin mode that wires it up, and
-no change to `JobRunner` at all. `watch` is not a source: it runs its own
-four-stage flow in `client/src/resumix_client/stages/`.
+A source of job descriptions is a `JDSource`
+(`client/src/resumix_client/stages/listener.py`): one method, `poll()`, that
+returns the next new text or `None`. The clipboard is one; a second — an IMAP
+folder, a browser extension, a queue — is a new file under
+`client/src/resumix_client/sources/`, a thin mode that hands it to a
+`Listener`, and no change to the stages at all. `watch` and `submit` are not
+sources: `watch` reads its folder with its own inbox stage, and `submit` takes
+one file and runs the same stages once.

@@ -84,11 +84,11 @@ def client_modules_used_by(subpackage: Path) -> Set[str]:
     return found
 
 
-def test_the_watch_stages_never_use_the_older_pipeline():
-    """``stages/`` is a line of its own: ``clipboard`` and ``submit`` can move
-    onto it later, or stay where they are, without the two depending on each
-    other in the meantime."""
-    older = {"runner", "sources", "modes"}
+def test_the_stages_never_reach_back_into_the_modes_or_the_sources():
+    """``stages/`` is the one pipeline every mode builds on. It uses the shared
+    modules (the API, the workspace, the spreadsheet) but never a mode, and
+    never where a posting comes from: a new source is a new ``JDSource``,
+    handed in by its mode, and no change here."""
     used = client_modules_used_by(PACKAGES["client"] / "stages")
     assert "workspace" in used, "the check must see the imports it is checking"
-    assert not used & older
+    assert not used & {"modes", "sources"}

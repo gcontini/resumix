@@ -1,22 +1,22 @@
-"""``resumix watch``: a posting's four stages, and the folder each one lives in.
+"""A posting's stages, and the folder each one lives in.
 
-    1. analysis              --in           the file you dropped
-    2. waiting for approval  working/       should_apply CHECK, until you answer
-    3. waiting for the CV    working/       should_apply YES, or approved
+    1. analysis              --in, the clipboard, or the file named to submit
+    2. waiting for approval  working/       watch: should_apply CHECK, until you answer
+                                            clipboard, submit: every posting (PENDING)
+    3. waiting for the CV    working/       watch: should_apply YES; any mode: approved
     4. done                  cv/            generated (or re-rendered)
-                             discarded/     should_apply NO, or you said d
+                             discarded/     should_apply NO (watch), or you said no
                              error/         not a posting, or a call failed
 
-Stage 1 runs on a thread of its own (:mod:`.inbox`), stage 3 on another
-(:mod:`.generation`), and stage 2 is you, on the main thread
-(:mod:`.approval`). Each stage takes one posting at a time; they run side by
-side so a CV is written while you read the next posting. Every move between
-stages is made by :class:`.working.WorkingProcessor`, under one lock, and a
-folder goes where its own files say (:func:`.jobfolder.route`) — so a folder
-left behind by a crash, or dropped back into ``--in`` from ``error/``, picks
-up exactly where it stopped.
+All three modes run on these. ``watch`` reads its inbox on a thread
+(:mod:`.inbox`) and asks you on the main thread (:mod:`.approval`);
+``clipboard`` analyses and asks on the main thread (:mod:`.listener`,
+:mod:`.intake`); both write CVs on a thread of their own (:mod:`.generation`),
+so a CV is written while you read the next posting. ``submit`` runs the same
+steps once, and writes its CV on the main thread.
 
-This package is its own line: it uses the shared modules (the API, the
-workspace, the spreadsheet) but nothing of the older ``JobRunner`` pipeline
-that ``clipboard`` and ``submit`` still run on.
+Every move between stages is made by :class:`.working.WorkingProcessor`,
+under one lock, and a folder goes where its own files say
+(:func:`.jobfolder.route`) — so a folder left behind by a crash, or dropped
+back into ``--in`` from ``error/``, picks up exactly where it stopped.
 """

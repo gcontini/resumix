@@ -9,7 +9,6 @@ counts, so the bill is readable without a provider dashboard.
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import List, Sequence
 
 from resumix_contracts import LogEntry
@@ -27,28 +26,20 @@ def _entry(entry: LogEntry) -> str:
 
 
 class JobLog:
-    """Collects lines for one job, echoing them as it goes."""
+    """Collects lines for one job, for its ``log.log``."""
 
-    def __init__(self, *, echo: bool = True) -> None:
+    def __init__(self) -> None:
         self.lines: List[str] = []
-        self.echo = echo
 
     def step(self, message: str) -> None:
-        """A client-side step, for the terminal and the file."""
+        """A client-side step."""
         self._write(f"{datetime.now().isoformat(timespec='seconds')} {message}")
-        if self.echo:
-            print(message, flush=True)
 
     def server(self, request_id: str, entries: Sequence[LogEntry]) -> None:
         """Fold in what the server did during one request."""
         self._write(_header(request_id, len(entries)))
         for entry in entries:
             self._write(_entry(entry))
-
-    def write(self, path: Path) -> Path:
-        """Write the log next to the CV it belongs to."""
-        path.write_text("\n".join([*self.lines, ""]), encoding="utf-8")
-        return path
 
     def _write(self, line: str) -> None:
         self.lines.append(line)

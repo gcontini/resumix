@@ -1,18 +1,19 @@
 """Everything the person sees and answers.
 
 Kept behind :class:`Confirmer` so the decision to spend tokens has one
-implementation for a terminal and one for ``--yes``, and so the runner can be
-tested without stdin.
+implementation for a terminal and one for ``--yes``, and so ``clipboard`` and
+``submit`` can be tested without one.
 """
 
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional, Protocol
 
 from resumix_contracts import JDAnalysis
+
+from .stages.terminal import END_OF_INPUT, Keyboard
 
 
 @dataclass(frozen=True)
@@ -28,10 +29,6 @@ class Confirmer(Protocol):
     """Asked once per posting, before anything is spent on it."""
 
     def confirm(self, analysis: JDAnalysis) -> Decision: ...
-
-    def resubmit(self, previous: Path) -> str:
-        """The posting was discarded before: ``resubmit``, ``skip`` or ``quit``."""
-        ...
 
 
 def print_analysis(analysis: JDAnalysis) -> None:
@@ -60,16 +57,28 @@ def print_analysis(analysis: JDAnalysis) -> None:
 
 
 class PromptConfirmer:
-    """Asks on the terminal, and takes the posting URL while it is there."""
+    """Asks on the terminal, and takes the posting URL while it is there.
+
+    Answers come from the :class:`~.stages.terminal.Keyboard`, not
+    ``input()``: ``clipboard`` also listens for ``q`` while nothing is being
+    asked, and stdin can have only one reader.
+    """
+
+    def __init__(self, keyboard: Keyboard, *, poll_seconds: float = 0.5) -> None:
+        self.keyboard = keyboard
+        self.poll_seconds = poll_seconds
 
     def confirm(self, analysis: JDAnalysis) -> Decision:
+        # A second y meant for the last posting must not submit this one.
+        self.keyboard.discard_typed_ahead()
         print_analysis(analysis)
         print("Paste the posting URL to submit, y = submit without link, "
               "n/s = skip, q = quit", flush=True)
         while True:
-            try:
-                answer = input("> ").strip()
-            except EOFError:
+            print("> ", end="", flush=True)
+            answer = self.keyboard.read(self.poll_seconds)
+            if answer == END_OF_INPUT:
+                print(flush=True)
                 return Decision(submit=False, quit=True)
             if not answer:
                 continue
@@ -90,21 +99,6 @@ class PromptConfirmer:
             # what let a mistyped skip turn into a submission.
             print("⚠ y = submit, n/s = skip, q = quit, or paste the posting URL.", flush=True)
 
-    def resubmit(self, previous: Path) -> str:
-        print("r = resubmit (delete the discarded copy), s = skip, q = quit", flush=True)
-        while True:
-            try:
-                answer = input("> ").strip().lower()
-            except EOFError:
-                return "quit"
-            if answer in ("r", "resubmit"):
-                return "resubmit"
-            if answer in ("s", "skip"):
-                return "skip"
-            if answer in ("q", "quit"):
-                return "quit"
-            print("⚠ r = resubmit, s = skip, q = quit.", flush=True)
-
 
 class AutoConfirmer:
     """Says yes to every new posting — ``--yes``, for an unattended run."""
@@ -113,11 +107,6 @@ class AutoConfirmer:
         print_analysis(analysis)
         print("→ submitting automatically (--yes)", flush=True)
         return Decision(submit=True, url=analysis.posting_url)
-
-    def resubmit(self, previous: Path) -> str:
-        # Unattended: never wait for an answer and never stop the run.
-        print("→ skipping automatically (--yes)", flush=True)
-        return "skip"
 
 
 def ask_recovery(files: int, folders: int) -> str:

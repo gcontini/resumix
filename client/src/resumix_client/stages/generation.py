@@ -1,10 +1,12 @@
-"""Stage 3: writing each CV, one at a time, on a thread of its own.
+"""Stage 3: writing each CV, one at a time.
 
 :class:`CvWriter` finishes a job folder in place: the CV document, its LaTeX,
 its PDF and the images the LaTeX includes — everything needed to render it
-again later with no model call. :class:`GenerationWorker` is the thread loop
-around it: take the next folder, write it, and hand it back to the
+again later with no model call. :class:`GenerationWorker` is the loop around
+it: take the next folder, write it, and hand it back to the
 :class:`~.working.WorkingProcessor` to deliver, or to file under ``error/``.
+``watch`` and ``clipboard`` run it on a thread of its own; ``submit`` drains
+it on the main thread and waits.
 """
 
 from __future__ import annotations
@@ -34,9 +36,12 @@ if TYPE_CHECKING:
 class CvWriter:
     """Writes a folder's CV — or re-renders the one already in it — beside it."""
 
-    def __init__(self, calls: Calls, config: Config) -> None:
+    def __init__(self, calls: Calls, config: Config, *, resume: Optional[str] = None) -> None:
         self.calls = calls
         self.config = config
+        #: submit --resume: pick an already-started CV job back up instead of
+        #: submitting a new one. Only meaningful for the one job submit writes.
+        self.resume = resume
 
     def generate(self, folder: Path, log: JobLog) -> None:
         """The CV (and the letter, if asked for): minutes of the large model.
@@ -49,7 +54,7 @@ class CvWriter:
             if self.config.cover_letter != "letter_only":
                 log.step("✍ writing the CV (this takes minutes)...")
                 request_id, rendered = write_cv(
-                    self.calls.api, self.config, jd_text, say=log.step
+                    self.calls.api, self.config, jd_text, say=log.step, resume=self.resume
                 )
                 if self.calls.debug:
                     self.calls.fetch_log(log, request_id)
@@ -96,9 +101,9 @@ class CvWriter:
             self.calls.failed(log, exc)
             raise
 
-    def pdf_name(self) -> Optional[str]:
+    def pdf_name(self, folder: Path) -> Optional[str]:
         """What the CV in a delivered folder is called; ``None`` for a letter only."""
-        return None if self.config.cover_letter == "letter_only" else self._artifacts().pdf
+        return None if self.config.cover_letter == "letter_only" else self._artifacts(folder).pdf
 
     # --- helpers ------------------------------------------------------------
     def _save(
@@ -107,7 +112,7 @@ class CvWriter:
     ) -> None:
         """The files, and the images the ``.tex`` includes, so the folder
         renders again on its own."""
-        artifacts = self._artifacts()
+        artifacts = self._artifacts(folder)
         if document:
             (folder / artifacts.document).write_text(
                 json.dumps(rendered.document, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -132,14 +137,15 @@ class CvWriter:
         (folder / LETTER_FILENAME).write_text(letter.text, encoding="utf-8")
         log.step(f"Letter Path: {LETTER_FILENAME}")
 
-    def _artifacts(self) -> Artifacts:
-        """File names come from your own candidate data, not from the server."""
+    def _artifacts(self, folder: Path) -> Artifacts:
+        """File names come from your own candidate data and the folder's job title."""
         data = json.loads(self.config.require("candidate_data.json").read_text(encoding="utf-8"))
-        return Artifacts(str(data.get("name") or "candidate"))
+        return Artifacts(str(data.get("name") or "candidate"), read_analysis(folder).job_title)
 
 
 class GenerationWorker:
-    """The CV queue, one folder at a time."""
+    """The CV queue, one folder at a time: on a thread of its own, or drained
+    right here by ``submit``."""
 
     def __init__(
         self, working: "WorkingProcessor", writer: CvWriter, console: Console,
@@ -160,6 +166,20 @@ class GenerationWorker:
             except queue.Empty:
                 continue
             self.process(folder)
+
+    def drain(self) -> None:
+        """Every folder queued now, on the calling thread."""
+        while True:
+            try:
+                folder = self.working.generations.get_nowait()
+            except queue.Empty:
+                return
+            self.process(folder)
+
+    def busy(self) -> Optional[str]:
+        """What is being written right now, for "finishing ..." on q."""
+        current = self.current
+        return f"the generation of {current}" if current else None
 
     def process(self, folder: Path) -> None:
         """Write one folder's CV, then deliver it or file it under error/."""

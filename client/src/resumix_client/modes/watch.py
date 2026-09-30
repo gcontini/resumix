@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..api import HttpApi
-from ..config import Config
+from ..config import REQUIRED_FILES, Config
 from ..stages.approval import HumanApproval, TerminalReviewer
 from ..stages.calls import Calls
 from ..stages.generation import CvWriter, GenerationWorker
@@ -23,10 +23,6 @@ from ..stages.working import WorkingProcessor
 from ..tracking import build_tracker
 from ..ui import fail, warn
 from ..workspace import Workspace
-
-#: Every posting needs these. Checked before anything starts, so a missing one
-#: fails here with a clear message rather than on a background thread.
-REQUIRED = ("candidate_profile.json", "candidate_data.json", "candidate_preferences.md")
 
 
 def run(config: Config, inbox: Optional[Path], out: Path, *, assume_yes: bool = False,
@@ -43,7 +39,7 @@ def run(config: Config, inbox: Optional[Path], out: Path, *, assume_yes: bool = 
         # Each posting is deleted once handed over; one that cannot be would
         # be analysed, and paid for, again on every pass.
         fail(f"cannot delete files from {inbox}: the watcher removes each posting it hands over")
-    for name in REQUIRED:
+    for name in REQUIRED_FILES:
         config.require(name)
 
     workspace = Workspace(out).ensure()
@@ -58,11 +54,12 @@ def run(config: Config, inbox: Optional[Path], out: Path, *, assume_yes: bool = 
     working = WorkingProcessor(workspace, writer, build_tracker(workspace.root, track), console,
                                ask=ask)
     keyboard = Keyboard(sys.stdin)
+    approval = HumanApproval(working, TerminalReviewer(keyboard), keyboard, console, ask=ask)
     watcher = Watcher(
         working,
-        InputProcessor(inbox, calls, config, working, console),
-        GenerationWorker(working, writer, console),
-        HumanApproval(working, TerminalReviewer(keyboard), keyboard, console, ask=ask),
+        approval.run,
+        {"inbox": InputProcessor(inbox, calls, config, working, console),
+         "cv": GenerationWorker(working, writer, console)},
         keyboard,
         console,
     )

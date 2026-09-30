@@ -34,10 +34,14 @@ JOB = {"jd.txt", "analysis.json", "log.log"}
         (JOB, "YES", None, "generate"),
         (JOB, "CHECK", None, "approve"),
         (JOB, "NO", None, "discard"),
-        # 4-6. you decided
+        # 4-5. you decided
         (JOB | {APPROVAL_FILENAME}, "CHECK", "APPROVED", "generate"),
         (JOB | {APPROVAL_FILENAME}, "CHECK", "DISCARDED", "discard"),
         (JOB | {APPROVAL_FILENAME}, "CHECK", " approved\n", "generate"),
+        # 6. asked and not answered yet: asked again, whatever should_apply says
+        (JOB | {APPROVAL_FILENAME}, "YES", "PENDING\n", "approve"),
+        (JOB | {APPROVAL_FILENAME}, "NO", "PENDING", "approve"),
+        # 7. anything else in approval_status.txt
         (JOB | {APPROVAL_FILENAME}, "YES", "maybe", "error"),
         (JOB | {APPROVAL_FILENAME}, "YES", "", "error"),
     ],

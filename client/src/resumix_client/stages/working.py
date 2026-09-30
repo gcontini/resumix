@@ -1,15 +1,16 @@
 """Stages 2 to 4: where a job folder goes next, and every move that puts it there.
 
-:class:`WorkingProcessor` is the only thing in the watcher that moves a folder
-or writes ``approval_status.txt``. The duplicate check, the new folder and
-every move happen under one lock, so a posting being filed never races one
-being delivered, and the same posting dropped twice is never written twice.
+:class:`WorkingProcessor` is the only thing that moves a job folder or writes
+``approval_status.txt``. The duplicate check, the new folder and every move
+happen under one lock, so a posting being filed never races one being
+delivered, and the same posting dropped twice is never written twice.
 
 The inbox hands it analysed postings and folders (:meth:`submit`,
-:meth:`submit_folder`), the approval loop hands it your answers
-(:meth:`approve`, :meth:`discard`, :meth:`requeue`), and the CV worker hands
-it finished and failed jobs (:meth:`deliver`, :meth:`fail`). Anything that
-has to wait goes on one of its two queues; where it goes is decided by
+:meth:`submit_folder`), ``clipboard`` and ``submit`` the postings they are
+about to ask you about (:meth:`hold`), the approval loop your answers
+(:meth:`approve`, :meth:`discard`, :meth:`requeue`), and the CV worker
+finished and failed jobs (:meth:`deliver`, :meth:`fail`). Anything that has to
+wait goes on one of its two queues; where it goes is decided by
 :func:`~.jobfolder.route`, for new postings and leftovers alike.
 """
 
@@ -19,7 +20,7 @@ import queue
 import shutil
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional
 
 from resumix_contracts import JDAnalysis
 
@@ -30,6 +31,7 @@ from ..workspace import JD_FILENAME, LOG_FILENAME, Workspace
 from .jobfolder import (
     APPROVED,
     DISCARDED,
+    PENDING,
     Route,
     classify,
     read_analysis,
@@ -58,9 +60,9 @@ class WorkingProcessor:
         self.writer = writer
         self.tracker = tracker
         self.console = console
-        #: False with --yes: CHECK postings wait in working/ instead of asking.
+        #: False with watch --yes: postings that need you wait in working/.
         self.ask = ask
-        #: CHECK postings waiting for you, in the order they arrived.
+        #: Postings waiting for you (CHECK, or PENDING), in the order they arrived.
         self.approvals: "queue.Queue[Path]" = queue.Queue()
         #: Folders waiting for their CV.
         self.generations: "queue.Queue[Path]" = queue.Queue()
@@ -70,15 +72,16 @@ class WorkingProcessor:
         self._closed = threading.Event()
 
     # --- from the inbox -----------------------------------------------------
+    def seen_url(self, url: str, log: TaggedLog) -> bool:
+        """A posting known by its URL alone, before it is analysed."""
+        with self._lock:
+            return self._seen_before({"posting_url": url}, log)
+
     def submit(self, jd_text: str, analysis: JDAnalysis, log: TaggedLog) -> Optional[Path]:
         """A posting the inbox has analysed. ``None`` for one seen before."""
-        with self._lock:
-            if self._seen_before(analysis, log):
-                return None
-            folder = self.workspace.new_job(analysis.company_name, analysis.job_title)
-            (folder / JD_FILENAME).write_text(jd_text, encoding="utf-8")
-            write_analysis(folder, analysis)
-        self._send(folder, log)
+        folder = self._new_job(jd_text, analysis, log)
+        if folder is not None:
+            self._send(folder, log)
         return folder
 
     def submit_folder(self, source: Path, log: TaggedLog) -> Optional[Path]:
@@ -90,11 +93,28 @@ class WorkingProcessor:
         """
         analysis = read_analysis(source)
         with self._lock:
-            if self._seen_before(analysis, log):
+            if self._seen_before(analysis.model_dump(), log):
                 return None
             folder = self.workspace.new_job(analysis.company_name, analysis.job_title)
             shutil.copytree(source, folder, dirs_exist_ok=True)
         self._send(folder, log)
+        return folder
+
+    # --- from clipboard and submit ------------------------------------------
+    def hold(self, jd_text: str, analysis: JDAnalysis, log: TaggedLog) -> Optional[Path]:
+        """A posting you are about to be asked about: its folder, marked
+        ``PENDING`` and sent nowhere until you answer. ``None`` for one seen
+        before.
+
+        Left behind unanswered — you quit, or the run was stopped — it is
+        asked about again, never decided by its ``should_apply``.
+        """
+        folder = self._new_job(jd_text, analysis, log)
+        if folder is not None:
+            write_approval(folder, PENDING)
+            log.tag = folder.name
+            log.step("❓ waiting for your answer")
+            log.append_to(folder / LOG_FILENAME)
         return folder
 
     # --- at startup ---------------------------------------------------------
@@ -139,7 +159,7 @@ class WorkingProcessor:
         """Finished: ``cv/<day>/``. Only a generated CV gets a spreadsheet row."""
         delivered = self._file(folder, log, self.workspace.deliver, "delivered")
         if record_row:
-            pdf = self.writer.pdf_name()
+            pdf = self.writer.pdf_name(delivered)
             try:
                 self.tracker.record(delivered, read_analysis(delivered),
                                     delivered / pdf if pdf else None)
@@ -162,12 +182,17 @@ class WorkingProcessor:
             log.append_to(entry / LOG_FILENAME)
         with self._lock:
             target = self.workspace.to_error(entry)
-            if failed:
-                self.failures += 1
+        if failed:
+            self.count_failure()
         if target.is_file():
             log.append_to(target.with_name(target.name + ".log"))
         self.console.say(f"{'❌ failed' if failed else '⚠ rejected'}: {entry.name} -> {target}")
         return target
+
+    def count_failure(self) -> None:
+        """A job that failed, with or without a folder to file."""
+        with self._lock:
+            self.failures += 1
 
     def close(self) -> None:
         """Stop queuing: what arrives now waits in working/ for the next start."""
@@ -230,9 +255,19 @@ class WorkingProcessor:
         self.console.say(f"{'✅' if what == 'delivered' else '🗑'} {what}: {folder.name} -> {target}")
         return target
 
-    def _seen_before(self, analysis: JDAnalysis, log: TaggedLog) -> bool:
+    def _new_job(self, jd_text: str, analysis: JDAnalysis, log: TaggedLog) -> Optional[Path]:
+        """``working/<Company>_<Title>`` holding the posting and its analysis,
+        or ``None`` for a posting seen before."""
+        with self._lock:
+            if self._seen_before(analysis.model_dump(), log):
+                return None
+            folder = self.workspace.new_job(analysis.company_name, analysis.job_title)
+            (folder / JD_FILENAME).write_text(jd_text, encoding="utf-8")
+            write_analysis(folder, analysis)
+        return folder
+
+    def _seen_before(self, current: Mapping[str, Any], log: TaggedLog) -> bool:
         """Applied, discarded or still in flight: say where, and write nothing."""
-        current = analysis.model_dump()
         for label, folders in (
             ("already applied", self.workspace.jobs_in(self.workspace.cv)),
             ("already discarded", self.workspace.jobs_in(self.workspace.discarded)),

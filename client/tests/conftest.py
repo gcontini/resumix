@@ -8,7 +8,9 @@ the real server in-process; see ``tests/test_integration.py``.
 
 from __future__ import annotations
 
+import io
 import json
+import queue
 from datetime import datetime
 from pathlib import Path
 
@@ -148,19 +150,29 @@ class FakeApi:
 class ScriptedConfirmer:
     """Answers the confirm prompt from a list, without a terminal."""
 
-    def __init__(self, *decisions: Decision, resubmit: str = "resubmit"):
+    def __init__(self, *decisions: Decision):
         self.decisions = list(decisions) or [Decision(submit=True)]
         self.seen: list = []
-        self.answer = resubmit
-        self.asked: list = []
 
     def confirm(self, analysis):
         self.seen.append(analysis)
         return self.decisions.pop(0) if len(self.decisions) > 1 else self.decisions[0]
 
-    def resubmit(self, previous):
-        self.asked.append(previous)
-        return self.answer
+
+class Typist:
+    """A stdin the test types into: ``readline`` blocks, like a terminal's."""
+
+    def __init__(self):
+        self._lines: queue.Queue = queue.Queue()
+
+    def readline(self):
+        return self._lines.get()
+
+    def type(self, line):
+        self._lines.put(line + "\n")
+
+    def close(self):
+        self._lines.put("")
 
 
 @pytest.fixture
@@ -185,30 +197,41 @@ def api() -> FakeApi:
     return FakeApi()
 
 
-@pytest.fixture
-def runner(api, workspace, config):
-    from resumix_client.runner import JobRunner
-    from resumix_client.tracking import build_tracker
-
-    return JobRunner(
-        api=api, workspace=workspace, config=config,
-        confirmer=ScriptedConfirmer(Decision(submit=True)),
-        tracker=build_tracker(workspace.root, enabled=True),
-    )
-
-
 @pytest.fixture(autouse=True)
 def no_polling_delay(monkeypatch):
     """The fake answers instantly; waiting 4s between polls proves nothing."""
     monkeypatch.setattr("resumix_client.cvjob.POLL_SECONDS", 0)
 
 
-# --- the watch stages ---------------------------------------------------------
+@pytest.fixture
+def typist():
+    typist = Typist()
+    yield typist
+    typist.close()
+
+
+def typed(*lines: str):
+    """A keyboard on which these lines, then the end of input, were typed."""
+    from resumix_client.stages.terminal import Keyboard
+
+    keyboard = Keyboard(io.StringIO("".join(f"{line}\n" for line in lines)))
+    keyboard._read()  # what the reader thread does, without the thread
+    return keyboard
+
+
+def answering(*lines: str):
+    """:func:`typed`, as if typed once the question was on screen."""
+    keyboard = typed(*lines)
+    keyboard.discard_typed_ahead = lambda: None
+    return keyboard
+
+
+# --- the stages ---------------------------------------------------------------
 def make_job(parent: Path, name: str = "Acme_Corp_Head_of_IT", *, should_apply="CHECK",
              approval=None, with_analysis=True, **files) -> Path:
     """A job folder as the watcher, an earlier run or you might leave it.
 
-    ``files`` are extra files by name, e.g. ``**{"cv_Jordan_Rivera.json": ...}``.
+    ``files`` are extra files by name, e.g. ``**{"cv_jordan_rivera_head_of_it.json": ...}``.
     """
     folder = parent / name
     folder.mkdir(parents=True)

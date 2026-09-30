@@ -6,9 +6,10 @@ say. That rule is :func:`route`, and it is pure: what the folder holds in,
 where it goes out. :func:`classify` only reads the folder for it.
 
 The one file this package adds to a job folder is ``approval_status.txt``: what
-you decided about a CHECK posting. Everything else — ``jd.txt``,
-``analysis.json``, the CV files, ``log.log`` — is what the rest of the client
-already writes.
+you decided about a posting that needed you — or ``PENDING``, for one that
+``clipboard`` or ``submit`` is asking you about and nobody has answered yet.
+Everything else — ``jd.txt``, ``analysis.json``, the CV files, ``log.log`` —
+is what the rest of the client already writes.
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ from ..workspace import ANALYSIS_FILENAME, JD_FILENAME
 APPROVAL_FILENAME = "approval_status.txt"
 APPROVED = "APPROVED"
 DISCARDED = "DISCARDED"
+#: Asked about and not answered yet: asked again, never decided by should_apply.
+PENDING = "PENDING"
 
 #: Where a folder goes next. ``render`` means "rendered now, then cv/".
 Route = Literal["error", "render", "generate", "approve", "discard"]
@@ -62,6 +65,8 @@ def route(
         return "generate", "approved"
     if decision == DISCARDED:
         return "discard", "discarded"
+    if decision == PENDING:
+        return "approve", "not answered yet"
     return "error", f"{APPROVAL_FILENAME} says {approval.strip()!r}"
 
 
@@ -108,7 +113,7 @@ def write_approval(folder: Path, decision: str) -> None:
 
 
 __all__ = [
-    "APPROVAL_FILENAME", "APPROVED", "DISCARDED", "Route",
+    "APPROVAL_FILENAME", "APPROVED", "DISCARDED", "PENDING", "Route",
     "route", "classify", "render_source", "is_cv_source",
     "read_jd", "read_analysis", "write_analysis", "read_approval", "write_approval",
 ]

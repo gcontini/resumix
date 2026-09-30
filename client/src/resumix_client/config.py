@@ -20,6 +20,11 @@ from .discovery import discover_files, discover_images, find_config
 #: What --cover-letter accepts.
 COVER_LETTER_MODES = ("no", "yes", "letter_only")
 
+#: What every new posting needs, with no server-side default. The modes that
+#: write CVs on a thread check them before anything starts, so a missing one
+#: fails with a clear message rather than on a background thread.
+REQUIRED_FILES = ("candidate_profile.json", "candidate_data.json", "candidate_preferences.md")
+
 #: What a [files] entry is called in resumix.toml, and the file it names.
 #: Short keys because TOML reads ``candidate_profile.json = "x"`` as a dotted
 #: key (a table named ``candidate_profile``), which is not what anyone means.

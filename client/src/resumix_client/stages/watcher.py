@@ -1,27 +1,35 @@
-"""The four stages at once.
+"""The stages at once.
 
 Recovery first, synchronously: whatever an earlier run left in ``working/``
-is sent on before anything new is read. Then the inbox and the CV writer run
-on threads of their own, and the approval loop runs here, on the main thread,
-so Ctrl-C lands where it can stop everything.
+is sent on before anything new is read. Then the background stages run on
+threads of their own — the inbox and the CV writer for ``watch``, the CV
+writer alone for ``clipboard`` — and the part that asks you runs here, on the
+main thread, so Ctrl-C lands where it can stop everything.
 
-``q`` stops gently: nothing new is queued, the inbox finishes the posting in
-hand, the CV writer finishes the generation in hand, and both are waited for.
-Ctrl-C is not handled here at all. It propagates, the threads (daemons) go
-with the process, and the next start picks up whatever they were doing.
+``q`` stops gently: nothing new is queued, each background stage finishes
+the posting in hand, and all of them are waited for. Ctrl-C is not handled
+here at all. It propagates, the threads (daemons) go with the process, and
+the next start picks up whatever they were doing.
 """
 
 from __future__ import annotations
 
 import threading
 import traceback
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional, Protocol
 
-from .approval import HumanApproval
-from .generation import GenerationWorker
-from .inbox import InputProcessor
 from .terminal import Console, Keyboard
 from .working import WorkingProcessor
+
+
+class Stage(Protocol):
+    """A stage that runs on a thread of its own until stopped."""
+
+    def run(self, stop: threading.Event) -> None: ...
+
+    def busy(self) -> Optional[str]:
+        """What it is in the middle of, for "finishing ..."; ``None`` when idle."""
+        ...
 
 
 class Watcher:
@@ -30,18 +38,18 @@ class Watcher:
     def __init__(
         self,
         working: WorkingProcessor,
-        inbox: InputProcessor,
-        generation: GenerationWorker,
-        approval: HumanApproval,
+        foreground: Callable[[threading.Event], None],
+        background: Dict[str, Stage],
         keyboard: Keyboard,
         console: Console,
         *,
         join_seconds: float = 0.5,
     ) -> None:
         self.working = working
-        self.inbox = inbox
-        self.generation = generation
-        self.approval = approval
+        #: The main thread's loop; it returns when you quit.
+        self.foreground = foreground
+        #: Thread name -> stage.
+        self.background = background
         self.keyboard = keyboard
         self.console = console
         self.join_seconds = join_seconds
@@ -52,11 +60,8 @@ class Watcher:
         self.working.recover()
         stop = threading.Event()
         self.keyboard.start()
-        threads = [
-            self._start("inbox", self.inbox.run, stop),
-            self._start("cv", self.generation.run, stop),
-        ]
-        self.approval.run(stop)
+        threads = [self._start(name, stage, stop) for name, stage in self.background.items()]
+        self.foreground(stop)
 
         self.working.close()
         stop.set()
@@ -69,14 +74,12 @@ class Watcher:
             self.console.say("⏹ stopped.")
         return 1 if self.working.failures or self._crashed else 0
 
-    def _start(
-        self, name: str, target: Callable[[threading.Event], None], stop: threading.Event
-    ) -> threading.Thread:
+    def _start(self, name: str, stage: Stage, stop: threading.Event) -> threading.Thread:
         """A stage on a daemon thread. A crash stops every stage, loudly."""
 
         def guarded() -> None:
             try:
-                target(stop)
+                stage.run(stop)
             except Exception:
                 self._crashed = True
                 self.console.say(f"✗ the {name} thread stopped:\n"
@@ -90,11 +93,7 @@ class Watcher:
     def _wait(self, threads: List[threading.Thread]) -> None:
         """Join in short steps: a lock wait cannot be interrupted on Windows,
         and Ctrl-C has to stay a way out while the last CV is finished."""
-        busy = [
-            f"the analysis of {self.inbox.current}" if self.inbox.current else "",
-            f"the generation of {self.generation.current}" if self.generation.current else "",
-        ]
-        busy = [what for what in busy if what]
+        busy = [what for what in (stage.busy() for stage in self.background.values()) if what]
         if busy:
             self.console.say(f"⏳ finishing {' and '.join(busy)}. Ctrl-C to stop now.")
         while any(thread.is_alive() for thread in threads):
@@ -102,4 +101,4 @@ class Watcher:
                 thread.join(timeout=self.join_seconds)
 
 
-__all__ = ["Watcher"]
+__all__ = ["Watcher", "Stage"]

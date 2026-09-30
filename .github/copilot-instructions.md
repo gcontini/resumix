@@ -107,36 +107,36 @@ required to run it (PyInstaller `--onefile`)
   first: CLI flag → env var → `resumix.toml` → file found next to the
   executable → server default. `CONFIG_KEYS` maps short TOML keys to the
   filenames `discovery.py` looks for.
-- `runner.py` — `JobRunner`: the one place the step order is written
-  (detect → analyze → confirm → cv → render → letter → deliver). Every API
-  call goes through `_call()`, which fetches the request's server log when
-  `--debug` is set, or unconditionally on failure.
 - `joblog.py` — `JobLog` (per-job `log.log`, client steps + folded-in server
   log), `format_entries()` (same rendering, for `resumix logs <id>`).
 - `workspace.py` — `Workspace`: owns the `working/error/discarded/cv` folder
-  tree, atomic moves, the daily subfolders. `take_in(path, move=...)` — copied
-  for a named argument (`submit` must not consume the file you pointed it at).
-  `new_job()` never replaces a folder of the same name (`watch` may be writing
-  it).
-- `sources/{clipboard,single}.py` — the only difference between `clipboard`
-  and `submit`; each yields `JDCandidate`s to the same `JobRunner`.
-  `sources/folder.py` only keeps `read_text`.
-- `stages/` — `watch`, a line of its own (it imports nothing from `runner`,
-  `sources` or `modes`; `tests/test_architecture.py` checks). Four stages:
-  `inbox.py` (`--in` → detect → analyse, then the file is deleted),
-  `approval.py` (you, on the main thread: y/d/s/n/q or a URL), `generation.py`
-  (the CV queue, on a thread), and `working.py` (`WorkingProcessor`: every
-  move, the duplicate check and both queues, under one lock). A folder goes
-  where `jobfolder.route()` says — the same pure table for new postings,
-  dropped folders and leftovers in `working/`. `watcher.py` runs it all: `q`
+  tree, atomic moves, the daily subfolders. `new_job()` never replaces a
+  folder of the same name (a CV may still be written in it). `pending()` and
+  `clean()` serve clipboard's startup question about leftovers.
+- `sources/clipboard.py` — `ClipboardSource`, a `JDSource`: `poll()` returns
+  the clipboard's text once each time it changes.
+- `stages/` — the one pipeline every mode runs on (it imports nothing from
+  `modes` or `sources`; `tests/test_architecture.py` checks).
+  `analysis.py` (free check → detect → analyze, for every new posting),
+  `inbox.py` (watch's `--in`, on a thread), `approval.py` (watch's question:
+  y/d/s/n/q or a URL), `intake.py` (clipboard's and submit's question:
+  URL/y, n/s, q — every posting is asked about, and waits as `PENDING` while
+  you read), `listener.py` (clipboard's main thread: leftovers first, then
+  the clipboard, `q` when idle), `generation.py` (the CV queue: on a thread
+  for watch and clipboard, drained inline by submit), and `working.py`
+  (`WorkingProcessor`: every move, the duplicate check and both queues, under
+  one lock). A folder goes where `jobfolder.route()` says — the same pure
+  table for new postings, dropped folders and leftovers in `working/`.
+  `watcher.py` runs a foreground loop and the background stages: `q`
   finishes what is running, Ctrl-C stops at once.
-- `modes/{clipboard,watch,submit,render,logs}.py` — thin: build a source,
-  hand it to `Session`/`JobRunner` (`watch`: build the stages and run the
-  `Watcher`), or (for `render`/`logs`) call the API directly.
-  `modes/__init__.py`'s `Session` is the shared wiring.
+- `modes/{clipboard,watch,submit,submit_raw,render,logs}.py` — thin: build the
+  stages and run them (`clipboard` asks r/c/q about leftovers first; `submit`
+  writes its CV on the main thread and returns when it is filed), or (for
+  `submit-raw`/`render`/`logs`) call the API directly.
 - `tracking.py` — `XlsxTracker` (openpyxl, `applications.xlsx`) / `NullTracker`.
-- `ui.py` — `Confirmer` protocol (`PromptConfirmer` / `AutoConfirmer` for
-  `--yes`), the analysis table, the recovery prompt.
+- `ui.py` — `Confirmer` protocol (`PromptConfirmer`, which reads the
+  `Keyboard`, / `AutoConfirmer` for `--yes`), the analysis table, the
+  recovery prompt.
 
 **Shared**
 - `examples/candidate/` — a fictional profile/data/preferences/image set,

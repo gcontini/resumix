@@ -5,15 +5,9 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import time
-from typing import Iterator, Optional
+from typing import Optional
 
 import pyperclip
-from resumix_contracts import static_jd_guess
-
-from . import JDCandidate
-
-POLL_SECONDS = 2.0
 
 # pyperclip.paste() returns "" both for an empty clipboard and for a helper
 # that never reached the display (it discards xclip's stderr), so the loop
@@ -64,28 +58,22 @@ def clipboard_error() -> Optional[str]:
 
 
 class ClipboardSource:
-    """Yields the clipboard whenever it changes into something plausible.
+    """The clipboard's text each time it changes — a
+    :class:`~resumix_client.stages.listener.JDSource`.
 
-    The free structural check runs here so that copying a password or a line
-    of code never reaches the network; deciding whether plausible text really
-    is a posting is the server's job.
+    Whatever is on the clipboard at startup counts as new. Whether the text
+    is a posting at all is decided by the free check and then the server.
     """
 
-    def __init__(self, poll_seconds: float = POLL_SECONDS) -> None:
-        self.poll_seconds = poll_seconds
+    def __init__(self) -> None:
+        self._seen = ""
 
-    def candidates(self) -> Iterator[JDCandidate]:
-        seen = ""
-        while True:
-            current = (pyperclip.paste() or "").strip()
-            if current and current != seen:
-                seen = current
-                if static_jd_guess(current):
-                    yield JDCandidate(text=current, label="clipboard")
-                else:
-                    print(f"📋 clipboard: not a posting "
-                          f"({len(current)} chars, nothing sent)", flush=True)
-            time.sleep(self.poll_seconds)
+    def poll(self) -> Optional[str]:
+        current = (pyperclip.paste() or "").strip()
+        if not current or current == self._seen:
+            return None
+        self._seen = current
+        return current
 
 
 __all__ = ["ClipboardSource", "clipboard_error", "NO_CLIPBOARD_HINT"]

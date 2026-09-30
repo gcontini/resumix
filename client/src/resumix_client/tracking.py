@@ -2,7 +2,7 @@
 
 Bookkeeping on top of the CV, never a reason to fail a job — but that promise
 is kept by the caller, not here: a broken or locked spreadsheet raises, and
-``JobRunner._produce`` turns it into a warning and a delivered CV anyway. The
+``WorkingProcessor.deliver`` turns it into a warning and a delivered CV anyway. The
 file's own header row is the schema, so renaming or reordering columns in your
 copy is supported by doing nothing.
 """

@@ -5,8 +5,9 @@ until its analysis has been handed to the
 :class:`~.working.WorkingProcessor`, and only then is it deleted — so a crash
 in between costs one more analysis at the next start, never the posting.
 
-- a ``.txt`` file is a posting: the free check, the server's check, the
-  analysis, then it is handed over;
+- a ``.txt`` file is a posting: dropped at once if its ``JOB_POSTING:`` URL
+  is one already applied to, discarded or in progress; otherwise the free
+  check, the server's check, the analysis, then it is handed over;
 - any other file goes to ``error/`` without a call;
 - a folder must hold ``jd.txt`` and a valid ``analysis.json`` (an earlier
   job, one from ``error/`` to retry): it is handed over whole, or goes to
@@ -20,10 +21,10 @@ import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Tuple
 
-from resumix_contracts import static_jd_guess
-
 from ..api import ResumixError
 from ..config import Config
+from ..duplicates import posting_url_in
+from .analysis import analyse
 from .calls import Calls
 from .jobfolder import classify
 from .terminal import Console, TaggedLog
@@ -66,6 +67,11 @@ class InputProcessor:
             self.scan(stop)
             stop.wait(self.poll_seconds)
 
+    def busy(self) -> Optional[str]:
+        """What is being analysed right now, for "finishing ..." on q."""
+        current = self.current
+        return f"the analysis of {current}" if current else None
+
     def scan(self, stop: threading.Event) -> None:
         """Everything in the inbox once, in name order."""
         entries = sorted(self.inbox.iterdir()) if self.inbox.is_dir() else []
@@ -98,23 +104,15 @@ class InputProcessor:
 
     def _posting(self, entry: Path, log: TaggedLog) -> None:
         text = entry.read_bytes().decode("utf-8", errors="replace")
-        if not static_jd_guess(text):
-            log.step(f"✗ not a job description ({len(text)} chars, nothing sent)")
+        url = posting_url_in(text)
+        if url and self.working.seen_url(url, log):
+            log.step("🗑 dropped from the inbox, nothing sent")
+            entry.unlink()
+            return
+        analysis = analyse(self.calls, self.config, text, log)
+        if analysis is None:
             self.working.reject(entry, log)
             return
-        detection = self.calls.make(log, lambda: self.calls.api.detect(text))
-        if not detection.is_job_description:
-            log.step("✗ not a job description")
-            self.working.reject(entry, log)
-            return
-        log.step(f"✓ job description ({len(text)} chars)")
-        log.step("📊 analyzing the posting...")
-        analysis = self.calls.make(log, lambda: self.calls.api.analyze(
-            text,
-            profile=self.config.require("candidate_profile.json").read_bytes(),
-            preferences=self.config.require("candidate_preferences.md").read_text(encoding="utf-8"),
-            temperature=self.config.temperature,
-        ))
         self.working.submit(text, analysis, log)
         # Handed over (or already known): the inbox copy is done with.
         entry.unlink()

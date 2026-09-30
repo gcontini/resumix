@@ -1,10 +1,10 @@
-"""The terminal, shared by three threads.
+"""The terminal, shared by the stages' threads.
 
-The inbox, the CV writer and the question you are answering all print, so
-every line from the first two goes through one :class:`Console`: one lock, so
-two lines never interleave mid-line, and a hold, so nothing scrolls the
-posting you are reading off the screen. Lines that arrive while you are being
-asked are printed right after your answer.
+The background stages and the question you are answering all print, so every
+line from the background goes through one :class:`Console`: one lock, so two
+lines never interleave mid-line, and a hold, so nothing scrolls the posting
+you are reading off the screen. Lines that arrive while you are being asked
+are printed right after your answer.
 
 Your keyboard is read on a thread of its own (:class:`Keyboard`) because ``q``
 has to work when nothing is waiting for you — and then there is no
@@ -62,7 +62,7 @@ class TaggedLog(JobLog):
     """
 
     def __init__(self, console: Console, tag: str) -> None:
-        super().__init__(echo=False)
+        super().__init__()
         self.console = console
         self.tag = tag
 
@@ -102,6 +102,14 @@ class Keyboard:
             return self._lines.get(timeout=timeout)
         except queue.Empty:
             return None
+
+    def read(self, poll_seconds: float = 0.5) -> str:
+        """The next line, however long it takes — waited for in short steps,
+        so Ctrl-C lands on every platform."""
+        while True:
+            line = self.get(poll_seconds)
+            if line is not None:
+                return line
 
     def discard_typed_ahead(self) -> None:
         """Forget what was typed before the question was on screen: a second

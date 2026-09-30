@@ -74,11 +74,14 @@ Watches the clipboard. When you copy something that looks like a posting it
 checks with the server, analyses it, prints the analysis and asks:
 
 ```
-Paste the posting URL to submit, y = submit without link, s = skip, q = quit
+Paste the posting URL to submit, y = submit without link, n/s = skip, q = quit
 > https://jobs.example.com/12345
 ```
 
-Then it writes the CV, renders the PDF, and files everything. Ctrl+C to stop.
+Once you say yes, its CV is written in the background and the clipboard is
+watched again at once: you read the next posting while the last one's CV is
+written. `n`/`s` files the posting under `discarded/`; `q` lets the CV being written finish, then quits; Ctrl+C stops at
+once. 
 
 On Linux the clipboard needs a helper: `apt install xclip` (X11) or
 `wl-clipboard` (Wayland). On Windows and macOS it works as-is.
@@ -108,9 +111,9 @@ without it. The full rules are in [`doc/client.md`](../doc/client.md).
 resumix submit posting.txt --out ~/applications --yes
 ```
 
-The same pipeline for a single file, then it exits. No recovery prompt. The
-file you name is **copied**, not consumed — unlike `watch`, which empties the
-folder it is watching.
+The same steps as `clipboard` for a single file — but the CV is written
+right there, and it exits once the CV is filed. The file
+you name is **read**, never moved — unlike `watch`, which empties the folder it is watching.
 
 ### `submit-raw` — just the CV, right here
 
@@ -132,8 +135,8 @@ rather than replacing it.
 ### `render` — compile an edited CV
 
 ```bash
-resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
-resumix render cv_Jordan_Rivera.tex
+resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_jordan_rivera_head_of_it.json
+resumix render cv_jordan_rivera_head_of_it.tex
 ```
 
 Give it the `.json` document to re-render from the content, or the `.tex` to
@@ -191,9 +194,9 @@ Both work on either side of the mode name: `resumix -v submit posting.txt
 ├── cv/
 │   └── 26-01-15/
 │       └── Acme_Corp_Head_of_IT/
-│           ├── cv_Jordan_Rivera.pdf     the CV
-│           ├── cv_Jordan_Rivera.tex     the LaTeX it was compiled from
-│           ├── cv_Jordan_Rivera.json    the content, for re-rendering
+│           ├── cv_jordan_rivera_head_of_it.pdf     the CV
+│           ├── cv_jordan_rivera_head_of_it.tex     the LaTeX it was compiled from
+│           ├── cv_jordan_rivera_head_of_it.json    the content, for re-rendering
 │           ├── analysis.json            match score, salary, skills, gaps
 │           ├── jd.txt                   the posting (or its original filename)
 │           ├── cover_letter.txt         with --cover-letter
@@ -204,7 +207,7 @@ Both work on either side of the mode name: `resumix -v submit posting.txt
 └── applications.xlsx                    one row per delivered CV
 ```
 
-To revise a CV: edit `cv_Jordan_Rivera.json` and run `resumix render` on it.
+To revise a CV: edit `cv_jordan_rivera_head_of_it.json` and run `resumix render` on it.
 That costs one LaTeX compile and no model calls. Editing the `.tex` and
 rendering that works too, if you would rather work in LaTeX.
 
@@ -235,9 +238,9 @@ finished, `resumix logs <request id>`.
 | `candidate_profile.json is required but was not found` | Put it in the current folder, or name it under `[files]` in the config. |
 | `no clipboard here: neither DISPLAY nor WAYLAND_DISPLAY…` | Install `xclip` or `wl-clipboard`, or use `watch` instead — it needs no clipboard. |
 | `429` / `all job slots are busy` | The server is at capacity. Try again shortly. |
-| `clipboard: not a posting (412 chars, nothing sent)` | What you copied is a fragment, not a posting. Nothing was sent anywhere. |
+| `[clipboard] ✗ not a job description (412 chars, nothing sent)` | What you copied is a fragment, not a posting. Nothing was sent anywhere. |
 | A posting you wanted lands in `error/` | Read the `.log` beside it: it holds the server's own log for the call that failed. A wrong "not a job description" verdict usually means the copy grabbed only part of the page. |
 | You need more than the error line | Re-run with `-d`, or `resumix logs <request id>` while the server still has it. |
-| `working/` is not empty | A previous run stopped mid-job, or a CHECK posting waits for you. `watch` picks everything up by itself at startup; `clipboard` offers to resume or clean. |
+| `working/` is not empty | A previous run stopped mid-job, a CV was still queued when you pressed `q`, or a posting waits for your answer. `watch` picks everything up by itself at startup; `clipboard` offers to resume or clean. |
 
 

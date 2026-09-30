@@ -38,7 +38,7 @@ examples:
   resumix submit posting.txt --out ~/applications --yes
   resumix submit posting.txt analysis.json --out ~/applications
   resumix submit-raw posting.txt -o cv.pdf -o cv.json
-  resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_Jordan_Rivera.json
+  resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_jordan_rivera_head_of_it.json
   resumix logs 0f9c1a7b-2f4e-4f2a-9a31-5c0d2f1e8b44
 """
 

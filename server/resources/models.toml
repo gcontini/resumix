@@ -75,9 +75,9 @@ thinking          = "off"
 [models.summary]
 model             = "qwen3.8-flash"
 structured_output = "json_object"
-temperature       = 0.1
+temperature       = 0.0
 thinking          = "on"
-reasoning_effort  = "low"
+reasoning_effort  = "high"
 # DashScope runs web search server-side via extra_body {"enable_search": true}.
 web_search        = true
 

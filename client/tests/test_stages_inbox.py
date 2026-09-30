@@ -10,7 +10,7 @@ from resumix_client.stages.calls import Calls
 from resumix_client.stages.inbox import InputProcessor
 from resumix_client.workspace import day
 
-from conftest import JD_TEXT, make_job
+from conftest import JD_TEXT, analysis, make_job
 
 
 @pytest.fixture
@@ -104,6 +104,50 @@ def test_a_posting_seen_before_is_still_removed(reader, inbox, workspace, capsys
     assert len(workspace.working_jobs()) == 1
     assert not any(inbox.iterdir())
     assert "already in progress" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("where", ["cv", "discarded"])
+def test_a_known_job_posting_url_is_deleted_without_a_call(reader, inbox, workspace, api,
+                                                           capsys, where):
+    earlier = make_job(getattr(workspace, where) / day())
+    (earlier / "analysis.json").write_text(analysis(
+        posting_url="https://it.linkedin.com/jobs/view/4470889642/?refId=x").model_dump_json())
+    (inbox / "posting.txt").write_text(
+        "JOB_POSTING: https://www.linkedin.com/jobs/view/4470889642/\n" + JD_TEXT)
+    scan(reader)
+
+    assert api.calls == []
+    assert not any(inbox.iterdir())
+    assert not any(workspace.working.iterdir())
+    out = capsys.readouterr().out
+    assert f"already {'applied' if where == 'cv' else 'discarded'}" in out
+    assert "dropped" in out
+
+
+def test_a_known_job_posting_url_in_progress_is_deleted(reader, inbox, workspace, api):
+    (inbox / "first.txt").write_text(
+        "JOB_POSTING: https://www.linkedin.com/jobs/view/4470889642/\n" + JD_TEXT)
+    scan(reader)
+    [folder] = workspace.working_jobs()
+    (folder / "analysis.json").write_text(analysis(
+        posting_url="https://www.linkedin.com/jobs/search/?currentJobId=4470889642").model_dump_json())
+
+    (inbox / "second.txt").write_text(
+        "JOB_POSTING: https://www.linkedin.com/jobs/view/4470889642\n" + JD_TEXT)
+    api.calls.clear()
+    scan(reader)
+
+    assert api.calls == []
+    assert not any(inbox.iterdir())
+
+
+def test_an_unknown_job_posting_url_is_analysed(reader, inbox, workspace, api):
+    make_job(workspace.cv / day())
+    (inbox / "posting.txt").write_text(
+        "JOB_POSTING: https://www.linkedin.com/jobs/view/4470889642/\n" + JD_TEXT)
+    scan(reader)
+
+    assert api.calls == ["detect", "analyze"]
 
 
 def test_an_analysed_folder_is_handed_over_whole_then_removed(reader, inbox, workspace,

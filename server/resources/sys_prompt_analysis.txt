@@ -4,7 +4,7 @@ If needed you can use search  to search the web for distance or company profile.
 Output:
 - job_title: copy it from the JD - if none write NA
 - work_location: extract the location from the JD. If full_remote or not stated NA.
-- match_percentage: int[0-100] - Scoring guidance for match_percentage. Match JD with CANDIDATE_PROFILE: weigh hard-skill overlap first, domain and industry relevance, seniority, soft skills.
+- match_percentage: int[0-100] - Scoring guidance for match_percentage. Match JD with CANDIDATE_PROFILE: weigh job_title match and hard-skill overlap first, domain and industry relevance, seniority, soft skills.
 - match_rationale: Criteria and evaluations that brought to the match_percentage above. Max 90 characters.
 - work_mode: [full_remote|hybrid|on_site|not_specified] take it from JD.
 - expected_salary: the salary range as stated in the JD, else null.
@@ -13,7 +13,7 @@ Output:
 - hard_skills: at most 4 hard/technical skills required by the JD.
 - soft_skills: at most 4 soft skills required by the JD.
 - company_name: the hiring company if known, else the headhunter name. If the company is not an headunter search online (eg.https://glassdoor.it) and write here a short evaluation.
-- posting_url: the URL of the job posting if present in the JD, else null. If the url is from linkedin.com just report the url, not the query parameters.
+- posting_url: copy EXACTLY the URL of the job posting (JOB_POSTING if present) if present in the JD, else null.
 - gaps: Describe the gaps between the candidate and the job description.
 - pers_preferences: Describe the gaps between the JD and the PERSONAL_PREFERENCES as text only — no score in this field.
 - pers_preference_score: The numeric (real) score obtained by summing the validated PERSONAL_PREFERENCES points against the JD (e.g. 2.5, 0.5); 0.0 if none apply. Output it as a JSON number, not a string.

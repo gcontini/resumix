@@ -64,7 +64,7 @@ timeout_seconds = 600
 # no thinking and a tiny budget — the verdict is one word. structured_output =
 # "none": the reply is text, not JSON.
 [models.detect]
-model             = "qwen3.8-flash"
+model             = "deepseek-v4.1-flash"
 structured_output = "none"
 max_tokens        = 100
 thinking          = "off"
@@ -73,9 +73,9 @@ thinking          = "off"
 # model allowed to run web research (on the employer, for a direct posting
 # from a named company).
 [models.summary]
-model             = "qwen3.8-flash"
+model             = "deepseek-v4-pro-0813"
 structured_output = "json_object"
-temperature       = 0.0
+temperature       = 0.6
 thinking          = "on"
 reasoning_effort  = "high"
 # DashScope runs web search server-side via extra_body {"enable_search": true}.
@@ -90,7 +90,7 @@ model             = "qwen3.8-max-0902"
 structured_output = "json_schema_strict"
 max_tokens        = 17000
 thinking          = "on"
-thinking_budget   = 6500
+thinking_budget   = 7500
 
 # The judge: reads the CV against the master profile and answers in plain
 # text, one violation per line — an empty reply when there is nothing to fix.
@@ -99,7 +99,7 @@ thinking_budget   = 6500
 # temperature = 0 is load-bearing: a reviewer that samples draws a different
 # set of violations every round, and the loop never settles.
 [models.review]
-model             = "qwen3.8-max"
+model             = "deepseek-v4-pro-0813"
 structured_output = "none"
 temperature       = 0.0
 max_tokens        = 9000

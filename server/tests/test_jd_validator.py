@@ -46,7 +46,7 @@ def test_unwraps_a_nested_payload():
 
 @pytest.mark.parametrize("field, value", [
     ("should_apply", "MAYBE"),
-    ("should_apply_reason", "x" * 91),
+    ("should_apply_reason", "x" * 301),
 ])
 def test_rejects_an_invalid_should_apply(field, value):
     bad = dict(VALID, **{field: value})

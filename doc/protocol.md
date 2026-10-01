@@ -159,7 +159,7 @@ Returns a `JDAnalysis`:
 | `pers_preferences` | str | How the posting reads against your preferences |
 | `pers_preference_score` | float | The summed score of the preferences it satisfies |
 | `should_apply` | str | `NO` (skip) \| `CHECK` (human check) \| `YES` (apply) — per the `should_apply` rules in your preferences, else `salary_match` |
-| `should_apply_reason` | str | Why, at most 90 characters |
+| `should_apply_reason` | str | Why should apply |
 | `company_evaluation` | str? | Only for `CHECK`: what online reviews (Trustpilot, Glassdoor) say about the hiring company |
 
 ## `POST /v1/cv` → `GET /v1/cv/{id}/status` → `GET /v1/cv/{id}`

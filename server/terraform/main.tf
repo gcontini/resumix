@@ -1,18 +1,20 @@
 # ---------------------------------------------------------------------------
 # Registry — Container Registry Personal Edition.
 #
-# Three things about Personal Edition stay in the console, because neither the
+# Two things about Personal Edition stay in the console, because neither the
 # API nor the provider reaches them:
 #
 #   - The instance itself (crpi-...). It is created by hand, once per account;
 #     these resources land in whichever instance the account has in `region`.
 #   - The registry login password. The provider refuses to work without one.
-#   - The GitHub source and the build rules: `main` builds `latest`, and one
-#     rule per release tag `vX.Y.Z` builds `X.Y.Z` from the root Dockerfile.
 #
-# Both resources are deprecated in favour of their alicloud_cr_ee_* versions,
-# which only reach Enterprise Edition instances; the plan warns about it. For
-# Personal Edition they are the only resources there are.
+# Nothing is built here: each deploy is an image pushed from a checkout,
+# tagged with its commit hash (README.md, "Deploy").
+#
+# Both resources, and the alicloud_cr_repos data source below, are deprecated
+# in favour of their alicloud_cr_ee_* versions, which only reach Enterprise
+# Edition instances; the plan warns about it. For Personal Edition they are
+# the only ones there are.
 # ---------------------------------------------------------------------------
 
 resource "alicloud_cr_namespace" "main" {
@@ -35,9 +37,43 @@ resource "alicloud_cr_repo" "main" {
 
 data "alicloud_account" "current" {}
 
+# Every tag in the repository, with the time it was pushed.
+data "alicloud_cr_repos" "main" {
+  namespace      = alicloud_cr_repo.main.namespace
+  name_regex     = "^${alicloud_cr_repo.main.name}$"
+  enable_details = true
+
+  lifecycle {
+    postcondition {
+      condition     = var.image_tag != null || anytrue([for tag in self.repos[0].tags : can(regex(local.build_tag, tag.tag))])
+      error_message = "No image in the repository is tagged with a commit hash: push one first (README.md, \"Deploy\")."
+    }
+  }
+}
+
 locals {
+  # The images a deploy pushed are tagged with a commit hash. `latest`,
+  # release tags and ACR's own build cache are not.
+  build_tag = "^[0-9a-f]{7,40}$"
+  builds    = [for tag in data.alicloud_cr_repos.main.repos[0].tags : tag if can(regex(local.build_tag, tag.tag))]
+
+  # The last one pushed. max() fails on an empty list even inside the `if`,
+  # so the conditional has to stay outside it.
+  newest_build = length(local.builds) > 0 ? [
+    for tag in local.builds : tag.tag
+    if tag.image_create == max(local.builds[*].image_create...)
+  ][0] : null
+
+  # image_tag, when set, names another one instead: a rollback.
+  image_tag = coalesce(var.image_tag, local.newest_build)
+
   # The VPC endpoint: the pull never leaves Alibaba's network.
-  image = "${alicloud_cr_repo.main.domain_list["vpc"]}/${alicloud_cr_repo.main.namespace}/${alicloud_cr_repo.main.name}:${var.image_tag}"
+  #
+  # A tag, never a digest: FC rejects `@sha256:` for a Personal Edition image.
+  # It resolves the tag to a digest when the function is updated, and once the
+  # tag points elsewhere every invocation fails — so the tag must never move,
+  # which a commit hash does not and `latest` does on every build.
+  image = "${alicloud_cr_repo.main.domain_list["vpc"]}/${alicloud_cr_repo.main.namespace}/${alicloud_cr_repo.main.name}:${local.image_tag}"
 
   # Merging the sensitive map as a whole would hide every variable in a plan.
   # Marking each secret on its own keeps a model override visible as it changes.
@@ -153,5 +189,5 @@ resource "alicloud_fcv3_trigger" "main" {
 # its ceiling: a cap on spend.
 resource "alicloud_fcv3_concurrency_config" "main" {
   function_name        = alicloud_fcv3_function.main.function_name
-  reserved_concurrency = 2
+  reserved_concurrency = 1
 }

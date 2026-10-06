@@ -1,13 +1,12 @@
 # Alibaba Cloud deployment
 
 The server as a Function Compute 3.0 function, and the Container Registry
-Personal Edition repository its image is built into.
+Personal Edition repository its image is pushed to.
 
 | Managed here | Console only — no API reaches it |
 |---|---|
 | namespace and repository | the Personal Edition instance (`crpi-…`) |
 | function, alias, HTTP trigger, reserved concurrency | the registry login password |
-| | the GitHub source and the build rules (`main` → `latest`, `vX.Y.Z` → `X.Y.Z`) |
 | | rotating the trigger token |
 
 ## Run it
@@ -23,13 +22,36 @@ terraform apply
 The first plan adopts the resources made by hand in the console
 (`imports.tf`): **6 to import, 1 to change**. The change only records which
 environment variables are secret; the values are unchanged and nothing is sent
-to the function. Every plan after that should say *No changes*.
+to the function. After that, a plan says *No changes* until a new image is
+pushed.
 
-## A release
+## Deploy
 
-1. In the console, add the build rule for the new tag (`vX.Y.Z` → `X.Y.Z`)
-   and wait for the build.
-2. Set `image_tag` in `terraform.tfvars`, then `terraform apply`.
+A deploy is an image built from one commit and tagged with its short hash.
+Commit first — the tag names the commit, so `git status --short` must print
+nothing. Then, from the repository root:
+
+```bash
+tag=$(git rev-parse --short HEAD)
+image=$(terraform -chdir=server/terraform output -raw push_repository):$tag
+DOCKER_BUILDKIT=0 docker build -t "$image" .
+docker push "$image"
+```
+
+Then `terraform apply`. It deploys the newest image in the repository tagged
+with a commit hash — so every apply does, including one run only to change an
+environment variable — and the plan shows the function's image moving to it.
+
+To run an older build instead, `terraform apply -var image_tag=<its hash>`.
+The next apply without it goes back to the newest.
+
+Before the first push, `docker login` to the registry once, with the command
+the console's *Access Credentials* page shows.
+
+Why not `latest`: Function Compute resolves the tag to a digest when the
+function is updated, and on Personal Edition every invocation fails once the
+tag points somewhere else. A tag that moves on every build takes the function
+down on every build. A digest (`@sha256:…`) in place of the tag is rejected.
 
 ## What to know
 
@@ -44,5 +66,5 @@ to the function. Every plan after that should say *No changes*.
   `server_url` — changes with it.
 - **From scratch**, in an account with none of this: create the Personal
   Edition instance and its password in the console, delete `imports.tf`, run
-  `terraform apply -target=alicloud_cr_repo.main`, set up the GitHub build and
-  let it push a tag, then run `terraform apply`.
+  `terraform apply -target=alicloud_cr_repo.main`, push an image as in
+  *Deploy*, then run `terraform apply`.

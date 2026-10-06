@@ -17,8 +17,9 @@ variable "function_name" {
 }
 
 variable "image_tag" {
-  description = "Tag of the server image to run, e.g. \"0.5.0\". It must already be in the repository."
+  description = "Commit-hash tag to run instead of the newest one in the repository: a rollback. Unset, every apply deploys the newest; see main.tf."
   type        = string
+  default     = null
 }
 
 variable "log_logstore" {

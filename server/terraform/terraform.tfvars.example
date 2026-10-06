@@ -1,7 +1,6 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 
 function_name = "resumix"
-image_tag     = "0.5.0"
 log_project   = "serverless-eu-central-1-<uuid>"
 
 environment = {

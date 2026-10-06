@@ -63,21 +63,25 @@ timeout_seconds = 600
 # every clipboard change that passes the free structural checks, so it gets
 # no thinking and a tiny budget — the verdict is one word. structured_output =
 # "none": the reply is text, not JSON.
+# temperature = 0: a classifier that samples can file the same posting under
+# errors one time in a few. No client can change it — /v1/jd/detect takes no
+# temperature; only RESUMIX_DETECT_TEMPERATURE on the server does.
 [models.detect]
 model             = "deepseek-v4.1-flash"
 structured_output = "none"
-max_tokens        = 100
+temperature       = 0.0
+max_tokens        = 1000
 thinking          = "off"
 
 # Mid-size: extracts the JD analysis and writes the cover letter. The only
 # model allowed to run web research (on the employer, for a direct posting
 # from a named company).
 [models.summary]
-model             = "deepseek-v4-pro-0813"
+model             = "deepseek-v4.1-flash"
 structured_output = "json_object"
-temperature       = 0.6
+temperature       = 0.4
 thinking          = "on"
-reasoning_effort  = "high"
+reasoning_effort  = "max"
 # DashScope runs web search server-side via extra_body {"enable_search": true}.
 web_search        = true
 
@@ -102,9 +106,9 @@ thinking_budget   = 7500
 model             = "deepseek-v4-pro-0813"
 structured_output = "none"
 temperature       = 0.0
-max_tokens        = 9000
+max_tokens        = 15000
 thinking          = "on"
-thinking_budget   = 6500
+thinking_budget   = 9000
 
 # Mid-size, no thinking: the highlighter only inserts Markdown markers into
 # already-validated JSON. Letting a hybrid-reasoning model think about that

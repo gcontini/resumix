@@ -10,12 +10,18 @@ from __future__ import annotations
 import pytest
 
 from resumix_server.pipeline.cv_renderer import CVRenderer, RenderResult
-from resumix_server.pipeline.cv_validator import MAX_VIOLATIONS, CVValidator
+from resumix_server.pipeline.cv_validator import (
+    MAX_VIOLATIONS,
+    CVValidator,
+    length_advice,
+)
 
 from server_helpers import FakeSelector, sample_cv_data
 
 OK_REVIEW = ""                          # nothing to fix: an empty reply
 REJECT = "invented a job at NASA"
+#: What the fake render below earns a 3-page CV the first time round.
+TOO_LONG = length_advice(3, 2, 1, 0)
 
 
 @pytest.fixture
@@ -30,7 +36,7 @@ def renders(monkeypatch):
         pages = state["pages"]
         return RenderResult(
             tex="", pdf=b"%PDF", pages=pages,
-            advice="length OK" if pages <= 2 else "REMOVE 1 duty.",
+            overflow_lines=0 if pages <= 2 else 1,
         )
 
     monkeypatch.setattr(CVRenderer, "render_document", fake_render)
@@ -104,7 +110,7 @@ def test_too_long_is_a_violation_in_the_condenser_s_own_words(
         cv_data, document, attempt=0
     )
 
-    assert result.violations == ["REMOVE 1 duty."]
+    assert result.violations == [TOO_LONG]
     assert result.pages == 3
 
 
@@ -121,7 +127,7 @@ def test_the_length_complaint_comes_last(
         cv_data, document, attempt=0
     )
 
-    assert result.violations == ["invented a job at NASA", "REMOVE 1 duty."]
+    assert result.violations == ["invented a job at NASA", TOO_LONG]
 
 
 def test_the_review_does_not_run_again_once_it_has_passed(
@@ -140,8 +146,61 @@ def test_the_review_does_not_run_again_once_it_has_passed(
     result = validator.validate(cv_data, document, attempt=1)
 
     assert len(model.calls) == 1                      # no second review
-    assert result.violations == ["REMOVE 1 duty."]
+    assert result.violations == [TOO_LONG]
     assert renders["stems"] == ["attempt_1", "attempt_2"]
+
+
+@pytest.mark.parametrize("lines, duties", [(0, 1), (1, 1), (2, 1), (3, 2), (6, 3), (14, 7)])
+def test_the_length_advice_asks_for_whole_duties_in_proportion(lines, duties):
+    """Whole duties, never characters: told to remove characters, the model
+    shortens a sentence, and a paragraph that loses no line frees no room."""
+    advice = length_advice(3, 2, lines, 0)
+
+    assert f"DELETE {duties} whole duty" in advice
+    assert "2-page limit" in advice
+    assert "character" not in advice
+
+
+def test_a_serious_overflow_asks_for_whole_experiences():
+    assert "remove one or more work experiences" in length_advice(4, 2, 30, 0)
+
+
+def test_each_round_still_too_long_asks_for_one_more_duty(
+    bundle, candidate, candidate_data, tmp_path, renders
+):
+    """The line count misses an image or a gap that moved over with the text,
+    so the same "1 line" can come back round after round. Each time it does,
+    the cut before it was too small, and the next one asks for more."""
+    renders["pages"] = 3
+    model = FakeSelector(OK_REVIEW)
+    cv_data, document = cv_and_document(candidate_data)
+    validator = build(bundle, candidate, tmp_path, model)
+
+    advice = [validator.validate(cv_data, document, attempt=n).violations[-1]
+              for n in range(3)]
+
+    assert "DELETE 1 whole duty" in advice[0] and "not enough" not in advice[0]
+    assert "DELETE 2 whole duty" in advice[1] and "2 times in a row" in advice[1]
+    assert "DELETE 3 whole duty" in advice[2] and "3 times in a row" in advice[2]
+
+
+def test_a_round_that_fits_starts_the_count_again(
+    bundle, candidate, candidate_data, tmp_path, renders
+):
+    """Too long, then a fit rejected for its content, then too long again: the
+    round in between made no cut that could have been too small."""
+    model = FakeSelector(REJECT, REJECT, REJECT)
+    cv_data, document = cv_and_document(candidate_data)
+    validator = build(bundle, candidate, tmp_path, model)
+
+    renders["pages"] = 3
+    validator.validate(cv_data, document, attempt=0)
+    renders["pages"] = 2
+    validator.validate(cv_data, document, attempt=1)
+    renders["pages"] = 3
+    result = validator.validate(cv_data, document, attempt=2)
+
+    assert result.violations[-1] == TOO_LONG
 
 
 def test_a_rejection_leaves_the_review_running_next_round(

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 from resumix_contracts import (
@@ -47,6 +48,17 @@ JD_SYSTEM_PROMPT = read_text_default("sys_prompt_analysis.txt")
 
 #: The detection prompt, shipped as ``resources/sys_prompt_jd_detect.txt``.
 DETECT_PROMPT = read_text_default("sys_prompt_jd_detect.txt")
+
+
+def _says_yes(verdict: str) -> bool:
+    """Whether the detection reply's first word is YES.
+
+    Quotes, Markdown and punctuation around the word are how "reply with the
+    single word YES" most often comes back — ``**YES**``, ``'Yes.'`` — and
+    reading those as a no files a real posting under errors.
+    """
+    word = re.match(r"[^A-Za-z]*([A-Za-z]+)", verdict)
+    return word is not None and word.group(1).upper() == "YES"
 
 
 def _correction_prompt(error: ValueError) -> str:
@@ -118,13 +130,16 @@ class JDValidator:
             logger.info("  ✗ not a job description (%d chars, no model call)", len(text))
             return JDDetection(is_job_description=False)
 
+        # The posting is a message of its own, after the instructions: a page
+        # of 20000 characters must not bury them, nor pass for them.
         with stage("jd.detect"):
-            response = self.model_selector.completions_create(
-                [{"role": "user", "content": DETECT_PROMPT + text}]
-            )
+            response = self.model_selector.completions_create([
+                {"role": "system", "content": DETECT_PROMPT},
+                {"role": "user", "content": text},
+            ])
         verdict = (response.choices[0].message.content or "").strip()
         logger.info("  🔎 job description check: %s", verdict)
-        return JDDetection(is_job_description=verdict.upper().startswith("YES"))
+        return JDDetection(is_job_description=_says_yes(verdict))
 
     def analyze(self, job_description: str, candidate: CandidateInputs) -> JDAnalysis:
         """Compare a job description against the profile and extract key facts.

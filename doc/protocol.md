@@ -115,7 +115,7 @@ curl -F jd=@JD.txt localhost:8080/v1/jd/detect
 | `jd` / `jd_text` | required | The text to check |
 
 Structural checks run first — length band (`RESUMIX_JD_MIN_CHARS` …
-`_MAX_CHARS`, 1000–10000 by default), no binary payload — and only if they
+`_MAX_CHARS`, 500–30000 by default), no binary payload — and only if they
 pass does it cost one small model call. The answer is
 `{"is_job_description": true|false}`; why it was rejected is in the request's
 log, not in the reply. The same structural check ships in

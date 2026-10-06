@@ -9,11 +9,13 @@ import pytest
 
 from resumix_server.pipeline.cv_generator import CVGenerator
 from resumix_server.pipeline.cv_renderer import CVRenderer, RenderResult
+from resumix_server.pipeline.cv_validator import length_advice
 from resumix_server.pipeline.errors import ModelOutputError
 
 from server_helpers import FakeSelector, sample_cv_data
 
 OK_REVIEW = ""                          # the reviewer's "nothing to fix"
+TOO_LONG = length_advice(3, 2, 1, 0)    # a 3-page CV, the first time round
 
 
 def cv_json(**overrides) -> str:
@@ -42,7 +44,7 @@ def no_latex(monkeypatch):
 
     def fake_render(self, document, *, stem="cv"):
         return RenderResult(tex="", pdf=b"%PDF", pages=pages["n"],
-                            advice="length OK" if pages["n"] <= 2 else "REMOVE 1 duty.")
+                            overflow_lines=0 if pages["n"] <= 2 else 1)
 
     monkeypatch.setattr(CVRenderer, "render_document", fake_render)
     return pages
@@ -134,7 +136,7 @@ def test_an_overlong_pdf_reports_the_condense_instruction(
     # Too long is a violation like any other now, quoted verbatim.
     _, detail = next(s for s in steps if s[0] == "re-generate")
     assert "CV rejected: 1 violation(s), 3 page(s)" in detail
-    assert detail.endswith("- REMOVE 1 duty.")
+    assert detail.endswith(f"- {TOO_LONG}")
 
 
 def test_a_bad_and_over_long_cv_is_told_about_both_at_once(
@@ -152,13 +154,29 @@ def test_a_bad_and_over_long_cv_is_told_about_both_at_once(
     _, detail = next(s for s in steps if s[0] == "re-generate")
     assert "CV rejected: 2 violation(s), 3 page(s)" in detail
     assert "- invented a job at NASA" in detail
-    assert detail.endswith("- REMOVE 1 duty.")          # length complaint last
+    assert detail.endswith(f"- {TOO_LONG}")          # length complaint last
 
     # And the model is handed both in the one prompt it gets next.
     second = [c for c in model.calls
               if any("Please tailor my CV" in (m["content"] or "") for m in c["messages"])][-1]
     retry = second["messages"][-1]["content"]
-    assert "- invented a job at NASA" in retry and "- REMOVE 1 duty." in retry
+    assert "- invented a job at NASA" in retry and f"- {TOO_LONG}" in retry
+
+
+def test_a_cv_still_too_long_is_asked_for_a_bigger_cut_next_round(
+    bundle, candidate, tmp_path, no_latex
+):
+    """The validator outlives a round, so each attempt that is still too long
+    is told the cut before it was not enough, instead of hearing the same
+    instruction again."""
+    no_latex["n"] = 3
+    model = FakeSelector(cv_json(), cv_json(), cv_json())
+    build(bundle, candidate, tmp_path, model, max_attempts=3).generate("JD")
+
+    prompts = [c["messages"][-1]["content"] for c in model.calls
+               if any("Please tailor my CV" in (m["content"] or "") for m in c["messages"])]
+    assert "DELETE 1 whole duty" in prompts[1]
+    assert "DELETE 2 whole duty" in prompts[2]
 
 
 def test_the_prompt_carries_the_system_prompt_schema_profile_and_jd(

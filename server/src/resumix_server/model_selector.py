@@ -72,7 +72,7 @@ DEFAULT_TIMEOUT = 600
 
 # Accepted values for the declarative capability keys.
 THINKING_MODES = ("auto", "on", "off")
-REASONING_EFFORTS = ("low", "medium", "high")
+REASONING_EFFORTS = ("low", "medium", "high", "max")
 STRUCTURED_OUTPUTS = ("json_schema_strict", "json_schema", "json_object", "none")
 
 # Minimal documented form of the server-side web-search switch. DashScope also

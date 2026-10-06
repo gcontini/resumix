@@ -16,11 +16,13 @@ Report issues only in the following categories:
 
 ## 1. Exaggerations and accuracy
 * **Factual mismatches vs. MASTER PROFILE:** Any date, duration, employer, location, or degree in the GENERATED CV that contradicts what MASTER PROFILE states.
-    - Check that each certification present in the GENERATED CV has its "correct" date (See MASTER PROFILE). Omitted certifications are ok.
-* **Fake Responsibilities/Titles:** Claims or job titles the candidate never actually held.
+* **Fake Responsibilities/Titles:** Claims or job_title the candidate never actually held.
     - Unearned seniority/leadership (e.g. "Head", "Manager", "Director") if MASTER PROFILE shows no people-management or ownership at that level.
 * **Unsupported Skills/Tech:** Claiming professional workplace experience with a technology, tool, or framework that is not backed by the MASTER PROFILE.
     - You may infer experiences if implied by the professional context, but you must flag blatant leaps.
+* **Unsupported achievements:** Claiming an achievement that is not backed by the MASTER PROFILE (check duties and summary).
+    - Be flexible: you may pass achievements if implied by the context, but you must flag blatant leaps. 
+    - Check that the scope of the achievement is backed by MASTER PROFILE. 
 * *Note on Certifications/Study:* Academic study or certifications do not equate to professional workplace experience (e.g., holding an ML certificate does not validate the claim of being a "Machine Learning Expert" if the candidate has zero workplace ML experience).
     - It is ok to mention skills earned through personal interest/certifications but the context must be clear.
 
@@ -47,13 +49,13 @@ Report issues only in the following categories:
 Reply in plain text: one violation per line, and nothing else.
 - If there are NO issues in the three categories above, reply with a single literal string "OK". Do NOT write other remarks (eg. "No issues found"): everything else than "OK" you write is read as a violation.
 - Otherwise write at most 15 violations, one per line, most important first. No numbering, no bullets, no blank lines, no headings, no introduction or conclusion.
-- Keep each violation under 100 words in total. An error that takes a paragraph to justify is not undeniable -- omit it entirely.
+- Keep each violation under 150 words in total. An error that takes a paragraph to justify is not undeniable -- omit it entirely.
 - Each line must be a single, concise, actionable instruction that pinpoints exactly where and what is wrong. It MUST include, in this order:
   1. **Location** - where in the GENERATED CV the issue is, precise enough for someone to find it without re-reading the whole document (e.g. "Work Experience > Senior Engineer @ Acme > duty 2", or "Summary").
   2. **Category** - which rule it violates: Exaggeration, Syntax, or Logic.
   3. **Offending quote** - the exact offending text, quoted verbatim. Quote the shortest span that carries the error, not the whole sentence around it.
   4. **FIX** - a concrete and actionnable instruction for how to correct it. Do not motivate or explain here: propose ONE fix (eg. "replace with '...'" or "rephrase the whole sentence excluding the 'xxx' responsiblity").
-  5. **Reason** - ONE clause, 20 words or fewer, naming the single fact in MASTER PROFILE that the quote contradicts. Do NOT argue the case: no weighing of alternatives, no "this is acceptable, however...", no listing of corroborating evidence, no repeating the FIX.
+  5. **Reason** - ONE clause, 30 words or fewer, naming the single fact in MASTER PROFILE that the quote contradicts. Do NOT argue the case: no weighing of alternatives, no "this is acceptable, however...", no listing of corroborating evidence, no repeating the FIX.
 
 Example: two violations:
 

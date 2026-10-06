@@ -12,8 +12,12 @@ has the detail if anyone needs it.
 from __future__ import annotations
 
 #: A posting shorter than this is a fragment; longer is an article or a dump.
-MIN_JD_CHARS = 1000
-MAX_JD_CHARS = 10000
+#: Both are measured on postings as they arrive — a job-board page copied
+#: whole, with its navigation and applicant counts — not on the bare text: a
+#: title and a list of requirements is ~900 characters with that clutter, a
+#: public-sector selection notice or a benefits-heavy posting is ~18000.
+MIN_JD_CHARS = 500
+MAX_JD_CHARS = 30000
 
 #: Above this share of control characters the payload is binary, not prose.
 _MAX_CONTROL_RATIO = 0.1

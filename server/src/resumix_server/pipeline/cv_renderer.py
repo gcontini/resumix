@@ -47,7 +47,7 @@ class RenderResult:
     tex: str
     pdf: bytes
     pages: int
-    advice: str  # "length OK", or what to cut — fed back to the model verbatim
+    overflow_lines: int  # non-empty text lines past the page limit; 0 when it fits
 
 
 class CVRenderer:
@@ -207,7 +207,7 @@ class CVRenderer:
             tex=tex,
             pdf=pdf_path.read_bytes(),
             pages=info["pages"],
-            advice=info["description"],
+            overflow_lines=info["overflow_lines"],
         )
 
     # --- pdflatex -----------------------------------------------------------
@@ -287,10 +287,13 @@ class CVRenderer:
 
 
 def check_pdf_pages(pdf_path: Path, limit: int = PAGE_LIMIT) -> Dict[str, Any]:
-    """Page count plus, when it is too long, what to cut.
+    """Page count plus, when it is too long, how much spilled past the limit.
 
-    The ``description`` is fed back to the model verbatim as the next user
-    turn, so its wording is part of the prompt.
+    Only measures. What to tell the model about it depends on how many rounds
+    have already been too long, which is the validator's to know.
+
+    The count is of *text* lines, so it understates the overflow: an image or
+    vertical space that moved past the limit counts for nothing.
     """
     try:
         reader = PdfReader(str(pdf_path))
@@ -300,41 +303,17 @@ def check_pdf_pages(pdf_path: Path, limit: int = PAGE_LIMIT) -> Dict[str, Any]:
 
     result: Dict[str, Any] = {"pages": pages}
 
-    if pages <= limit:
-        desc = "length OK"
-    else:
-        # Count non-empty text lines on each overflowing page (past the limit).
-        overflow_lines: Dict[str, int] = {}
-        for idx in range(limit, pages):
-            text = reader.pages[idx].extract_text() or ""
-            lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-            overflow_lines[f"page_{idx + 1}_lines"] = len(lines)
-        result.update(overflow_lines)
+    # Count non-empty text lines on each overflowing page (past the limit).
+    overflow = 0
+    for idx in range(limit, pages):
+        text = reader.pages[idx].extract_text() or ""
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        result[f"page_{idx + 1}_lines"] = len(lines)
+        overflow += len(lines)
+    result["overflow_lines"] = overflow
 
-        total_overflow = sum(overflow_lines.values())
-        desc=""
-        if(total_overflow <= 2):
-            desc = (
-                f"CV in previous attempt is rejected: too long. CV is {pages} pages, the mandatory {limit} page limit was exceeded. Slight overflow detected."
-                f"Excess {total_overflow} lines across all the pages. "
-                f"Condense summary, REMOVE 1 duty, copy the rest of the CV as is. In total be sure to remove more than {(total_overflow * 90)} characters."
-            )
-        elif(total_overflow<15): 
-            desc = (
-                f"CV in previous attempt is rejected: TOO LONG. CV is {pages} pages, mandatory page limit exceeded."
-                f"Total {total_overflow} overflow lines across pages. "
-                f"Condense summary, REMOVE not less than {int((total_overflow+1)/2)} duties."
-                f"In total be sure to remove more than {(total_overflow * 90)} characters, copy the rest of the CV as is."
-            )
-        else:
-            desc = (
-                f"CV in previous attempt is rejected: EXTREMELY long. PDF is {pages} pages, page limit exceeded. SERIOUS overflow detected. An heavy reduction/rework of the content is needed."
-                f"Total {total_overflow} overflow lines across pages. "
-                "Condense summary, remove one or more work experience completely." 
-                "Aim for 3 work experiences, and 15 duties in TOTAL over the whole CV.")
-
-    result["description"] = desc
-    logger.info("  [Tool Executed] Checked '%s': %d pages -> %s", pdf_path.name, pages, desc)
+    logger.info("  [Tool Executed] Checked '%s': %d pages, %d line(s) past the limit",
+                pdf_path.name, pages, result["overflow_lines"])
     return result
 
 

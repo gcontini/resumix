@@ -185,8 +185,8 @@ def test_a_looping_template_hits_the_timeout(tmp_path):
 
 
 # --- the page check ---------------------------------------------------------
-def test_page_check_escalates_its_advice(monkeypatch, tmp_path):
-    """The overflow message is fed back to the LLM, so it must scale."""
+def test_page_check_counts_only_the_lines_past_the_limit(monkeypatch, tmp_path):
+    """The overflow is what spilled over, added up across every extra page."""
 
     class FakePage:
         def __init__(self, n): self.n = n
@@ -199,18 +199,16 @@ def test_page_check_escalates_its_advice(monkeypatch, tmp_path):
         monkeypatch.setattr("resumix_server.pipeline.cv_renderer.PdfReader",
                             lambda p: FakeReader([FakePage(n) for n in counts]))
 
-    reader_with(0, 0, 1)
-    assert "REMOVE 1 duty" in check_pdf_pages(tmp_path / "x.pdf")["description"]
-    reader_with(0, 0, 6)
-    assert "REMOVE not less than 3 duties" in check_pdf_pages(tmp_path / "x.pdf")["description"]
-    reader_with(0, 0, 30)
-    assert "EXTREMELY long" in check_pdf_pages(tmp_path / "x.pdf")["description"]
-    reader_with(0, 0)
-    assert check_pdf_pages(tmp_path / "x.pdf")["description"] == "length OK"
+    reader_with(40, 40, 1)
+    assert check_pdf_pages(tmp_path / "x.pdf")["overflow_lines"] == 1
+    reader_with(40, 40, 4, 2)
+    assert check_pdf_pages(tmp_path / "x.pdf")["overflow_lines"] == 6
+    reader_with(40, 40)
+    assert check_pdf_pages(tmp_path / "x.pdf")["overflow_lines"] == 0
 
 
 def test_page_check_honors_a_custom_limit(monkeypatch, tmp_path):
-    """A caller asking for fewer pages gets advice scoped to that limit."""
+    """A caller asking for fewer pages gets the overflow measured from that limit."""
 
     class FakePage:
         def __init__(self, n): self.n = n
@@ -224,7 +222,6 @@ def test_page_check_honors_a_custom_limit(monkeypatch, tmp_path):
         lambda p: FakeReader([FakePage(0), FakePage(1)]),
     )
     result = check_pdf_pages(tmp_path / "x.pdf", limit=1)
-    assert result["description"] != "length OK"
-    assert "1 page limit" in result["description"]
+    assert result["overflow_lines"] == 1
     # range(limit, pages) must start at the limit, not the old hardcoded 2.
     assert "page_2_lines" in result

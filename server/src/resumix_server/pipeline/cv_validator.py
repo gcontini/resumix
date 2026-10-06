@@ -43,6 +43,44 @@ MAX_VIOLATIONS = 10
 #: the progress lines report.
 CallFn = Callable[..., Any]
 
+#: Text lines past the limit from which trimming duties is not enough and
+#: whole work experiences have to go.
+SERIOUS_OVERFLOW_LINES = 15
+
+
+def length_advice(pages: int, limit: int, overflow_lines: int, earlier: int) -> str:
+    """What to cut from a CV that came out too long, worded for the model.
+
+    Asked for in whole duties, never in characters: told to remove characters,
+    the model shortens sentences, and a paragraph that loses sixty characters
+    but not a line frees no room at all. ``overflow_lines`` counts text only,
+    so it misses an image or a gap that moved over with it; ``earlier`` — how
+    many rounds in a row were already too long — adds one duty per round, since
+    each of them proves the cut before was too small.
+    """
+    escalation = (
+        f"It has been too long {earlier + 1} times in a row: the cuts made so "
+        "far were not enough. "
+        if earlier else ""
+    )
+    if overflow_lines >= SERIOUS_OVERFLOW_LINES:
+        return (
+            f"CV in previous attempt is rejected: EXTREMELY long. It is {pages} "
+            f"pages, {overflow_lines} lines past the mandatory {limit}-page limit. "
+            + escalation
+            + "A heavy reduction of the content is needed: condense the summary "
+            "and remove one or more work experiences completely. Aim for 3 work "
+            "experiences and 15 duties in TOTAL over the whole CV."
+        )
+    duties = max(1, (overflow_lines + 1) // 2) + earlier
+    return (
+        f"CV in previous attempt is rejected: too long. It is {pages} pages, "
+        f"{overflow_lines} line(s) past the mandatory {limit}-page limit. "
+        + escalation
+        + f"DELETE {duties} whole duty bullet(s): fewer bullets, not shorter "
+        "ones - shortening sentences frees no line. Copy the rest of the CV as is."
+    )
+
 
 @dataclass(frozen=True)
 class ValidationResult:
@@ -78,6 +116,9 @@ class CVValidator:
         #: True once the content review has passed. Public because the caller
         #: names the step it is about to run from it.
         self.content_reviewed = False
+        #: Rounds in a row that came out too long; the length advice grows
+        #: with it.
+        self._too_long = 0
 
     # --- public API ---------------------------------------------------------
     def validate(
@@ -115,13 +156,17 @@ class CVValidator:
             result = self.renderer.render_document(
                 document, stem=f"attempt_{attempt + 1}"
             )
-        logger.info("  Page check: %d pages -> %s", result.pages, result.advice)
-
         if result.pages > self.renderer.page_limit:
-            # result.advice is already written as an instruction: it is handed
-            # to the model verbatim, as the last thing it has to fix.
-            violations.append(result.advice)
+            # Handed to the model verbatim, as the last thing it has to fix.
+            advice = length_advice(
+                result.pages, self.renderer.page_limit,
+                result.overflow_lines, self._too_long,
+            )
+            self._too_long += 1
+            logger.info("  Page check: %d pages -> %s", result.pages, advice)
+            violations.append(advice)
         else:
+            self._too_long = 0
             logger.info("  ✓ Length OK (%d pages)", result.pages)
 
         return ValidationResult(violations=violations, pages=result.pages)
@@ -163,7 +208,7 @@ class CVValidator:
         """
 
         review_request = ("Review the GENERATED CV below against the candidate MASTER "
-            "PROFILE.\n")
+            "PROFILE. Attempt %d\n") % (attempt + 1)
         if attempt > 0:
             review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
                                " times, it should be ok by now. "
@@ -225,4 +270,4 @@ class CVValidator:
         return []
 
 
-__all__ = ["CVValidator", "ValidationResult"]
+__all__ = ["CVValidator", "ValidationResult", "length_advice"]

@@ -140,7 +140,7 @@ budget always wins, so unsetting it (empty value) is what lets
 | `RESUMIX_REQUEST_BUDGET_SECONDS` | `1200` | Wall clock for one CV run before `504` |
 | `RESUMIX_MAX_ATTEMPTS` | `4` | Generate → review → page-check rounds |
 | `RESUMIX_MAX_PART_BYTES` | `2000000` | Cap on any one uploaded part |
-| `RESUMIX_JD_MIN_CHARS` / `_MAX_CHARS` | `1000` / `10000` | Length band for the free JD check |
+| `RESUMIX_JD_MIN_CHARS` / `_MAX_CHARS` | `500` / `30000` | Length band for the free JD check |
 | `RESUMIX_LOG_LEVEL` | `INFO` | Logging level |
 
 ### Prompts and the template

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from resumix_contracts import JDAnalysis, static_jd_guess
 
 ANALYSIS = {
@@ -48,6 +49,41 @@ def test_detect_takes_the_model_at_its_word_when_it_says_no(client, fake_models)
     fake_models["detect"].replies = ["NO, this is a privacy policy"]
     body = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120}).json()
     assert body["data"]["is_job_description"] is False
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ("**YES**", True),
+        ("'YES'", True),
+        ("Yes.", True),
+        ("", False),
+        ("Not a posting, YES it names a role", False),
+    ],
+)
+def test_detect_reads_the_first_word_of_the_reply(client, fake_models, reply, expected):
+    fake_models["detect"].replies = [reply]
+    body = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120}).json()
+    assert body["data"]["is_job_description"] is expected
+
+
+def test_detect_sends_the_posting_apart_from_the_instructions(client, fake_models):
+    fake_models["detect"].replies = ["YES"]
+    text = "Job posting. " * 120
+    client.post("/v1/jd/detect", data={"jd_text": text})
+
+    system, user = fake_models["detect"].calls[-1]["messages"]
+    assert system["role"] == "system" and "YES or NO" in system["content"]
+    assert user == {"role": "user", "content": text}
+
+
+def test_detect_ignores_a_temperature_sent_by_the_client(client, fake_models):
+    """The client's temperature is for writing; detection keeps its own."""
+    fake_models["detect"].temperature = 0.0
+    fake_models["detect"].replies = ["YES"]
+    client.post("/v1/jd/detect",
+                data={"jd_text": "Job posting. " * 120, "temperature": "1.5"})
+    assert fake_models["detect"].calls[-1]["temperature"] == 0.0
 
 
 def test_analysis_returns_a_validated_analysis(client, fake_models, candidate):

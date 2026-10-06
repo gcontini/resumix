@@ -91,8 +91,10 @@ def test_a_request_log_round_trips():
     "text, expected, why",
     [
         ("x" * 1500, True, "plausible"),
-        ("x" * 999, False, "too short"),
-        ("x" * 10001, False, "too long"),
+        ("x" * 900, True, "a terse posting: a title and a list of requirements"),
+        ("x" * 18500, True, "a long posting: a selection notice with its legal text"),
+        ("x" * 499, False, "too short"),
+        ("x" * 30001, False, "too long"),
         ("x" * 1500 + "\x00", False, "binary"),
     ],
 )

@@ -23,6 +23,15 @@ resumix.toml
 # The rendered site. doc/ is the source; mkdocs builds this.
 /site/
 
+# --- Terraform --------------------------------------------------------------
+# The state and the variables hold the provider keys and the trigger token in
+# clear text. The lock file is committed; the provider cache is not.
+/server/terraform/.terraform/
+/server/terraform/terraform.tfvars
+*.tfstate
+*.tfstate.*
+*.tfplan
+
 # --- Python -----------------------------------------------------------------
 .venv/
 .venv_win/

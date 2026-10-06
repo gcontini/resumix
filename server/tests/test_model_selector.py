@@ -339,6 +339,13 @@ def test_the_shipped_reviewer_does_not_sample():
     assert review.structured_output == "none"      # the reply is text
 
 
+def test_the_shipped_detector_does_not_sample():
+    """A sampled YES/NO files the same posting under errors now and then."""
+    detect = ms.load_model_config().models["detect"]
+    assert detect.temperature == 0
+    assert detect.structured_output == "none"      # the reply is one word
+
+
 def test_build_model_raises_naming_the_provider_var(config, monkeypatch):
     monkeypatch.delenv("PROVIDER_KEY", raising=False)
     with pytest.raises(RuntimeError, match="PROVIDER_KEY"):

@@ -71,7 +71,6 @@ class ResumixApi(Protocol):
 
     def analyze(
         self, text: str, *, profile: bytes, preferences: str,
-        temperature: Optional[float] = None,
     ) -> Envelope[JDAnalysis]: ...
 
     def create_cv(
@@ -132,12 +131,11 @@ class HttpApi:
         self._ensure_healthy()
         return self._post("/v1/jd/detect", JDDetection, data={"jd_text": text})
 
-    def analyze(self, text, *, profile, preferences, temperature=None):
+    def analyze(self, text, *, profile, preferences):
         self._ensure_healthy()
         return self._post(
             "/v1/jd/analysis", JDAnalysis,
-            data=_clean({"jd_text": text, "pers_preferences_text": preferences,
-                         "temperature": temperature}),
+            data={"jd_text": text, "pers_preferences_text": preferences},
             files=[("candidate_profile", ("candidate_profile.json", profile,
                                           "application/json"))],
         )

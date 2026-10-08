@@ -138,7 +138,6 @@ curl -F jd=@JD.txt \
 | `jd` / `jd_text` | required | The posting |
 | `candidate_profile` | required | JSON object: everything you have done |
 | `pers_preferences` / `pers_preferences_text` | required | What you want from a job, in prose |
-| `temperature` | optional | Sampling temperature |
 
 Returns a `JDAnalysis`:
 
@@ -201,7 +200,7 @@ curl -s localhost:8080/v1/cv/$ID > cv.json # once it says END
 | `sys_prompt_cv`, `sys_prompt_highlight`, `sys_prompt_review` | optional | Replace a prompt for this request |
 | `template` | optional | Replace `resume.tex.jinja`, page checks included |
 | `images` | optional | Repeatable, ≤10. Each part's file name is the name the template includes it under. |
-| `temperature` | optional | Sampling temperature |
+| `temperature` | optional | Sampling temperature for the CV model only; the review and highlight models keep theirs |
 | `pages` | optional | Page limit the CV must fit. Default 2, minimum 1. |
 
 Answers `202` with `{"request_id": "…", "ok": true}` and no `data`. The id is
@@ -293,7 +292,7 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 | `candidate_data` | required | JSON object — the header block's name, email, phone, LinkedIn |
 | `analysis` | optional | A `JDAnalysis` — makes the letter more targeted, and enables the web research |
 | `sys_prompt_letter` | optional | Replace the letter prompt |
-| `temperature` | optional | Sampling temperature |
+| `temperature` | optional | Sampling temperature for the letter |
 
 Returns `{"text": "…", "words": 312}`, validated between 180 and 450 words.
 When the analysis names the employer *and* the

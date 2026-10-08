@@ -82,5 +82,6 @@ nav:
   - Reference:
       - The HTTP API: protocol.md
       - Building the server: build-server.md
+      - Model configurations: model-configurations.md
       - Building the client: build-client.md
       - Cutting a release: release.md

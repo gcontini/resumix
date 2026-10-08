@@ -267,6 +267,21 @@ def test_a_failed_render_goes_to_error_with_the_server_log(processor, workspace,
     assert processor.failures == 1
 
 
+def test_a_file_failing_again_replaces_itself_and_its_log(processor, workspace):
+    """The same posting dropped back and failing again: one file, one log, no ``_2``."""
+    for attempt in ("first", "second"):
+        entry = workspace.working / "26-09-28-16-13-16_jd.txt"
+        entry.write_text(JD_TEXT)
+        log = TaggedLog(processor.console, entry.name)
+        log.step(f"✗ {attempt} attempt")
+        processor.fail(entry, log)
+
+    assert sorted(p.name for p in workspace.error.glob("*/*")) == [
+        "26-09-28-16-13-16_jd.txt", "26-09-28-16-13-16_jd.txt.log"]
+    text = (workspace.error / day() / "26-09-28-16-13-16_jd.txt.log").read_text()
+    assert "second attempt" in text and "first attempt" not in text
+
+
 def test_a_document_that_is_not_json_fails_without_a_call(processor, workspace, api):
     make_job(workspace.working, **{"cv_jordan_rivera_head_of_it.json": "{not json"})
     processor.recover()

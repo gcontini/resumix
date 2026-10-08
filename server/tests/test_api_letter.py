@@ -23,6 +23,23 @@ def test_returns_the_letter_and_its_word_count(client, fake_models, candidate):
     assert body["data"]["words"] == 200
 
 
+def test_the_letter_takes_the_temperature_sent_by_the_client(client, fake_models, candidate):
+    fake_models["summary"].temperature = 0.4
+    fake_models["summary"].replies = [LETTER]
+    client.post("/v1/letter", data={"jd_text": "a jd", "temperature": "1.5"},
+                files=letter_parts(candidate))
+    assert fake_models["summary"].calls[-1]["temperature"] == 1.5
+
+
+def test_the_letters_temperature_does_not_stick_to_the_model(client, fake_models, candidate):
+    """The override is for one request: the next analysis runs on the same model."""
+    fake_models["summary"].temperature = 0.4
+    fake_models["summary"].replies = [LETTER]
+    client.post("/v1/letter", data={"jd_text": "a jd", "temperature": "1.5"},
+                files=letter_parts(candidate))
+    assert fake_models["summary"].temperature == 0.4
+
+
 def test_a_short_letter_is_rejected_and_retried(client, fake_models, candidate):
     fake_models["summary"].replies = ["too short", LETTER]
     body = client.post("/v1/letter", data={"jd_text": "a jd"},

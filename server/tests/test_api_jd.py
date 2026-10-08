@@ -86,6 +86,15 @@ def test_detect_ignores_a_temperature_sent_by_the_client(client, fake_models):
     assert fake_models["detect"].calls[-1]["temperature"] == 0.0
 
 
+def test_analysis_ignores_a_temperature_sent_by_the_client(client, fake_models, candidate):
+    """The client's temperature is for the CV; analysis keeps its own."""
+    fake_models["summary"].temperature = 0.4
+    fake_models["summary"].replies = [json.dumps(ANALYSIS)]
+    client.post("/v1/jd/analysis", data={"jd_text": "a jd", "temperature": "1.5"},
+                files=jd_parts(candidate))
+    assert fake_models["summary"].calls[-1]["temperature"] == 0.4
+
+
 def test_analysis_returns_a_validated_analysis(client, fake_models, candidate):
     fake_models["summary"].replies = [json.dumps(ANALYSIS)]
 

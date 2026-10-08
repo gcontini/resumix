@@ -62,7 +62,9 @@ async def create_cv(
     images: List[UploadFile] = File(
         [], description="Images the template includes, each by its own file name"
     ),
-    temperature: Optional[float] = Form(None, description="Sampling temperature override"),
+    temperature: Optional[float] = Form(
+        None, description="Sampling temperature override for the CV model only"
+    ),
     pages: Optional[int] = Form(None, description="Page limit the CV must fit (default: 2)"),
 ) -> dict:
     """Accept one CV job. The id in the envelope is the handle for the rest."""

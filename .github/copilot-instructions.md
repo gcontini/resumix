@@ -203,9 +203,10 @@ required to run it (PyInstaller `--onefile`)
   (`detect`/`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
   settings, which can also be overridden per role via
   `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
-  reasoning_effort/thinking_budget/structured_output/use_alternate_provider;
-  an empty thinking_budget unsets a budget declared in models.toml, which is
-  how reasoning_effort wins back the request).
+  reasoning_effort/thinking_budget/structured_output/use_alternate_provider/
+  web_search; an empty thinking_budget unsets a budget declared in
+  models.toml, which is how reasoning_effort wins back the request, and an
+  empty temperature sends none).
 - `%`-style lazy logging args, never f-strings inside `logger.*` — sanitized
   LaTeX can reach a log line and a literal `%` would break the formatter.
 - LaTeX templates use Jinja delimiters `\VAR{}`/`\BLOCK{}`; escaping is done

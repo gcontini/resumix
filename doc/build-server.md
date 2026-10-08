@@ -112,10 +112,12 @@ Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
 RESUMIX_CV_MODEL=qwen-max
 RESUMIX_CV_TEMPERATURE=0.2
 RESUMIX_CV_THINKING=off            # auto | on | off
-RESUMIX_CV_REASONING_EFFORT=high   # low | medium | high
+RESUMIX_CV_REASONING_EFFORT=high   # any string the provider accepts
 RESUMIX_CV_THINKING_BUDGET=        # empty unsets a budget declared in models.toml
 RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 RESUMIX_CV_USE_ALTERNATE_PROVIDER=2  # MODEL_API_KEY2 / MODEL_BASE_URL2
+RESUMIX_SUMMARY_TEMPERATURE=       # empty sends no temperature (OpenAI's reasoning models reject one)
+RESUMIX_SUMMARY_WEB_SEARCH=false   # true | false; off for an endpoint without DashScope's enable_search
 ```
 
 `thinking_budget` and `reasoning_effort` are mutually exclusive: a declared

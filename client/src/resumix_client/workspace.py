@@ -114,11 +114,16 @@ class Workspace:
 
         A file that already carries a timestamp keeps it — the time it arrived
         is more useful than the time it failed. The day folder is the day it
-        failed, like ``cv/`` and ``discarded/``.
+        failed, like ``cv/`` and ``discarded/``. An entry of the same name is
+        the same posting failing again, and is replaced rather than numbered.
         """
         name = entry.name if _TS_PREFIX.match(entry.name) else f"{timestamp()}_{entry.name}"
-        target = self._free(self.error / day() / name)
+        target = self.error / day() / name
         target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink(missing_ok=True)
         shutil.move(str(entry), str(target))
         return target
 

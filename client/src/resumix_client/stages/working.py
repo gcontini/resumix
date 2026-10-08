@@ -185,7 +185,9 @@ class WorkingProcessor:
         if failed:
             self.count_failure()
         if target.is_file():
-            log.append_to(target.with_name(target.name + ".log"))
+            beside = target.with_name(target.name + ".log")
+            beside.unlink(missing_ok=True)  # it explained the file just replaced
+            log.append_to(beside)
         self.console.say(f"{'❌ failed' if failed else '⚠ rejected'}: {entry.name} -> {target}")
         return target
 

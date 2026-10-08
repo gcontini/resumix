@@ -44,7 +44,7 @@ class ByFirstLine(FakeApi):
     """Analyses each posting by its first line: the company. Always YES —
     which clipboard asks about anyway."""
 
-    def analyze(self, text, *, profile, preferences, temperature=None):
+    def analyze(self, text, *, profile, preferences):
         self._record("analyze")
         return envelope(analysis(company_name=text.split("\n", 1)[0], should_apply="YES"))
 

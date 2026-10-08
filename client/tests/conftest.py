@@ -109,7 +109,7 @@ class FakeApi:
         self._record("detect")
         return envelope(JDDetection(is_job_description=self.is_jd))
 
-    def analyze(self, text, *, profile, preferences, temperature=None):
+    def analyze(self, text, *, profile, preferences):
         self._record("analyze")
         self.seen_profile = profile
         self.seen_preferences = preferences
@@ -144,6 +144,7 @@ class FakeApi:
                temperature=None):
         self._record("letter")
         self.seen_candidate_data = candidate_data
+        self.seen_letter_temperature = temperature
         return envelope(self.cover_letter)
 
 

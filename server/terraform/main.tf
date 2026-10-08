@@ -99,20 +99,11 @@ resource "alicloud_fcv3_function" "main" {
   # The model providers are on the public internet.
   internet_access = true
 
-  # A CV job lives in the work directory of the instance that started it. The
-  # client keeps one HTTP session per run, so this cookie brings its polls back
-  # to that instance instead of one that would answer 404.
-  session_affinity = "GENERATED_COOKIE"
-  # Compared as a plain string with what the API returns: every key stays,
-  # including the null.
-  session_affinity_config = jsonencode({
-    disableSessionIdReuse         = false
-    enableAutoPause               = false
-    enableAutoResume              = null
-    sessionConcurrencyPerInstance = 1
-    sessionIdleTimeoutInSeconds   = 600
-    sessionTTLInSeconds           = 600
-  })
+  # A CV job lives in the work directory of the instance that started it. With
+  # one instance (reserved_concurrency below) every poll reaches it anyway, and
+  # affinity only turned a second session into a 429. Set, not left out: the
+  # provider would keep whatever the function already has.
+  session_affinity = "NONE"
 
   environment_variables = local.environment
 

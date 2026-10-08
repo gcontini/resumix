@@ -151,6 +151,18 @@ def test_the_status_reports_each_step_and_what_it_cost(client, fake_models, part
 
 
 @needs_latex
+def test_the_temperature_reaches_the_cv_model_and_no_other(client, fake_models, parts):
+    a_good_run(fake_models)
+    for role in ("cv", "review", "highlight"):
+        fake_models[role].temperature = 0.4
+    request_id = start_cv(client, parts, temperature="1.5")
+    wait_for_job(client, request_id)
+    assert fake_models["cv"].calls[0]["temperature"] == 1.5
+    for role in ("review", "highlight"):
+        assert all(call["temperature"] == 0.4 for call in fake_models[role].calls)
+
+
+@needs_latex
 def test_pages_is_forwarded_to_the_page_check(client, fake_models, parts):
     """A ``pages`` override reaches the generator's page check, not just the
     default of 2 — proving the whole client-to-page-check chain is wired."""

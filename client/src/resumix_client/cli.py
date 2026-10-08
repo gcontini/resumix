@@ -59,7 +59,7 @@ def global_options() -> argparse.ArgumentParser:
     common.add_argument("--token", default=argparse.SUPPRESS,
                         help="Bearer token, if the server requires one.")
     common.add_argument("--temperature", type=float, default=argparse.SUPPRESS,
-                        help="Sampling temperature override.")
+                        help="Sampling temperature override for the CV and the cover letter.")
     common.add_argument("--pages", type=int, default=argparse.SUPPRESS,
                         help="Page limit the CV must fit (default: 2).")
     common.add_argument("-d", "--debug", action="store_true", default=argparse.SUPPRESS,

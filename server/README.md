@@ -76,8 +76,8 @@ think about inserting markers burns the output budget and returns truncated
 JSON.
 
 Each role's `model`, `temperature`, `thinking`, `reasoning_effort`,
-`thinking_budget`, `structured_output` (JSON output mode) and
-`use_alternate_provider` can also be overridden per role with an env var,
+`thinking_budget`, `structured_output` (JSON output mode),
+`use_alternate_provider` and `web_search` can also be overridden per role with an env var,
 without editing `models.toml` — handy for a Docker deployment:
 
 ```bash
@@ -88,11 +88,13 @@ RESUMIX_CV_REASONING_EFFORT=high
 RESUMIX_CV_THINKING_BUDGET=
 RESUMIX_CV_STRUCTURED_OUTPUT=json_object
 RESUMIX_CV_USE_ALTERNATE_PROVIDER=2
+RESUMIX_SUMMARY_WEB_SEARCH=false
 ```
 
 An empty `THINKING_BUDGET` unsets a budget declared in `models.toml` — a
 declared budget always wins over `REASONING_EFFORT`, so unsetting it is what
-lets the effort override take effect.
+lets the effort override take effect. An empty `TEMPERATURE` unsets the
+temperature, for an endpoint that rejects one (OpenAI's reasoning models).
 
 The pattern is `RESUMIX_<ROLE>_<FIELD>` for `DETECT`, `SUMMARY`, `CV`,
 `REVIEW` and `HIGHLIGHT`; see `.env.example` for the full list.

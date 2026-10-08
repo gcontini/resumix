@@ -121,11 +121,13 @@ table of `resources/models.toml`. Five roles call it; a role that sets
 Provider differences are declared as capabilities (`web_search`, `thinking`,
 `structured_output`), never branched on by name. Each role's `model`,
 `temperature`, `thinking`, `reasoning_effort`, `thinking_budget`,
-`structured_output` and `use_alternate_provider` can be overridden with a
-`RESUMIX_<ROLE>_<FIELD>` environment variable without editing the file. An
-empty `RESUMIX_<ROLE>_THINKING_BUDGET=` unsets a budget declared here, which
-is how `RESUMIX_<ROLE>_REASONING_EFFORT` wins back the request — a declared
-budget otherwise always overrides reasoning effort.
+`structured_output`, `use_alternate_provider` and `web_search` can be
+overridden with a `RESUMIX_<ROLE>_<FIELD>` environment variable without
+editing the file. An empty `RESUMIX_<ROLE>_THINKING_BUDGET=` unsets a budget
+declared here, which is how `RESUMIX_<ROLE>_REASONING_EFFORT` wins back the
+request — a declared budget otherwise always overrides reasoning effort. An
+empty `RESUMIX_<ROLE>_TEMPERATURE=` likewise sends no temperature, for an
+endpoint that rejects one.
 
 Every model reply is re-validated: the JSON schema goes into the prompt *and*
 into `response_format`, and the reply is parsed by pydantic. A weak

@@ -32,11 +32,11 @@ Nothing here knows about a specific provider — provider quirks are declared as
 capability flags rather than written as ``if name == ...`` branches. The
 fundamental per-role settings (``model``, ``temperature``, ``thinking``,
 ``reasoning_effort``, ``thinking_budget``, ``structured_output``,
-``use_alternate_provider``) can each be overridden by an env var named
-``RESUMIX_<ROLE>_<FIELD>`` (e.g. ``RESUMIX_CV_TEMPERATURE``), so a Docker
-deployment can tune a role without editing ``models.toml``. An empty value
-unsets ``thinking_budget``/``reasoning_effort`` rather than setting them to
-``""`` — the way to let ``reasoning_effort`` win back over a
+``use_alternate_provider``, ``web_search``) can each be overridden by an env
+var named ``RESUMIX_<ROLE>_<FIELD>`` (e.g. ``RESUMIX_CV_TEMPERATURE``), so a
+Docker deployment can tune a role without editing ``models.toml``. An empty
+value unsets ``thinking_budget``/``reasoning_effort``/``temperature`` rather
+than setting them to ``""`` — the way to let ``reasoning_effort`` win back over a
 ``thinking_budget`` declared in ``models.toml``, since a declared budget
 otherwise always wins (see :meth:`ModelSpec.effective_reasoning_effort`).
 """
@@ -72,7 +72,6 @@ DEFAULT_TIMEOUT = 600
 
 # Accepted values for the declarative capability keys.
 THINKING_MODES = ("auto", "on", "off")
-REASONING_EFFORTS = ("low", "medium", "high", "max")
 STRUCTURED_OUTPUTS = ("json_schema_strict", "json_schema", "json_object", "none")
 
 # Minimal documented form of the server-side web-search switch. DashScope also
@@ -230,7 +229,7 @@ _PROVIDER_ALLOWED_KEYS = {f.name for f in ProviderConfig.__dataclass_fields__.va
 #: models.toml, via RESUMIX_<ROLE>_<FIELD> (e.g. RESUMIX_CV_TEMPERATURE).
 ENV_OVERRIDABLE_FIELDS = (
     "model", "temperature", "thinking", "reasoning_effort", "thinking_budget",
-    "structured_output", "use_alternate_provider",
+    "structured_output", "use_alternate_provider", "web_search",
 )
 
 
@@ -238,12 +237,13 @@ def _apply_env_overrides(role: str, body: Dict[str, Any]) -> Dict[str, Any]:
     """Per-role env vars win over models.toml for the fundamental settings.
 
     An empty value (``RESUMIX_<ROLE>_THINKING_BUDGET=`` with nothing after the
-    ``=``) unsets ``thinking_budget``/``reasoning_effort`` instead of setting
-    them to the literal string ``""`` — the only way to bring a role's
-    ``reasoning_effort`` back into effect from the environment when
-    models.toml also declares a ``thinking_budget`` for it, since a declared
-    budget always wins over reasoning_effort (see
-    :meth:`ModelSpec.effective_reasoning_effort`).
+    ``=``) unsets ``thinking_budget``/``reasoning_effort``/``temperature``
+    instead of setting them to the literal string ``""`` — the only way to
+    bring a role's ``reasoning_effort`` back into effect from the environment
+    when models.toml also declares a ``thinking_budget`` for it, since a
+    declared budget always wins over reasoning_effort (see
+    :meth:`ModelSpec.effective_reasoning_effort`), and the only way to send
+    no temperature to an endpoint that rejects one.
     """
     body = dict(body)
     for field_name in ENV_OVERRIDABLE_FIELDS:
@@ -252,10 +252,17 @@ def _apply_env_overrides(role: str, body: Dict[str, Any]) -> Dict[str, Any]:
         if value is None:
             continue
         if field_name == "temperature":
-            try:
-                value = float(value)
-            except ValueError:
-                raise ValueError(f"{env_var}={value!r} is not a number") from None
+            if value == "":
+                value = None
+            else:
+                try:
+                    value = float(value)
+                except ValueError:
+                    raise ValueError(f"{env_var}={value!r} is not a number") from None
+        elif field_name == "web_search":
+            if value.lower() not in ("true", "false"):
+                raise ValueError(f"{env_var}={value!r} is not true or false")
+            value = value.lower() == "true"
         elif field_name == "use_alternate_provider":
             try:
                 value = int(value)
@@ -282,11 +289,6 @@ def _validate(spec: ModelSpec, path: Path) -> None:
         raise ValueError(
             f"{where}: thinking = {spec.thinking!r}; expected one of "
             f"{list(THINKING_MODES)}"
-        )
-    if spec.reasoning_effort is not None and spec.reasoning_effort not in REASONING_EFFORTS:
-        raise ValueError(
-            f"{where}: reasoning_effort = {spec.reasoning_effort!r}; expected "
-            f"one of {list(REASONING_EFFORTS)}"
         )
     if spec.structured_output not in STRUCTURED_OUTPUTS:
         raise ValueError(
@@ -463,8 +465,9 @@ class ModelSelector:
         specific parameters, e.g. ``{"thinking_budget": N}``). Omitted when
         ``None``.
     reasoning_effort:
-        Optional ``reasoning_effort`` passed to the request (e.g. ``"low"``,
-        ``"medium"``, ``"high"``). Omitted when ``None``.
+        Optional ``reasoning_effort`` passed to the request as given (e.g.
+        ``"low"``, ``"medium"``, ``"high"``); the provider decides what it
+        accepts. Omitted when ``None``.
     supports_web_search:
         Whether this endpoint runs server-side web search when asked (see
         :meth:`with_web_search`), from the model's ``web_search`` flag.

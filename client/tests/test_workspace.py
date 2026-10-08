@@ -80,6 +80,30 @@ def test_error_keeps_an_existing_timestamp(ws):
     assert failed.name == stamped.name, "the arrival time is the useful one"
 
 
+def test_error_replaces_a_file_of_the_same_name(ws):
+    """The same posting failing again: one copy, the latest, and no ``_2``."""
+    ws.to_error(loose(ws, text="first try"))
+    failed = ws.to_error(loose(ws, text="second try"))
+    assert [p.name for p in failed.parent.iterdir()] == [failed.name]
+    assert failed.read_text() == "second try"
+
+
+def test_error_replaces_a_folder_of_the_same_name(ws):
+    stamped = "26-09-28-16-13-16_Acme_Head_of_IT"
+    first = ws.working / stamped
+    first.mkdir()
+    (first / "old.txt").write_text("stale")
+    ws.to_error(first)
+    second = ws.working / stamped
+    second.mkdir()
+    (second / "jd.txt").write_text("fresh")
+
+    failed = ws.to_error(second)
+
+    assert [p.name for p in failed.parent.iterdir()] == [stamped]
+    assert sorted(p.name for p in failed.iterdir()) == ["jd.txt"], "not nested, not merged"
+
+
 def test_error_adds_a_timestamp_when_there_is_none(ws):
     job = ws.new_job("Acme", "Head of IT")
     failed = ws.to_error(job)

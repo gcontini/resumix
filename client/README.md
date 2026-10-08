@@ -41,7 +41,7 @@ your own and no LaTeX install (for the client).
    server_url = "https://resumix.example.run.app"
    token      = "the-bearer-token"      # only if the server requires one
    cover_letter = "no"                  # no | yes | letter_only
-   # temperature = 0.4                  # optional
+   # temperature = 0.4                  # optional, CV and cover letter only
    # debug   = true                     # same as -d on every run
    # verbose = true                     # same as -v on every run
    ```

@@ -114,12 +114,10 @@ def test_a_budget_without_thinking_is_rejected(tmp_path):
         ms.load_model_config(write(tmp_path, toml))
 
 
-@pytest.mark.parametrize(
-    "bad",
-    ['reasoning_effort = "extreme"', 'structured_output = "yaml"'],
-)
-def test_capability_values_are_checked_against_the_allowed_set(tmp_path, bad):
-    toml = TOML.replace('thinking = "off"\nreasoning_effort = "high"', bad)
+def test_structured_output_is_checked_against_the_allowed_set(tmp_path):
+    toml = TOML.replace(
+        'thinking = "off"\nreasoning_effort = "high"', 'structured_output = "yaml"'
+    )
     with pytest.raises(ValueError, match="expected one of"):
         ms.load_model_config(write(tmp_path, toml))
 
@@ -231,6 +229,32 @@ def test_env_overrides_the_fundamental_settings(tmp_path, monkeypatch):
 def test_a_non_numeric_temperature_override_is_rejected(tmp_path, monkeypatch):
     monkeypatch.setenv("RESUMIX_CV_TEMPERATURE", "hot")
     with pytest.raises(ValueError, match="RESUMIX_CV_TEMPERATURE"):
+        ms.load_model_config(write(tmp_path, TOML))
+
+
+def test_an_empty_temperature_override_unsets_it(tmp_path, monkeypatch, provider_key):
+    # For an endpoint that rejects any temperature (a reasoning model): the
+    # request must leave the parameter out, not send 0 or "".
+    monkeypatch.setenv("RESUMIX_SUMMARY_TEMPERATURE", "")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    assert config.models["summary"].temperature is None
+    assert ms.build_model("summary", config, quiet=True).temperature is None
+    assert config.models["review"].temperature == 0.0  # other roles keep theirs
+
+
+def test_env_overrides_web_search(tmp_path, monkeypatch, provider_key):
+    monkeypatch.setenv("RESUMIX_SUMMARY_WEB_SEARCH", "false")
+    monkeypatch.setenv("RESUMIX_CV_WEB_SEARCH", "True")
+    config = ms.load_model_config(write(tmp_path, TOML))
+    assert config.models["summary"].web_search is False
+    assert config.models["cv"].web_search is True
+    summary = ms.build_model("summary", config, quiet=True)
+    assert summary.with_web_search() is summary  # the capability is gone
+
+
+def test_a_non_boolean_web_search_override_is_rejected(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESUMIX_SUMMARY_WEB_SEARCH", "yes")
+    with pytest.raises(ValueError, match="RESUMIX_SUMMARY_WEB_SEARCH"):
         ms.load_model_config(write(tmp_path, TOML))
 
 

@@ -50,7 +50,6 @@ async def analyze_jd(
         None, description="candidate_preferences.md — scored into pers_preference_score"
     ),
     pers_preferences_text: Optional[str] = Form(None, description="…or the same as a field"),
-    temperature: Optional[float] = Form(None, description="Sampling temperature override"),
 ) -> dict:
     """Score a posting against the profile and extract its facts."""
     state = get_state(request)
@@ -66,10 +65,7 @@ async def analyze_jd(
     )
     candidate = CandidateInputs(profile=profile, preferences=preferences)
 
-    model = state.models["summary"]
-    if temperature is not None:
-        model = model.with_(temperature=temperature)
-    validator = JDValidator(model)
+    validator = JDValidator(state.models["summary"])
 
     def job() -> JDAnalysis:
         return validator.analyze(text, candidate)

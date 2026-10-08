@@ -35,7 +35,6 @@ def analyse(calls: Calls, config: Config, text: str, log: JobLog) -> Optional[JD
         text,
         profile=config.require("candidate_profile.json").read_bytes(),
         preferences=config.require("candidate_preferences.md").read_text(encoding="utf-8"),
-        temperature=config.temperature,
     ))
 
 

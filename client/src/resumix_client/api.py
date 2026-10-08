@@ -77,7 +77,7 @@ class ResumixApi(Protocol):
         self, text: str, *, profile: bytes, candidate_data: bytes,
         prompts: Optional[Mapping[str, str]] = None, template: Optional[str] = None,
         images: Optional[Mapping[str, bytes]] = None, temperature: Optional[float] = None,
-        pages: Optional[int] = None,
+        presence_penalty: Optional[float] = None, pages: Optional[int] = None,
     ) -> Envelope[None]: ...
 
     def cv_status(self, request_id: str) -> Envelope[CVStatus]: ...
@@ -93,6 +93,7 @@ class ResumixApi(Protocol):
         self, text: str, *, profile: bytes, candidate_data: bytes,
         analysis: Optional[str] = None,
         prompt: Optional[str] = None, temperature: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
     ) -> Envelope[CoverLetter]: ...
 
 
@@ -141,7 +142,7 @@ class HttpApi:
         )
 
     def create_cv(self, text, *, profile, candidate_data, prompts=None, template=None,
-                  images=None, temperature=None, pages=None):
+                  images=None, temperature=None, presence_penalty=None, pages=None):
         """Start a CV job. The envelope's ``request_id`` is the job's handle.
 
         ``candidate_data`` goes with it because the server renders the CV to
@@ -160,6 +161,7 @@ class HttpApi:
         self._ensure_healthy()
         return self._post("/v1/cv", type(None),
                           data=_clean({"jd_text": text, "temperature": temperature,
+                                       "presence_penalty": presence_penalty,
                                        "pages": pages}),
                           files=files)
 
@@ -181,7 +183,7 @@ class HttpApi:
         return self._post("/v1/cv/render", RenderedCV, files=files)
 
     def letter(self, text, *, profile, candidate_data, analysis=None, prompt=None,
-               temperature=None):
+               temperature=None, presence_penalty=None):
         files: List[Part] = [
             ("candidate_profile", ("candidate_profile.json", profile, "application/json")),
             ("candidate_data", ("candidate_data.json", candidate_data, "application/json")),
@@ -191,7 +193,8 @@ class HttpApi:
         if prompt is not None:
             files.append(("sys_prompt_letter", ("sys_prompt_letter.txt", prompt, "text/plain")))
         return self._post("/v1/letter", CoverLetter,
-                          data=_clean({"jd_text": text, "temperature": temperature}),
+                          data=_clean({"jd_text": text, "temperature": temperature,
+                                       "presence_penalty": presence_penalty}),
                           files=files)
 
     # --- plumbing -----------------------------------------------------------

@@ -102,36 +102,40 @@ flowchart TB
   `TEXMFVAR`. A request may supply both the template and a whole `.tex`, so
   both are treated as hostile input.
 
-## The five models
+## The six models
 
 One provider, one API key, one endpoint — declared once in the `[provider]`
-table of `resources/models.toml`. Five roles call it; a role that sets
+table of `resources/models.toml`. Six roles call it; a role that sets
 `use_alternate_provider = N` (N ≥ 2) calls provider N instead — the
 `[provider]` variable names with N appended (`MODEL_API_KEY2` /
 `MODEL_BASE_URL2` for 2):
 
 | Role | Used for | Shipped as |
 |---|---|---|
-| `detect` | JD detection: a one-word YES/NO on text that passed the free checks | `qwen3.8-flash`, thinking **off**, 100 max tokens, no JSON mode |
-| `summary` | JD analysis, cover letters. The only role allowed server-side web search. | `qwen3.8-flash`, thinking on, low effort |
-| `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget, strict JSON schema |
-| `review` | Reviewing each CV against the master profile; answers in plain text, one violation per line | `qwen3.8-max`, thinking on, temperature 0, no JSON mode |
+| `detect` | JD detection: a one-word YES/NO on text that passed the free checks | `deepseek-v4.1-flash`, thinking **off**, 1000 max output tokens, temperature 0 |
+| `analysis` | JD analysis; searches the web for the company evaluation | `qwen3.8-flash`, thinking on, max effort |
+| `letter` | Cover letters; searches the web for the employer | `qwen3.8-flash`, thinking on, max effort |
+| `cv` | Writing the CV | `qwen3.8-max-0902`, thinking on, 7500-token budget, strict JSON schema |
+| `review` | Reviewing each CV against the master profile; answers in plain text, one violation per line, or `OK` | `deepseek-v4-pro-0813`, thinking on, 9000-token budget, temperature 0 |
 | `highlight` | The `**bold**` keyword pass over validated CV JSON | `qwen3.8-flash`, thinking **off** |
 
-Provider differences are declared as capabilities (`web_search`, `thinking`,
-`structured_output`), never branched on by name. Each role's `model`,
-`temperature`, `thinking`, `reasoning_effort`, `thinking_budget`,
-`structured_output`, `use_alternate_provider` and `web_search` can be
+Every call goes through `resumix_server.models`: one LangChain chat model per
+role, built once at startup by the role's `model_provider` (`standard`, on
+`ChatOpenAI`, or `deepseek`, on `ChatDeepSeek`), and one method,
+`ModelSelector.call_llm(role, type, system_prompt, messages)`. It returns the
+reply as a pydantic model, a `bool` (YES/NO) or a `str`, and retries a reply
+that is empty, cut off or invalid — three calls in all, each retry told what
+was wrong. Provider-specific request fields (`thinking_budget`,
+`enable_search`) are the role's `extra_body`, sent as given: nothing checks a
+combination against what the endpoint supports. Any key of a role can be
 overridden with a `RESUMIX_<ROLE>_<FIELD>` environment variable without
-editing the file. An empty `RESUMIX_<ROLE>_THINKING_BUDGET=` unsets a budget
-declared here, which is how `RESUMIX_<ROLE>_REASONING_EFFORT` wins back the
-request — a declared budget otherwise always overrides reasoning effort. An
-empty `RESUMIX_<ROLE>_TEMPERATURE=` likewise sends no temperature, for an
-endpoint that rejects one.
+editing the file; an empty value drops the key. The client's `temperature`
+and `presence_penalty` reach only the `cv` role in a CV job and the `letter`
+role in a letter job.
 
-Every model reply is re-validated: the JSON schema goes into the prompt *and*
-into `response_format`, and the reply is parsed by pydantic. A weak
-`response_format` costs a retry, never correctness.
+Every structured reply is validated by pydantic. Its schema reaches the model
+once: in the request with `json_schema`, in the system prompt with
+`json_mode`. A weak mode costs a retry, never correctness.
 
 ## Asynchrony, and why
 

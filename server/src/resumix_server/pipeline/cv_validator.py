@@ -15,7 +15,8 @@ and too long is told about both in one round instead of two.
 
 The review, by contrast, runs until it passes once. After that later rounds
 only shorten a CV the reviewer has already accepted, and re-confirming that
-would spend that same expensive call to hear the same answer.
+would spend that same expensive call to hear the same answer. A review that
+gets no usable answer at all leaves the CV unreviewed — not passed.
 """
 
 from __future__ import annotations
@@ -23,13 +24,13 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, List, Mapping
+from typing import Any, List, Mapping, Optional
 
-from ..model_selector import ModelSelector
+from ..models import ModelSelector, Usage
 from ..observability import LOGGER_ROOT, stage
 from .cv_renderer import CVRenderer
 from .cv_schema import TailoredCVData
-from .parsing import raw_excerpt, reply_diagnostics
+from .errors import ModelOutputError
 
 logger = logging.getLogger(f"{LOGGER_ROOT}.cv")
 
@@ -37,11 +38,6 @@ logger = logging.getLogger(f"{LOGGER_ROOT}.cv")
 #: this many, most important first; this is the backstop when a model writes
 #: more, so a runaway review cannot bloat the next round's prompt.
 MAX_VIOLATIONS = 10
-
-#: One counted model call, ``(model, messages, response_format)``. The ledger
-#: belongs to the caller, so the review's tokens are added to the same total
-#: the progress lines report.
-CallFn = Callable[..., Any]
 
 #: Text lines past the limit from which trimming duties is not enough and
 #: whole work experiences have to go.
@@ -86,14 +82,16 @@ def length_advice(pages: int, limit: int, overflow_lines: int, earlier: int) -> 
 class ValidationResult:
     """What is wrong with one CV, and how long it came out.
 
-    An empty ``violations`` is the CV passing; there is no separate verdict
-    that could disagree with the list. When it is not empty, every entry is an
-    instruction the model can act on, and the length complaint — when there is
-    one — is the last of them.
+    The CV passes with no ``violations`` and ``reviewed``. When the list is
+    not empty, every entry is an instruction the model can act on, and the
+    length complaint — when there is one — is the last of them. ``reviewed``
+    is false only when the review got no usable answer: nothing is known to
+    be wrong with the content, and nothing is known to be right.
     """
 
     violations: List[str]
     pages: int
+    reviewed: bool = True
 
 
 class CVValidator:
@@ -102,17 +100,19 @@ class CVValidator:
     def __init__(
         self,
         *,
-        review_model: ModelSelector,
+        llm: ModelSelector,
         renderer: CVRenderer,
         master_profile: Mapping[str, Any],
         review_prompt: str,
-        call: CallFn,
+        usage: Usage,
     ) -> None:
-        self.review_model = review_model
+        self.llm = llm
         self.renderer = renderer
         self._master_profile = dict(master_profile)
-        self._review_message = {"role": "system", "content": review_prompt}
-        self._call = call
+        self._review_prompt = review_prompt
+        #: The caller's ledger: the review's tokens count toward the same
+        #: total the progress lines report.
+        self._usage = usage
         #: True once the content review has passed. Public because the caller
         #: names the step it is about to run from it.
         self.content_reviewed = False
@@ -136,12 +136,17 @@ class CVValidator:
         can only fix what it is told about in the round it is told.
         """
         violations: List[str] = []
+        reviewed = True
 
         if not self.content_reviewed:
             logger.info("--- content review ---")
             with stage("cv.review"):
-                violations = self._review_cv_data(cv_data, attempt)
-            if violations:
+                found = self._review_cv_data(cv_data, attempt)
+            reviewed = found is not None
+            violations = found or []
+            if not reviewed:
+                logger.warning("  ⚠ The review got no usable answer — the CV is not reviewed")
+            elif violations:
                 logger.info(
                     "  ✗ Review rejected CV (%d violation(s))", len(violations)
                 )
@@ -169,42 +174,33 @@ class CVValidator:
             self._too_long = 0
             logger.info("  ✓ Length OK (%d pages)", result.pages)
 
-        return ValidationResult(violations=violations, pages=result.pages)
+        return ValidationResult(violations=violations, pages=result.pages, reviewed=reviewed)
 
     # --- the content review -------------------------------------------------
     @staticmethod
-    def _violations_from(response) -> List[str]:
+    def _violations_from(reply: str) -> List[str]:
         """The reviewer's complaints: one per line of its plain-text reply.
 
-        An empty reply is a pass, and so is a bare "OK" — asked for nothing
-        when the CV is acceptable, the model sometimes writes that single word
-        anyway, and it is an approval, not a one-word violation. A reply the
-        token limit cut off is neither: it stopped before it could say what it
-        found, so it raises ``ValueError`` and is asked again rather than read
-        as nothing to fix. A line too short to say where and what is dropped,
+        "OK" is a pass. A line too short to say where and what is dropped,
         which also disposes of a stray code fence.
         """
-        choice = response.choices[0]
-        if choice.finish_reason == "length":
-            raise ValueError("the review was cut off before it finished")
-        content = (choice.message.content or "").strip()
+        content = reply.strip()
         if content.rstrip(".").upper() == "OK":
             return []
         lines = (line.strip() for line in content.splitlines())
         return [line for line in lines if len(line) > 15][:MAX_VIOLATIONS]
 
-    def _review_cv_data(self, cv_data: TailoredCVData, attempt: int) -> List[str]:
+    def _review_cv_data(self, cv_data: TailoredCVData, attempt: int) -> Optional[List[str]]:
         """Review generated CV content against the master profile.
 
-        Uses ``review_model`` with the review system prompt; the master profile
-        and the generated CV are the only inputs, and the reply is plain text,
-        one violation per line. Its sampling is its own role's business —
-        ``models.toml`` ships it at ``temperature = 0``, because a reviewer
-        that samples draws a different set of violations every round and the
-        loop has no fixed point to settle on.
-        A reply that was cut off is asked for once more; if the second one is
-        cut off too a warning is printed and no violations are returned, so the
-        unvalidated CV proceeds through the pipeline.
+        Uses the ``review`` role with the review system prompt; the master
+        profile and the generated CV are the only inputs, and the reply is
+        plain text, one violation per line, or "OK". Its sampling is its own
+        role's business — ``models.toml`` ships it at ``temperature = 0``,
+        because a reviewer that samples draws a different set of violations
+        every round and the loop has no fixed point to settle on.
+        Returns ``None`` when the review got no usable answer (empty or cut
+        off, every attempt).
         """
 
         review_request = ("Review the GENERATED CV below against the candidate MASTER "
@@ -221,53 +217,18 @@ class CVValidator:
             "GENERATED CV:\n"
             f"{cv_data.model_dump_json(indent=2)}\n"
             "--------------------------------------------\n"
-            "Reply with the violations, one per line and nothing else — an "
-            "empty reply if the CV is acceptable."
+            "Reply with the violations, one per line and nothing else — or "
+            "OK if the CV is acceptable."
         )
 
-        messages = [
-            self._review_message,
-            {"role": "user", "content": review_request},
-        ]
-
-        for retry in range(2):
-            # No response_format: the reply is text, and a JSON mode would
-            # only ask the model for a shape nobody parses.
-            resp = self._call(self.review_model, messages, None)
-
-            messages.append(
-                {"role": "assistant", "content": resp.choices[0].message.content}
+        try:
+            reply = self.llm.call_llm(
+                "review", str, self._review_prompt,
+                [{"role": "user", "content": review_request}], usage=self._usage,
             )
-
-            try:
-                return self._violations_from(resp)
-            except ValueError as e:
-                logger.error(
-                    "  ✗ Review response unusable (retry %d): %s: %s\n"
-                    "    reply: %s\n"
-                    "    payload: %s",
-                    retry + 1, type(e).__name__, e,
-                    reply_diagnostics(resp),
-                    raw_excerpt(resp.choices[0].message.content),
-                )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your previous reply was cut off before it "
-                            "finished. Reply again: the violations, one per "
-                            "line, nothing else."
-                        ),
-                    }
-                )
-
-        # After 2 failed attempts do not block the job: warn and let the
-        # (unvalidated) CV proceed as if the review passed.
-        logger.warning(
-            "  ⚠ Content reviewer failed to finish a review in 2 attempts "
-            "— continuing with the unvalidated CV"
-        )
-        return []
+        except ModelOutputError:
+            return None
+        return self._violations_from(reply)
 
 
 __all__ = ["CVValidator", "ValidationResult", "length_advice"]

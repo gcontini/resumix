@@ -11,7 +11,11 @@ dependencies = [
     "uvicorn>=0.30",
     # Required for File()/Form() parts — FastAPI raises without it.
     "python-multipart>=0.0.9",
-    # Any OpenAI-compatible endpoint (see resources/models.toml).
+    # Every model call goes through LangChain (resumix_server/models): ChatOpenAI
+    # for any OpenAI-compatible endpoint, ChatDeepSeek for api.deepseek.com.
+    "langchain-openai>=1.6",
+    "langchain-deepseek>=1.1",
+    # Still imported directly: the API layer maps its errors to 502/504.
     "openai",
     # Templating the LaTeX CV.
     "Jinja2",
@@ -40,6 +44,7 @@ packages = [
     "resumix_server",
     "resumix_server.api",
     "resumix_server.api.routers",
+    "resumix_server.models",
     "resumix_server.pipeline",
     "resumix_server.resources",
 ]

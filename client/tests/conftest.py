@@ -116,12 +116,13 @@ class FakeApi:
         return envelope(self.analysis)
 
     def create_cv(self, text, *, profile, candidate_data, prompts=None, template=None,
-                  images=None, temperature=None, pages=None):
+                  images=None, temperature=None, presence_penalty=None, pages=None):
         self._record("create_cv")
         self.seen_prompts = dict(prompts or {})
         self.seen_template = template
         self.seen_images = dict(images or {})
         self.seen_temperature = temperature
+        self.seen_presence_penalty = presence_penalty
         self.seen_candidate_data = candidate_data
         self.seen_pages = pages
         return Envelope(request_id="test-request", ok=True)
@@ -141,10 +142,11 @@ class FakeApi:
         return envelope(self.rendered)
 
     def letter(self, text, *, profile, candidate_data, analysis=None, prompt=None,
-               temperature=None):
+               temperature=None, presence_penalty=None):
         self._record("letter")
         self.seen_candidate_data = candidate_data
         self.seen_letter_temperature = temperature
+        self.seen_letter_presence_penalty = presence_penalty
         return envelope(self.cover_letter)
 
 

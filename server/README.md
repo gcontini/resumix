@@ -47,7 +47,7 @@ settings below already wired.
 
 ### API keys
 
-The server calls five models, all through one provider (resumix assumes a
+The server calls six models, all through one provider (resumix assumes a
 single API key). The endpoint is declared once, in the `[provider]` table of
 `resources/models.toml`; the key itself comes from the
 environment:
@@ -57,47 +57,53 @@ MODEL_API_KEY=sk-...
 MODEL_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ```
 
-Any OpenAI-compatible `/chat/completions` endpoint works — OpenAI, DeepSeek, a
-local Ollama. Switching providers is just replacing those two values in
+Any OpenAI-compatible endpoint works — OpenAI, OpenRouter, DeepSeek, a local
+Ollama. Switching providers is just replacing those two values in
 `.env`; `models.toml`'s `[provider]` table names the same two variables and
 doesn't need to change.
 
 
 | Role | What it does | Shipped as |
 |---|---|---|
-| `detect` | JD detection, a one-word YES/NO | `qwen3.8-flash`, thinking **off**, 100 max tokens |
-| `summary` | JD analysis, cover letters | `qwen-plus`, thinking on, low effort |
-| `cv` | Writing the CV | `qwen3.8-max`, thinking on, 6500-token budget |
-| `review` | Reviewing each CV against your profile, in plain text | `qwen3.8-max`, thinking on, temperature 0 |
-| `highlight` | The `**bold**` keyword pass | `qwen-plus`, thinking **off** |
+| `detect` | JD detection, a one-word YES/NO | `deepseek-v4.1-flash`, thinking **off**, 1000 max output tokens |
+| `analysis` | JD analysis, with web search | `qwen3.8-flash`, thinking on, max effort |
+| `letter` | Cover letters, with web search | `qwen3.8-flash`, thinking on, max effort |
+| `cv` | Writing the CV | `qwen3.8-max-0902`, thinking on, 7500-token budget |
+| `review` | Reviewing each CV against your profile, in plain text | `deepseek-v4-pro-0813`, thinking on, temperature 0 |
+| `highlight` | The `**bold**` keyword pass | `qwen3.8-flash`, thinking **off** |
 
 Thinking is off for the highlighter deliberately: letting a reasoning model
 think about inserting markers burns the output budget and returns truncated
 JSON.
 
-Each role's `model`, `temperature`, `thinking`, `reasoning_effort`,
-`thinking_budget`, `structured_output` (JSON output mode),
-`use_alternate_provider` and `web_search` can also be overridden per role with an env var,
-without editing `models.toml` — handy for a Docker deployment:
+Each key of a role — `model`, `model_provider` (`standard` or `deepseek`),
+`api` (`chat_completions` or `responses`), `structured_output`,
+`temperature`, `thinking`, `reasoning_effort`, `max_output_tokens`,
+`extra_body` and `use_alternate_provider` — can also be overridden with an env
+var, without editing `models.toml`. Handy for a Docker deployment:
 
 ```bash
 RESUMIX_CV_MODEL=qwen-max
 RESUMIX_CV_TEMPERATURE=0.2
-RESUMIX_CV_THINKING=off
-RESUMIX_CV_REASONING_EFFORT=high
-RESUMIX_CV_THINKING_BUDGET=
-RESUMIX_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_API=responses
+RESUMIX_CV_EXTRA_BODY={"thinking_budget": 4000}
 RESUMIX_CV_USE_ALTERNATE_PROVIDER=2
-RESUMIX_SUMMARY_WEB_SEARCH=false
+RESUMIX_LETTER_EXTRA_BODY={}
 ```
 
-An empty `THINKING_BUDGET` unsets a budget declared in `models.toml` — a
-declared budget always wins over `REASONING_EFFORT`, so unsetting it is what
-lets the effort override take effect. An empty `TEMPERATURE` unsets the
-temperature, for an endpoint that rejects one (OpenAI's reasoning models).
+`EXTRA_BODY` is JSON and replaces the whole table: it carries what only one
+provider understands, such as DashScope's `thinking_budget` and
+`enable_search`. An empty value drops a key, as if `models.toml` never
+declared it — an empty `TEMPERATURE` sends none, for an endpoint that rejects
+one (OpenAI's reasoning models). Nothing checks that a combination suits your
+endpoint; the comments in `models.toml` list the known traps.
 
-The pattern is `RESUMIX_<ROLE>_<FIELD>` for `DETECT`, `SUMMARY`, `CV`,
-`REVIEW` and `HIGHLIGHT`; see `.env.example` for the full list.
+The pattern is `RESUMIX_<ROLE>_<FIELD>` for `DETECT`, `ANALYSIS`, `LETTER`,
+`CV`, `REVIEW` and `HIGHLIGHT`; see `.env.example`.
+
+Model calls go through LangChain. Setting `LANGSMITH_TRACING` sends every
+prompt — your profile included — to LangSmith; leave it unset unless you mean
+to.
 
 ### Environment
 
@@ -245,7 +251,7 @@ curl -s localhost:8080/v1/cv/$ID > cv.json # once it says END
 | `sys_prompt_cv`, `sys_prompt_highlight`, `sys_prompt_review` | optional | Replace a prompt for this request |
 | `template` | optional | Replace `resume.tex.jinja` |
 | `images` | optional | Repeatable. Each part's **file name** is the name the template includes it under. Up to 10. |
-| `temperature` | optional | Tuning |
+| `temperature`, `presence_penalty` | optional | Tuning, for the CV model only |
 | `pages` | optional | Page limit the CV must fit. Default: 2. |
 
 **Why it needs `candidate_data`, and the template.** The page limit is
@@ -312,10 +318,10 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 Required: `jd`, `candidate_profile`, `candidate_data` (the header block's name,
 email, phone, LinkedIn — the letter is prose the model writes directly, not a
 template, so it needs the real contact details). Optional: `analysis` (makes
-the letter more targeted), `sys_prompt_letter`, `temperature`. When the analysis names the
-employer and the endpoint supports server-side
-web search, the model is told to research the company; an endpoint that
-rejects the flag falls back to writing without it.
+the letter more targeted), `sys_prompt_letter`, `temperature`,
+`presence_penalty`. The letter prompt asks the model to look the employer up
+when it can search the web; whether it can is the `letter` role's
+`extra_body` in `models.toml`.
 
 ---
 
@@ -387,8 +393,8 @@ uv run pytest                        # every package, plus the integration test
 
 The LaTeX-dependent tests skip themselves when `pdflatex` is absent. Nothing
 in the suite calls a model: `server/tests/server_helpers.py` wires a real
-`ModelSelector` to a fake HTTP client, so request assembly, structured-output
-negotiation and usage logging are all the production code paths.
+`ModelSelector` to a fake HTTP transport, so request assembly, structured
+output, retries and usage logging are all the production code paths.
 
 The layout is described in `src/resumix_server/__init__.py`; the rules the
 code follows are in `AGENTS.md` at the repository root.

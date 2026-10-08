@@ -9,8 +9,8 @@ Layers, outermost first:
   library code: every
   input arrives in memory, every output is returned, nothing is read from a
   configured path.
-- ``model_selector`` — one OpenAI-compatible endpoint per role, from
-  ``resources/models.toml``.
+- ``models`` — one long-lived chat model per role, from
+  ``resources/models.toml``, and ``call_llm`` to ask it.
 - ``bundle`` / ``defaults`` — where the impersonal defaults come from, and the
   per-request split between them and the personal inputs.
 - ``observability`` / ``jobstore`` — the per-request log, including the token
@@ -21,4 +21,4 @@ The wire format lives in :mod:`resumix_contracts`, which both this and the
 client depend on; neither imports the other.
 """
 
-__all__ = ["api", "bundle", "defaults", "model_selector", "observability", "pipeline"]
+__all__ = ["api", "bundle", "defaults", "models", "observability", "pipeline"]

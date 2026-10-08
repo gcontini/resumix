@@ -24,7 +24,7 @@ from resumix_server.api.multipart import MAX_IMAGES
 from server_helpers import EXAMPLE_CANDIDATE, sample_cv_data, start_cv, wait_for_job
 
 needs_latex = pytest.mark.skipif(shutil.which("pdflatex") is None, reason="pdflatex not installed")
-OK_REVIEW = ""                          # the reviewer's "nothing to fix"
+OK_REVIEW = "OK"                        # the reviewer's "nothing to fix"
 
 
 def load_replies(models, *replies):
@@ -33,31 +33,31 @@ def load_replies(models, *replies):
     models["review"].replies = [OK_REVIEW]
 
 
-def a_good_run(fake_models, **overrides):
-    load_replies(fake_models, sample_cv_data(**overrides).model_dump_json())
-    fake_models["highlight"].replies = [sample_cv_data(**overrides).model_dump_json()]
+def a_good_run(fake_llm, **overrides):
+    load_replies(fake_llm, sample_cv_data(**overrides).model_dump_json())
+    fake_llm["highlight"].replies = [sample_cv_data(**overrides).model_dump_json()]
 
 
 # --- accepting ---------------------------------------------------------------
-def test_the_job_is_accepted_not_waited_for(client, fake_models, parts):
+def test_the_job_is_accepted_not_waited_for(client, fake_llm, parts):
     """202 and an id: the only thing the caller gets up front is the handle."""
-    a_good_run(fake_models)
-    fake_models["cv"].gate = threading.Event()
+    a_good_run(fake_llm)
+    fake_llm["cv"].gate = threading.Event()
     try:
         response = client.post("/v1/cv", data={"jd_text": "jd"}, files=parts)
         assert response.status_code == 202
         assert set(response.json()) == {"request_id", "ok"}
         assert response.headers["x-request-id"] == response.json()["request_id"]
     finally:
-        fake_models["cv"].gate.set()
+        fake_llm["cv"].gate.set()
 
 
 @needs_latex
 def test_a_job_in_flight_says_where_it_is_and_will_not_hand_over_a_cv(
-    client, fake_models, parts
+    client, fake_llm, parts
 ):
-    a_good_run(fake_models)
-    fake_models["cv"].gate = threading.Event()
+    a_good_run(fake_llm)
+    fake_llm["cv"].gate = threading.Event()
     try:
         request_id = start_cv(client, parts)
         status = client.get(f"/v1/cv/{request_id}/status")
@@ -68,22 +68,22 @@ def test_a_job_in_flight_says_where_it_is_and_will_not_hand_over_a_cv(
         assert early.status_code == 409
         assert "still running" in early.json()["error"]
     finally:
-        fake_models["cv"].gate.set()
+        fake_llm["cv"].gate.set()
     assert wait_for_job(client, request_id).json()["data"]["status"] == "END"
 
 
 @needs_latex
-def test_polling_leaves_nothing_behind(client, fake_models, parts, app_state):
+def test_polling_leaves_nothing_behind(client, fake_llm, parts, app_state):
     """A poll is not a request that did anything, so it must not cost a
     directory — a minutes-long job attracts a few hundred of them."""
-    a_good_run(fake_models)
-    fake_models["cv"].gate = threading.Event()
+    a_good_run(fake_llm)
+    fake_llm["cv"].gate = threading.Event()
     try:
         request_id = start_cv(client, parts)
         for _ in range(20):
             client.get(f"/v1/cv/{request_id}/status")
     finally:
-        fake_models["cv"].gate.set()
+        fake_llm["cv"].gate.set()
     wait_for_job(client, request_id)
 
     assert [p.name for p in app_state.settings.work_root.iterdir()] == [request_id]
@@ -92,12 +92,12 @@ def test_polling_leaves_nothing_behind(client, fake_models, parts, app_state):
 # --- what comes back ---------------------------------------------------------
 @needs_latex
 def test_the_finished_job_hands_over_the_document_the_tex_and_the_pdf(
-    client, fake_models, parts
+    client, fake_llm, parts
 ):
     """One call, everything the client files — no second round trip to turn
     the content into a PDF."""
-    a_good_run(fake_models)
-    fake_models["highlight"].replies = [
+    a_good_run(fake_llm)
+    fake_llm["highlight"].replies = [
         sample_cv_data(summary="**Bold**.").model_dump_json()
     ]
     request_id = start_cv(client, parts)
@@ -113,10 +113,10 @@ def test_the_finished_job_hands_over_the_document_the_tex_and_the_pdf(
 
 
 @needs_latex
-def test_your_own_data_comes_back_in_the_document(client, fake_models, parts, candidate_data):
+def test_your_own_data_comes_back_in_the_document(client, fake_llm, parts, candidate_data):
     """The server was sent it so it could count the pages; it is part of the
     CV, so it is part of what comes back."""
-    a_good_run(fake_models)
+    a_good_run(fake_llm)
     request_id = start_cv(client, parts)
     wait_for_job(client, request_id)
 
@@ -126,12 +126,12 @@ def test_your_own_data_comes_back_in_the_document(client, fake_models, parts, ca
 
 
 @needs_latex
-def test_a_field_the_schema_never_declared_is_handed_back_too(client, fake_models, parts):
+def test_a_field_the_schema_never_declared_is_handed_back_too(client, fake_llm, parts):
     """The reply is validated, not filtered: your prompt and your template can
     agree on something this server has never heard of."""
     written = {**sample_cv_data().model_dump(), "availability": "Immediate"}
-    load_replies(fake_models, json.dumps(written))
-    fake_models["highlight"].replies = [json.dumps(written)]
+    load_replies(fake_llm, json.dumps(written))
+    fake_llm["highlight"].replies = [json.dumps(written)]
     request_id = start_cv(client, parts)
     wait_for_job(client, request_id)
 
@@ -140,8 +140,8 @@ def test_a_field_the_schema_never_declared_is_handed_back_too(client, fake_model
 
 
 @needs_latex
-def test_the_status_reports_each_step_and_what_it_cost(client, fake_models, parts):
-    a_good_run(fake_models)
+def test_the_status_reports_each_step_and_what_it_cost(client, fake_llm, parts):
+    a_good_run(fake_llm)
     request_id = start_cv(client, parts)
     final = wait_for_job(client, request_id).json()["data"]
 
@@ -151,22 +151,22 @@ def test_the_status_reports_each_step_and_what_it_cost(client, fake_models, part
 
 
 @needs_latex
-def test_the_temperature_reaches_the_cv_model_and_no_other(client, fake_models, parts):
-    a_good_run(fake_models)
+def test_the_temperature_reaches_the_cv_model_and_no_other(client, fake_llm, parts):
+    a_good_run(fake_llm)
     for role in ("cv", "review", "highlight"):
-        fake_models[role].temperature = 0.4
+        fake_llm._chat[role].temperature = 0.4
     request_id = start_cv(client, parts, temperature="1.5")
     wait_for_job(client, request_id)
-    assert fake_models["cv"].calls[0]["temperature"] == 1.5
+    assert fake_llm["cv"].calls[0]["temperature"] == 1.5
     for role in ("review", "highlight"):
-        assert all(call["temperature"] == 0.4 for call in fake_models[role].calls)
+        assert all(call["temperature"] == 0.4 for call in fake_llm[role].calls)
 
 
 @needs_latex
-def test_pages_is_forwarded_to_the_page_check(client, fake_models, parts):
+def test_pages_is_forwarded_to_the_page_check(client, fake_llm, parts):
     """A ``pages`` override reaches the generator's page check, not just the
     default of 2 — proving the whole client-to-page-check chain is wired."""
-    a_good_run(fake_models)
+    a_good_run(fake_llm)
     request_id = start_cv(client, parts, pages=1)
     final = wait_for_job(client, request_id).json()["data"]
 
@@ -175,8 +175,8 @@ def test_pages_is_forwarded_to_the_page_check(client, fake_models, parts):
 
 
 @needs_latex
-def test_the_scratch_directory_goes_and_the_record_stays(client, fake_models, parts, app_state):
-    a_good_run(fake_models)
+def test_the_scratch_directory_goes_and_the_record_stays(client, fake_llm, parts, app_state):
+    a_good_run(fake_llm)
     request_id = start_cv(client, parts)
     wait_for_job(client, request_id)
 
@@ -186,9 +186,9 @@ def test_the_scratch_directory_goes_and_the_record_stays(client, fake_models, pa
 
 
 @needs_latex
-def test_the_slot_comes_back_when_the_job_ends(client, fake_models, parts, app_state):
+def test_the_slot_comes_back_when_the_job_ends(client, fake_llm, parts, app_state):
     """Released by the worker, not by the request — so a leak only shows here."""
-    a_good_run(fake_models)
+    a_good_run(fake_llm)
     wait_for_job(client, start_cv(client, parts))
 
     taken = [app_state.job_slots.acquire(blocking=False)
@@ -200,8 +200,8 @@ def test_the_slot_comes_back_when_the_job_ends(client, fake_models, parts, app_s
 
 # --- the log -----------------------------------------------------------------
 @needs_latex
-def test_what_the_run_did_is_waiting_under_its_request_id(client, fake_models, parts):
-    a_good_run(fake_models)
+def test_what_the_run_did_is_waiting_under_its_request_id(client, fake_llm, parts):
+    a_good_run(fake_llm)
     request_id = start_cv(client, parts)
     wait_for_job(client, request_id)
 
@@ -211,8 +211,8 @@ def test_what_the_run_did_is_waiting_under_its_request_id(client, fake_models, p
     assert {"cv.generate", "cv.review", "render"} <= stages
     assert any("Review OK" in entry["message"] for entry in entries)
     # Every model call reports its cost as a log line; there is no second ledger.
-    costs = [e["message"] for e in entries if "prompt=" in e["message"]]
-    assert costs and all("completion=" in line for line in costs)
+    costs = [e["message"] for e in entries if "⏱" in e["message"]]
+    assert costs and all("input=" in line and "thinking=" in line for line in costs)
 
 
 def test_an_unknown_request_id_is_a_404(client):
@@ -225,25 +225,25 @@ def test_an_unknown_request_id_is_a_404(client):
 
 # --- what is sent ------------------------------------------------------------
 @needs_latex
-def test_an_uploaded_prompt_is_the_one_used(client, fake_models, parts):
-    a_good_run(fake_models)
+def test_an_uploaded_prompt_is_the_one_used(client, fake_llm, parts):
+    a_good_run(fake_llm)
     files = {**parts, "sys_prompt_cv": ("sys_prompt_cv.txt", "MY OWN PROMPT", "text/plain")}
     wait_for_job(client, start_cv(client, files))
 
-    assert fake_models["cv"].calls[0]["messages"][0]["content"] == "MY OWN PROMPT"
+    assert fake_llm["cv"].calls[0]["messages"][0]["content"].startswith("MY OWN PROMPT")
 
 
 @needs_latex
-def test_without_an_override_the_shipped_prompt_is_used(client, fake_models, parts, bundle):
-    a_good_run(fake_models)
+def test_without_an_override_the_shipped_prompt_is_used(client, fake_llm, parts, bundle):
+    a_good_run(fake_llm)
     wait_for_job(client, start_cv(client, parts))
-    assert fake_models["cv"].calls[0]["messages"][0]["content"] == bundle.sys_prompt_cv
+    assert fake_llm["cv"].calls[0]["messages"][0]["content"].startswith(bundle.sys_prompt_cv)
 
 
 @needs_latex
-def test_no_model_is_ever_shown_your_candidate_data(client, fake_models, parts):
+def test_no_model_is_ever_shown_your_candidate_data(client, fake_llm, parts):
     """It is sent so the page count is real, and it goes to the template only."""
-    a_good_run(fake_models)
+    a_good_run(fake_llm)
     files = {**parts, "candidate_data": (
         "candidate_data.json",
         json.dumps({"name": "Jordan Rivera", "email": "SENTINEL@nowhere.invalid"}),
@@ -252,7 +252,7 @@ def test_no_model_is_ever_shown_your_candidate_data(client, fake_models, parts):
     request_id = start_cv(client, files)
     wait_for_job(client, request_id)
 
-    for model in fake_models.values():
+    for model in fake_llm.roles.values():
         sent = json.dumps([call["messages"] for call in model.calls])
         assert "SENTINEL" not in sent
     # It did reach the template, though — that is what it is for.
@@ -296,7 +296,7 @@ def test_an_oversized_part_is_a_413(client, app_state, parts):
 
 
 def test_a_request_id_cannot_name_a_directory_of_its_own_choosing(
-    client, fake_models, parts, app_state
+    client, fake_llm, parts, app_state
 ):
     """The id is a path component now, so anything that is not one is replaced."""
     response = client.post("/v1/cv", data={"jd_text": "jd"}, files=parts,
@@ -305,9 +305,9 @@ def test_a_request_id_cannot_name_a_directory_of_its_own_choosing(
     assert not (app_state.settings.work_root.parent / "evil").exists()
 
 
-def test_the_same_request_id_twice_is_refused(client, fake_models, parts):
-    a_good_run(fake_models)
-    fake_models["cv"].gate = threading.Event()
+def test_the_same_request_id_twice_is_refused(client, fake_llm, parts):
+    a_good_run(fake_llm)
+    fake_llm["cv"].gate = threading.Event()
     headers = {"X-Request-Id": "reused-id"}
     try:
         assert client.post("/v1/cv", data={"jd_text": "jd"}, files=parts,
@@ -316,13 +316,13 @@ def test_the_same_request_id_twice_is_refused(client, fake_models, parts):
         assert again.status_code == 400
         assert "already in use" in again.json()["error"]
     finally:
-        fake_models["cv"].gate.set()
+        fake_llm["cv"].gate.set()
 
 
 # --- failing -----------------------------------------------------------------
-def test_a_failed_job_answers_the_poll_with_its_cause(client, fake_models, parts):
+def test_a_failed_job_answers_the_poll_with_its_cause(client, fake_llm, parts):
     """Exactly what the blocking call used to return, a poll later."""
-    load_replies(fake_models, "never valid json")
+    load_replies(fake_llm, "never valid json")
     request_id = start_cv(client, parts)
 
     response = wait_for_job(client, request_id)
@@ -339,7 +339,7 @@ def test_a_failed_job_answers_the_poll_with_its_cause(client, fake_models, parts
 
     # The attempts that were paid for are still readable.
     entries = client.get(f"/logs/{request_id}").json()["data"]["entries"]
-    assert sum("Validation failed" in e["message"] for e in entries) >= 1
+    assert sum("rejected" in e["message"] for e in entries) >= 1
 
 
 def test_a_full_server_says_429_rather_than_queueing(client, app_state, parts):

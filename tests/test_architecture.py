@@ -44,13 +44,15 @@ def test_the_contracts_depend_on_pydantic_and_nothing_else():
     """It is imported by a web server and by a frozen binary; it has to stay
     cheap."""
     heavy = {"fastapi", "httpx", "openai", "jinja2", "openpyxl", "uvicorn", "pypdf",
-             "starlette", "pyperclip"}
+             "starlette", "pyperclip", "langchain_core", "langchain_openai",
+             "langchain_deepseek"}
     assert not (imports_of(PACKAGES["contracts"]) & heavy)
 
 
 def test_the_client_carries_no_server_side_dependency():
     """No LaTeX, no model SDK, no templating in the shipped executable."""
-    forbidden = {"openai", "jinja2", "pypdf", "fastapi", "uvicorn", "subprocess"}
+    forbidden = {"openai", "jinja2", "pypdf", "fastapi", "uvicorn", "subprocess",
+                 "langchain_core", "langchain_openai", "langchain_deepseek"}
     assert not (imports_of(PACKAGES["client"]) & forbidden - {"subprocess"})
     # subprocess is allowed in exactly one place: probing the clipboard helper.
     users = [p.name for p in PACKAGES["client"].rglob("*.py")

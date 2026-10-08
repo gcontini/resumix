@@ -59,6 +59,7 @@ class Config:
     server_url: str = "http://localhost:8080"
     token: Optional[str] = None
     temperature: Optional[float] = None
+    presence_penalty: Optional[float] = None
     #: Page limit the CV must fit. None means the server's default.
     pages: Optional[int] = None
     cover_letter: str = "no"
@@ -138,6 +139,7 @@ def load_config(
         server_url=raw.get("server_url", Config.server_url),
         token=raw.get("token"),
         temperature=raw.get("temperature"),
+        presence_penalty=raw.get("presence_penalty"),
         pages=raw.get("pages"),
         cover_letter=raw.get("cover_letter", Config.cover_letter),
         timeout=float(raw.get("timeout", Config.timeout)),

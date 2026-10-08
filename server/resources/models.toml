@@ -1,34 +1,32 @@
 # resumix model configuration
 # =============================
-# resumix calls exactly five models, one per job, all through the SAME
+# resumix calls exactly six models, one per job, all through the SAME
 # provider — unless a model sets use_alternate_provider = N (N >= 2), in which
 # case it calls provider N instead: [provider]'s variable names with N
 # appended, e.g. MODEL_API_KEY2 / MODEL_BASE_URL2 for 2:
 #
 #   detect     JD detection: is the clipboard a job posting at all?
-#   summary    JD analysis and the cover letter
+#   analysis   the JD analysis
+#   letter     the cover letter
 #   cv         CV writing
 #   review     the content review of each CV against the master profile
 #   highlight  the **bold**/*italic* keyword pass over the validated CV
 #
 # [provider] declares the endpoint once; each [models.*] table below is just
 # the model name and generation settings for that job. Any OpenAI-compatible
-# /chat/completions endpoint works — point base_url (or base_url_env) at it
-# and set each model's `model` to whatever your account has access to.
+# endpoint works — point base_url (or base_url_env) at it and set each model's
+# `model` to whatever your account has access to.
 #
-# Docker: model, temperature, thinking, reasoning_effort, thinking_budget,
-# structured_output, use_alternate_provider and web_search can each be
-# overridden per role with an env var, without touching this file —
-# RESUMIX_<ROLE>_<FIELD>, e.g.
-# RESUMIX_CV_MODEL, RESUMIX_CV_TEMPERATURE, RESUMIX_CV_THINKING,
-# RESUMIX_CV_STRUCTURED_OUTPUT, RESUMIX_CV_USE_ALTERNATE_PROVIDER (roles:
-# DETECT, SUMMARY, CV, REVIEW, HIGHLIGHT). RESUMIX_<ROLE>_THINKING_BUDGET= (empty)
-# unsets a budget declared below, which is how RESUMIX_<ROLE>_REASONING_EFFORT
-# wins back the request — see the note above use_alternate_provider. An empty
-# RESUMIX_<ROLE>_TEMPERATURE= unsets the temperature, for an endpoint that
-# rejects one (OpenAI's reasoning models); RESUMIX_<ROLE>_WEB_SEARCH=false
-# turns web research off for an endpoint without DashScope's enable_search.
-# See .env.example.
+# Docker: every key of a [models.<role>] table can be overridden with an env
+# var, without touching this file — RESUMIX_<ROLE>_<FIELD>, e.g.
+# RESUMIX_CV_MODEL, RESUMIX_CV_TEMPERATURE, RESUMIX_CV_API (roles: DETECT,
+# ANALYSIS, LETTER, CV, REVIEW, HIGHLIGHT). An empty value drops the key, as if
+# it were not declared here; RESUMIX_<ROLE>_EXTRA_BODY is JSON and replaces the
+# whole table. See .env.example.
+#
+# Nothing checks that a combination makes sense for your endpoint: what a
+# table declares is what is sent, and a request the endpoint refuses fails on
+# its first call. The known traps are listed under the keys below.
 
 [provider]
 api_key_env  = "MODEL_API_KEY"
@@ -39,89 +37,97 @@ timeout_seconds = 600
 
 # --- Per-model settings -------------------------------------------------
 # model           (required) model name sent to the endpoint
-# temperature     sampling temperature; omit to use the provider default
-# max_tokens      overrides [defaults].max_tokens for this model; omitted here
-#                 and in [defaults] means max_tokens is left out of the request
-#                 entirely and the provider's own default applies. Set it when
-#                 the endpoint caps completion tokens (e.g. DashScope's
-#                 max_tokens range is [1, 8192] for some models)
-# reasoning_effort  any string the provider accepts, sent as given (e.g. "low",
-#                 "high"); omit for the provider default
+# model_provider  "standard" (default: DashScope — Qwen and the DeepSeek models
+#                 it hosts — OpenAI, OpenRouter, any OpenAI-compatible
+#                 endpoint) | "deepseek" (DeepSeek's own api.deepseek.com)
+# api             "chat_completions" (default) | "responses". DashScope's
+#                 Responses endpoint ignored thinking budgets and stalled past
+#                 600 s (2026-09-27); the Responses API has no presence_penalty,
+#                 so a client that sends one fails there
+# structured_output  how a JSON reply is asked for: "json_mode" (default; JSON
+#                 but no schema — resumix puts the schema in the system prompt)
+#                 | "json_schema" (strict schema in the request) |
+#                 "function_calling" (a forced tool call). Native DeepSeek
+#                 refuses a forced tool call while thinking, and turns
+#                 json_schema into one: use json_mode there unless thinking = "off"
+# temperature     sampling temperature; omit to use the provider default. DeepSeek
+#                 ignores it, and presence_penalty, while thinking
 # thinking        "auto" (send nothing — the provider decides, and the right
-#                 value for endpoints that reject a thinking switch, e.g.
-#                 OpenAI) | "on" (enable_thinking, plus `thinking_budget` when
-#                 set) | "off" (force reasoning off)
-# thinking_budget cap on reasoning tokens per call; needs thinking = "on"
-# web_search      true when the endpoint runs web search server-side
-# structured_output  "json_schema_strict" (endpoint validates the schema and
-#                   rejects anything off it) | "json_schema" (schema sent as a
-#                   hint) | "json_object" (JSON but no schema) | "none".
-#                   resumix also restates the schema in the prompt and
-#                   validates every reply, so "json_object" still works.
+#                 value for endpoints without a thinking switch, e.g. OpenAI)
+#                 | "on" | "off". The switch is the provider's own:
+#                 enable_thinking (standard), thinking: {type} (deepseek)
+# reasoning_effort  any string the provider accepts, sent as given (e.g. "low",
+#                 "high"); omit for the provider default. Don't set it beside a
+#                 thinking_budget on an endpoint that takes only one of them
+# max_output_tokens  cap on the reply, thinking included; overrides
+#                 [defaults].max_output_tokens. Omitted in both, the provider's
+#                 own default applies
+# extra_body      provider-specific request fields, sent as given, e.g.
+#                 { thinking_budget = 6000 } (a cap on thinking tokens) or
+#                 { enable_search = true } (DashScope's server-side web search)
 # use_alternate_provider  which provider to call; default 1 ([provider]).
 #                 N >= 2 calls MODEL_API_KEY<N> / MODEL_BASE_URL<N> instead;
 #                 those are needed only when some model uses them
-# Note: reasoning_effort and thinking_budget are mutually exclusive — a
-# declared thinking_budget always wins and reasoning_effort is dropped.
 
 # Small and cheap: answers YES or NO to "is this a job description?". Runs on
 # every clipboard change that passes the free structural checks, so it gets
-# no thinking and a tiny budget — the verdict is one word. structured_output =
-# "none": the reply is text, not JSON.
+# no thinking and a tiny budget — the verdict is one word.
 # temperature = 0: a classifier that samples can file the same posting under
 # errors one time in a few. No client can change it — /v1/jd/detect takes no
 # temperature; only RESUMIX_DETECT_TEMPERATURE on the server does.
 [models.detect]
 model             = "deepseek-v4.1-flash"
-structured_output = "none"
 temperature       = 0.0
-max_tokens        = 1000
+max_output_tokens = 1000
 thinking          = "off"
 
-# Mid-size: extracts the JD analysis and writes the cover letter. The only
-# model allowed to run web research (on the employer, for a direct posting
-# from a named company).
-[models.summary]
+# Mid-size: extracts the JD analysis, and researches the hiring company on the
+# web for its company evaluation.
+[models.analysis]
 model             = "qwen3.8-flash"
-structured_output = "json_object"
+structured_output = "json_mode"
 temperature       = 0.4
 thinking          = "on"
 reasoning_effort  = "max"
-# DashScope runs web search server-side via extra_body {"enable_search": true}.
-web_search        = true
+extra_body        = { enable_search = true }
 
-# The large one: writes the tailored CV. Thinking is worth
-# paying for here, capped so a long reasoning chain cannot eat the output
-# budget and truncate the JSON.
+# Mid-size: writes the cover letter, and looks the employer up on the web for
+# its why-this-company paragraph.
+[models.letter]
+model             = "qwen3.8-flash"
+temperature       = 0.4
+thinking          = "on"
+reasoning_effort  = "max"
+extra_body        = { enable_search = true }
 
+# The large one: writes the tailored CV. Thinking is worth paying for here,
+# capped so a long reasoning chain cannot eat the output budget and truncate
+# the JSON: max_output_tokens counts the thinking too, so it is the budget
+# plus the room the CV needs.
 [models.cv]
 model             = "qwen3.8-max-0902"
-structured_output = "json_schema_strict"
-max_tokens        = 17000
+structured_output = "json_schema"
+max_output_tokens = 24500
 thinking          = "on"
-thinking_budget   = 7500
+extra_body        = { thinking_budget = 7500 }
 
 # The judge: reads the CV against the master profile and answers in plain
-# text, one violation per line — an empty reply when there is nothing to fix.
-# The same large model the CV is written with, so the reviewer is never weaker
-# than the writer. structured_output = "none": the reply is text, not JSON.
+# text, one violation per line — "OK" when there is nothing to fix. A large
+# model, so the reviewer is never weaker than the writer.
 # temperature = 0 is load-bearing: a reviewer that samples draws a different
 # set of violations every round, and the loop never settles.
 [models.review]
 model             = "deepseek-v4-pro-0813"
-structured_output = "none"
 temperature       = 0.0
-max_tokens        = 15000
+max_output_tokens = 24000
 thinking          = "on"
-thinking_budget   = 9000
+extra_body        = { thinking_budget = 9000 }
 
 # Mid-size, no thinking: the highlighter only inserts Markdown markers into
 # already-validated JSON. Letting a hybrid-reasoning model think about that
 # burns the whole output budget on reasoning tokens and returns truncated JSON.
 [models.highlight]
 model             = "qwen3.8-flash"
-structured_output = "json_object"
+structured_output = "json_mode"
 temperature       = 0.1
 thinking          = "off"
-
-

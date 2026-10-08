@@ -1,8 +1,10 @@
-"""Cover letter validation and the web-research decision."""
+"""Cover letter validation."""
 
 import pytest
 
 from resumix_server.pipeline.letter_generator import MAX_WORDS, MIN_WORDS, LetterGenerator
+
+from server_helpers import FakeLLM
 
 
 def letter(words):
@@ -32,32 +34,9 @@ def test_rejects_non_ascii():
 
 
 def test_strips_code_fences_the_model_adds_anyway():
-    class Msg:
-        content = "```\nDear Hiring Manager,\n```"
-
-    class Choice:
-        message = Msg()
-
-    class Resp:
-        choices = [Choice()]
-
-    assert LetterGenerator._extract_letter(Resp()) == "Dear Hiring Manager,"
-
-
-class FakeSelector:
-    def __init__(self, supports_web_search):
-        self.supports_web_search = supports_web_search
-
-
-@pytest.mark.parametrize(
-    "supports, analysis, expected",
-    [
-        (True, {"company_name": "Globex"}, True),
-        (True, {"company_name": ""}, False),
-        (False, {"company_name": "Globex"}, False),
-    ],
-)
-def test_research_only_for_a_named_employer(supports, analysis, expected):
-    gen = LetterGenerator.__new__(LetterGenerator)
-    gen.summary_model = FakeSelector(supports)
-    assert gen._should_research(analysis) is expected
+    llm = FakeLLM()
+    llm["letter"].replies = ["```\n" + letter(MIN_WORDS + 10) + "\n```"]
+    text = LetterGenerator(llm, system_prompt="write").generate(
+        "a posting", profile={}, candidate_data={}
+    )
+    assert text == letter(MIN_WORDS + 10)

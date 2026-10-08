@@ -30,7 +30,7 @@ async def healthz(request: Request) -> dict:
             status="ok" if state.pdflatex else "degraded",
             version=server_version,
             pdflatex=state.pdflatex,
-            models={role: model.model for role, model in state.models.items()},
+            models={role: spec.model for role, spec in state.llm.specs.items()},
             auth_required=bool(state.settings.api_token),
         )
     )

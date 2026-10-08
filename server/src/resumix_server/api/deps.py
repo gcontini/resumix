@@ -1,9 +1,9 @@
 """What every request needs: the shared state, the token check, a job slot.
 
-The state is built once at startup and never mutated: three model clients, the
+The state is built once at startup and never mutated: the model selector, the
 default resource bundle, and one semaphore. Sharing a
-:class:`~resumix_server.model_selector.ModelSelector` across requests is
-safe — after construction it is read-only and its HTTP client is thread-safe.
+:class:`~resumix_server.models.ModelSelector` across requests is safe — its
+chat models are built once and its HTTP clients are thread-safe.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ..bundle import ResourceBundle, default_bundle
 from ..jobstore import LOG, JobDir, JobStore
-from ..model_selector import ModelSelector, build_models
+from ..models import ModelSelector, build_selector
 from ..observability import LOGGER_ROOT, Run, current_run
 from .errors import TooManyJobs, Unauthorized
 from .settings import Settings
@@ -33,7 +33,7 @@ class AppState:
     """Built once in the lifespan, read-only afterwards."""
 
     settings: Settings
-    models: Dict[str, ModelSelector]
+    llm: ModelSelector
     bundle: ResourceBundle
     job_slots: BoundedSemaphore
     pdflatex: bool
@@ -52,7 +52,7 @@ class AppState:
             )
         return cls(
             settings=settings,
-            models=build_models(),
+            llm=build_selector(),
             bundle=default_bundle(),
             job_slots=BoundedSemaphore(settings.max_concurrent_jobs),
             pdflatex=pdflatex,

@@ -37,6 +37,14 @@ workspace endpoint of the same form shown in the console.
   on Chat Completions.
 - Some models cap `max_tokens` at 8192; set it per model when the endpoint
   says so.
+- **works:** `max_completion_tokens`, which is what LangChain's `ChatOpenAI`
+  sends for `max_output_tokens`. Probed on `qwen3.8-flash` on 2026-10-08: a
+  cap of 300 with `thinking_budget = 100` gave 100 reasoning tokens and 303
+  output tokens in all, `finish_reason=length`. It counts the thinking too —
+  the old `max_tokens` (403 tokens out under the same test) capped the reply
+  alone — and it must be larger than `thinking_budget`, or the call is a 400.
+- **works:** a strict `json_schema` for `TailoredCVData`, every key required
+  and every object closed (`qwen3.8-flash`, 2026-10-08).
 
 ### DeepSeek (native)
 
@@ -52,6 +60,13 @@ Endpoint: `https://api.deepseek.com`.
 - In thinking mode DeepSeek ignores `temperature`, so the review role's
   `temperature = 0` has no effect there (per DeepSeek's docs; not yet observed
   here).
+- **works:** `function_calling` with `thinking = "off"`, through
+  `model_provider = "deepseek"` (`deepseek-flash`, 2026-10-08). With thinking
+  on, DeepSeek refuses the forced tool call `function_calling` and
+  `json_schema` both send; use `json_mode` there.
+- **works:** `json_mode` with thinking on (`deepseek-flash`, 2026-10-08). The
+  call succeeds; the reply follows the schema only when the prompt carries it,
+  which `json_mode` roles now always do.
 
 ### OpenAI
 
@@ -66,9 +81,13 @@ Endpoint: `https://api.openai.com/v1`.
   ([OpenAI forum](https://community.openai.com/t/temperature-in-gpt-5-models/1337133/26));
   LiteLLM's [Luna notes](https://docs.litellm.ai/blog/gpt_6_sol_luna) say the
   same for Luna. Fix: `RESUMIX_<ROLE>_TEMPERATURE=1`, or empty to send none.
+- **fails (expected):** `presence_penalty` with `api = "responses"`: the
+  Responses API has no such parameter, and the openai SDK raises before
+  sending (`TypeError`, checked offline 2026-10-08). Leave the client's
+  `presence_penalty` unset for a role on the Responses API.
 - **fails (expected, not yet observed here):** `enable_search`. It is a
-  DashScope parameter, and the summary role adds it to the cover-letter request
-  whenever the posting names a company. Fix: `RESUMIX_SUMMARY_WEB_SEARCH=false`.
+  DashScope parameter, shipped in the `analysis` and `letter` roles'
+  `extra_body`. Fix: `RESUMIX_<ROLE>_EXTRA_BODY={}`.
 - Do not leave `thinking = "on"` on an OpenAI role: it sends `enable_thinking`,
   which OpenAI does not take. Use `RESUMIX_<ROLE>_THINKING=auto`.
 - Chat Completions function calling needs `reasoning_effort = "none"`. resumix
@@ -80,13 +99,18 @@ One row per configuration tried, newest first within a role. *Provider* is the
 endpoint the call went to: `use_alternate_provider` empty means the
 `[provider]` default.
 
-### summary (JD analysis and cover letter)
+### analysis (JD analysis)
+
+Until 2026-10-08 this role was `summary`, and also wrote the cover letter;
+the rows below are its JD-analysis runs. Settings named in the old keys:
+`web_search = true` is now `extra_body = { enable_search = true }`,
+`json_object` is now `json_mode`.
 
 | Provider | Model | Settings | Status | Date | Notes |
 |---|---|---|---|---|---|
 | OpenAI (`use_alternate_provider = 3`) | `gpt-6-luna` | `reasoning_effort = xhigh`, `thinking = auto`, `temperature = 1`, `web_search = false`, `json_object` | **unconfirmed** | 2026-10-08 | Set after the two failures below. |
 | OpenAI, misrouted | `gpt-6-luna` | `use_alternate_provider = 1`, `thinking = on`, `temperature = 0.4`, `web_search = true` | **fails** | 2026-10-08 | `1` means the default provider, so the call went to the DashScope endpoint with the DashScope key. Then 400 `BadRequestError` once routed; the request carried the temperature and thinking switch OpenAI does not take. The error text itself was not read. |
-| DashScope | `qwen3.8-flash` (shipped) | `thinking = on`, `reasoning_effort = max`, `temperature = 0.4`, `web_search = true` | **unconfirmed** | 2026-10-08 | Current `models.toml`. |
+| DashScope | `qwen3.8-flash` (shipped) | `thinking = on`, `reasoning_effort = max`, `temperature = 0.4`, `extra_body = { enable_search = true }`, `json_mode` | **unconfirmed** | 2026-10-08 | Current `models.toml`. |
 | DashScope | `deepseek-v4.1-flash` | `reasoning_effort = max`, `temperature = 0.4`, `json_object` | **fails** | 2026-10-06 | Both attempts replied with a search-call shape (`{'query': …, 'top_k': 5}`) instead of the analysis: 12 `JDAnalysis` validation errors. |
 | DashScope | `deepseek-v4.1-flash` | `reasoning_effort = high`, `temperature = 0.4` | **fails** | 2026-10-06 | `AuthenticationError` on two postings. Cause not recorded. |
 | DashScope | `qwen3.7-flash-2026-07-15` | `reasoning_effort = high`, `temperature = 0.4` | **fails** | 2026-09-30 | `PermissionDeniedError` on all 64 requests. Cause not recorded. |
@@ -94,11 +118,18 @@ endpoint the call went to: `use_alternate_provider` empty means the
 | DashScope | `qwen3.7-flash-2026-07-15` | `reasoning_effort = low`, `temperature = 0.1` | **fails** | 2026-09-28 | `APIConnectionError` on four requests. |
 | DashScope | `qwen3.8-flash` | `reasoning_effort = low`, `temperature = 0.1`, `max_tokens = 3000` or unset | **fails** | 2026-09-28 | Finished (`stop`) but the reply failed `JDAnalysis` validation, twice, on four postings. The analysis schema and prompt were reworked afterwards ("solve errors in analysis", 2026-10-06). |
 
+### letter (cover letter)
+
+| Provider | Model | Settings | Status | Date | Notes |
+|---|---|---|---|---|---|
+| DashScope | `qwen3.8-flash` (shipped) | `thinking = on`, `reasoning_effort = max`, `temperature = 0.4`, `extra_body = { enable_search = true }` | **unconfirmed** | 2026-10-08 | Current `models.toml`; split out of `summary`. |
+
 ### cv (CV writing)
 
 | Provider | Model | Settings | Status | Date | Notes |
 |---|---|---|---|---|---|
-| DashScope | `qwen3.8-max-0902` (shipped) | `json_schema_strict`, `thinking = on`, `thinking_budget = 7500`, `max_tokens = 17000` | **unconfirmed** | 2026-10-08 | Current `models.toml`. The budget behaviour is confirmed under *Providers*. CVs were produced on 2026-10-06, but the client logs do not record the model id; `resumix logs <request id>` does. |
+| DashScope | `qwen3.8-max-0902` (shipped) | `json_schema` (strict), `thinking = on`, `extra_body = { thinking_budget = 7500 }`, `max_output_tokens = 24500` | **unconfirmed** | 2026-10-08 | Same room for the reply as the `max_tokens = 17000` before it: the new cap counts the thinking. |
+| DashScope | `qwen3.8-max-0902` | `json_schema_strict`, `thinking = on`, `thinking_budget = 7500`, `max_tokens = 17000` | **unconfirmed** | 2026-10-08 | Current `models.toml`. The budget behaviour is confirmed under *Providers*. CVs were produced on 2026-10-06, but the client logs do not record the model id; `resumix logs <request id>` does. |
 | DashScope | `qwen3.8-max` | `json_schema_strict`, `thinking_budget = 6000`, `max_tokens = 16000`, `temperature = 0.9` | **works** | 2026-09-23 | Generate finished in 133 s with 5610 reasoning tokens, under the budget. The review pass on the same model finished in 42 s. |
 
 ### review (CV against the master profile)
@@ -106,7 +137,8 @@ endpoint the call went to: `use_alternate_provider` empty means the
 | Provider | Model | Settings | Status | Date | Notes |
 |---|---|---|---|---|---|
 | DeepSeek (`use_alternate_provider = 2`) | `deepseek-flash` | `reasoning_effort = high`, no `thinking_budget`, `temperature = 0`, plain text | **unconfirmed** | 2026-10-08 | Thinking mode makes DeepSeek ignore the temperature (see *Providers*). |
-| DashScope | `deepseek-v4-pro-0813` (shipped) | `thinking_budget = 9000`, `max_tokens = 15000`, `temperature = 0`, plain text | **unconfirmed** | 2026-10-08 | Current `models.toml`. The review loop ran on 2026-10-06 (violations listed, CV regenerated); the model id is in the server log. |
+| DashScope | `deepseek-v4-pro-0813` (shipped) | `extra_body = { thinking_budget = 9000 }`, `max_output_tokens = 24000`, `temperature = 0`, plain text | **unconfirmed** | 2026-10-08 | Same room for the reply as `max_tokens = 15000` before. |
+| DashScope | `deepseek-v4-pro-0813` | `thinking_budget = 9000`, `max_tokens = 15000`, `temperature = 0`, plain text | **unconfirmed** | 2026-10-08 | Current `models.toml`. The review loop ran on 2026-10-06 (violations listed, CV regenerated); the model id is in the server log. |
 
 ### detect (is it a job posting?)
 

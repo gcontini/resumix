@@ -133,6 +133,7 @@ class CvWriter:
             analysis=read_analysis(folder).model_dump_json(),
             prompt=read_text(self.config.path(LETTER_PROMPT)),
             temperature=self.config.temperature,
+            presence_penalty=self.config.presence_penalty,
         ))
         (folder / LETTER_FILENAME).write_text(letter.text, encoding="utf-8")
         log.step(f"Letter Path: {LETTER_FILENAME}")

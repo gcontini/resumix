@@ -42,6 +42,7 @@ your own and no LaTeX install (for the client).
    token      = "the-bearer-token"      # only if the server requires one
    cover_letter = "no"                  # no | yes | letter_only
    # temperature = 0.4                  # optional, CV and cover letter only
+   # presence_penalty = 0.5             # optional, CV and cover letter only
    # debug   = true                     # same as -d on every run
    # verbose = true                     # same as -v on every run
    ```
@@ -176,7 +177,7 @@ when `resumix.toml` is wrong. Every `-v` run prints the same line at startup.
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
 | `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. In `watch`: never ask, and CHECK postings wait in `working/`. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |
-| `--server`, `--token`, `--temperature` | all | Override the config for one run. |
+| `--server`, `--token`, `--temperature`, `--presence-penalty` | all | Override the config for one run. |
 | `--pages N` | clipboard, watch, submit, submit-raw | Page limit the CV must fit. Default: 2. |
 | `--config FILE`, `--data-dir DIR` | all | Use a specific config, or look for your files somewhere else. |
 | `-d`, `--debug` | all | Fetch the server's log after **every** call and fold it into `log.log`. Without it only failures are fetched. |

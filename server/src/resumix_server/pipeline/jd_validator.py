@@ -6,7 +6,7 @@ Two jobs, each on its own model:
   structural checks run first (see
   :func:`resumix_contracts.static_jd_guess`); the model (``detect``) is only
   asked when they pass, so a clipboard full of code costs nothing.
-- :meth:`JDValidator.analyze` — on the ``summary`` model, score the posting against the candidate
+- :meth:`JDValidator.analyze` — on the ``analysis`` model, score the posting against the candidate
   profile and extract the facts a CV and a cover letter need.
 
 The profile and the preferences arrive with the call, never from disk: the
@@ -17,8 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-from typing import Optional
 
 from resumix_contracts import (
     MAX_JD_CHARS,
@@ -27,20 +25,13 @@ from resumix_contracts import (
     JDDetection,
     static_jd_guess,
 )
-from pydantic import ValidationError
 
 from ..bundle import CandidateInputs
 from ..defaults import read_text_default
-from ..model_selector import ModelSelector
+from ..models import ModelSelector
 from ..observability import LOGGER_ROOT, stage
-from .errors import ModelOutputError
-from .parsing import parse_model_json
 
 logger = logging.getLogger(f"{LOGGER_ROOT}.jd")
-
-#: Generate -> validate rounds. The validation error is fed back between them,
-#: the same self-correction the CV pipeline uses.
-MAX_ATTEMPTS = 2
 
 #: The contract with the model for :meth:`JDValidator.analyze`, shipped as
 #: ``resources/sys_prompt_analysis.txt`` alongside the CV/letter prompts.
@@ -50,46 +41,13 @@ JD_SYSTEM_PROMPT = read_text_default("sys_prompt_analysis.txt")
 DETECT_PROMPT = read_text_default("sys_prompt_jd_detect.txt")
 
 
-def _says_yes(verdict: str) -> bool:
-    """Whether the detection reply's first word is YES.
-
-    Quotes, Markdown and punctuation around the word are how "reply with the
-    single word YES" most often comes back — ``**YES**``, ``'Yes.'`` — and
-    reading those as a no files a real posting under errors.
-    """
-    word = re.match(r"[^A-Za-z]*([A-Za-z]+)", verdict)
-    return word is not None and word.group(1).upper() == "YES"
-
-
-def _correction_prompt(error: ValueError) -> str:
-    """What was wrong with the rejected reply, one field per line.
-
-    Pydantic's own message buries the field name under the whole echoed
-    payload; the model answered it by resending the same object unchanged.
-    """
-    if isinstance(error, ValidationError):
-        problems = [
-            f"- {'.'.join(str(p) for p in err['loc']) or '(whole object)'}: {err['msg']}"
-            for err in error.errors()
-        ]
-    else:
-        problems = [f"- {error}"]
-    return (
-        "Your previous JSON object was rejected:\n"
-        + "\n".join(problems)
-        + "\n\nAnswer again with the complete JSON object: every field in the Output "
-        "list of the system message, with the problems above fixed. Keep the other "
-        "values as they were."
-    )
-
-
 class JDValidator:
     """Analyzes job descriptions with one model.
 
     Parameters
     ----------
-    model_selector:
-        The ``detect`` model for :meth:`detect`, the ``summary`` model for
+    llm:
+        The ``detect`` model answers :meth:`detect`, the ``analysis`` model
         :meth:`analyze` — reading a posting is extraction, not writing, so
         neither needs the large model.
     min_chars / max_chars:
@@ -98,25 +56,14 @@ class JDValidator:
 
     def __init__(
         self,
-        model_selector: ModelSelector,
+        llm: ModelSelector,
         *,
         min_chars: int = MIN_JD_CHARS,
         max_chars: int = MAX_JD_CHARS,
     ) -> None:
-        self.model_selector = model_selector
+        self.llm = llm
         self.min_chars = min_chars
         self.max_chars = max_chars
-
-    # --- private helpers ---------------------------------------------------
-    @staticmethod
-    def _parse_jd_analysis(text: str) -> JDAnalysis:
-        """Strip markdown code fences (if any) and validate the LLM JSON payload.
-
-        ``unwrap_nested`` is on here and nowhere else: the flash models this
-        role runs on are the ones that wrap the payload in a single string
-        field.
-        """
-        return parse_model_json(text, JDAnalysis, unwrap_nested=True)
 
     # --- public API ---------------------------------------------------------
     def detect(self, text: str) -> JDDetection:
@@ -133,73 +80,28 @@ class JDValidator:
         # The posting is a message of its own, after the instructions: a page
         # of 20000 characters must not bury them, nor pass for them.
         with stage("jd.detect"):
-            response = self.model_selector.completions_create([
-                {"role": "system", "content": DETECT_PROMPT},
-                {"role": "user", "content": text},
-            ])
-        verdict = (response.choices[0].message.content or "").strip()
-        logger.info("  🔎 job description check: %s", verdict)
-        return JDDetection(is_job_description=_says_yes(verdict))
+            verdict = self.llm.call_llm(
+                "detect", bool, DETECT_PROMPT, [{"role": "user", "content": text}]
+            )
+        logger.info("  🔎 job description check: %s", "YES" if verdict else "NO")
+        return JDDetection(is_job_description=verdict)
 
     def analyze(self, job_description: str, candidate: CandidateInputs) -> JDAnalysis:
-        """Compare a job description against the profile and extract key facts.
-
-        Returns a validated :class:`JDAnalysis`. One corrective retry: the
-        model's own bad output is fed back so the fix is targeted.
-        """
-        # Keep the full conversation across retries so the JD + profile context is
-        # never lost (on failure we only APPEND a correction message).
-        messages = [
-            {"role": "system", "content": JD_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": (
-                    "CANDIDATE_PROFILE:\n"
-                    f"{json.dumps(dict(candidate.profile), indent=2)}\n\n"
-                    "--------------------------------------------\n"
-                    "PERSONAL_PREFERENCES:\n"
-                    f"{candidate.preferences}\n\n"
-                    "--------------------------------------------\n"
-                    "JOB_DESCRIPTION:\n"
-                    f"{job_description}\n"
-
-                ),
-            },
-        ]
-
-        # Generate + validate, with one retry that feeds the validation error back.
-        analysis = None
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            with stage("jd.analysis"):
-                response = self.model_selector.completions_create(
-                    messages,
-                    response_format=self.model_selector.response_format(
-                        "jd_analysis", JDAnalysis.model_json_schema()
-                    ),
-                )
-            try:
-                analysis = self._parse_jd_analysis(response.choices[0].message.content)
-                break
-            except (ValueError, ValidationError) as e:
-                raw = response.choices[0].message.content or ""
-                preview = raw if len(raw) <= 1500 else raw[:1500] + f"… [truncated {len(raw)} chars]"
-                logger.error(
-                    "  ✗ JD analysis parse failed (attempt %d): %s: %s",
-                    attempt, type(e).__name__, e,
-                )
-                logger.error("    raw model response: %r", preview)
-                # Feed the model's actual (bad) output back so the correction is
-                # targeted, mirroring the CV loop in cv_generator.py.
-                messages.append(
-                    {"role": "assistant", "content": response.choices[0].message.content or ""}
-                )
-                messages.append({"role": "user", "content": _correction_prompt(e)})
-        if analysis is None:
-            raise ModelOutputError(
-                "Could not obtain valid JDAnalysis from the model.", stage="jd.analysis"
+        """Compare a job description against the profile and extract key facts."""
+        content = (
+            "CANDIDATE_PROFILE:\n"
+            f"{json.dumps(dict(candidate.profile), indent=2)}\n\n"
+            "--------------------------------------------\n"
+            "PERSONAL_PREFERENCES:\n"
+            f"{candidate.preferences}\n\n"
+            "--------------------------------------------\n"
+            "JOB_DESCRIPTION:\n"
+            f"{job_description}\n"
+        )
+        with stage("jd.analysis"):
+            return self.llm.call_llm(
+                "analysis", JDAnalysis, JD_SYSTEM_PROMPT, [{"role": "user", "content": content}]
             )
 
-        return analysis
 
-
-__all__ = ["JDValidator", "MAX_ATTEMPTS"]
+__all__ = ["JDValidator"]

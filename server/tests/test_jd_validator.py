@@ -1,4 +1,4 @@
-"""JDAnalysis parsing -- the shape every JD source has to produce."""
+"""JD detection and analysis -- and the shape every JD source has to produce."""
 
 import json
 
@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from resumix_contracts import JDAnalysis
 from resumix_server.pipeline.jd_validator import JDValidator
-from server_helpers import FakeSelector
+from server_helpers import FakeLLM
 
 VALID = {
     "match_percentage": 82,
@@ -29,19 +29,19 @@ VALID = {
 }
 
 
-def test_parses_plain_json():
-    assert JDValidator._parse_jd_analysis(json.dumps(VALID)).company_name == "Globex"
+def analyze(candidate, *replies):
+    llm = FakeLLM()
+    llm["analysis"].replies = list(replies)
+    return llm, JDValidator(llm).analyze("a posting", candidate)
 
 
-def test_strips_markdown_fences():
+def test_parses_plain_json(candidate):
+    assert analyze(candidate, json.dumps(VALID))[1].company_name == "Globex"
+
+
+def test_strips_markdown_fences(candidate):
     fenced = "```json\n" + json.dumps(VALID) + "\n```"
-    assert JDValidator._parse_jd_analysis(fenced).match_percentage == 82
-
-
-def test_unwraps_a_nested_payload():
-    """Some fast models wrap the whole answer in one string field."""
-    wrapped = json.dumps({"description": json.dumps(VALID)})
-    assert JDValidator._parse_jd_analysis(wrapped).job_title == "Staff Platform Engineer"
+    assert analyze(candidate, fenced)[1].match_percentage == 82
 
 
 @pytest.mark.parametrize("field, value", [
@@ -51,7 +51,7 @@ def test_unwraps_a_nested_payload():
 def test_rejects_an_invalid_should_apply(field, value):
     bad = dict(VALID, **{field: value})
     with pytest.raises(ValidationError):
-        JDValidator._parse_jd_analysis(json.dumps(bad))
+        JDAnalysis.model_validate(bad)
 
 
 def test_optional_fields_may_be_absent():
@@ -67,10 +67,8 @@ def test_optional_fields_may_be_absent():
 def test_retry_names_the_missing_field(candidate):
     """The second round is told which field was missing, not handed a raw dump."""
     no_title = {k: v for k, v in VALID.items() if k != "job_title"}
-    model = FakeSelector(json.dumps(no_title), json.dumps(VALID))
-
-    analysis = JDValidator(model).analyze("a posting", candidate)
+    llm, analysis = analyze(candidate, json.dumps(no_title), json.dumps(VALID))
 
     assert analysis.job_title == "Staff Platform Engineer"
-    correction = model.calls[1]["messages"][-1]["content"]
+    correction = llm["analysis"].calls[1]["messages"][-1]["content"]
     assert "- job_title: Field required" in correction

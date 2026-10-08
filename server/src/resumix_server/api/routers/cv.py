@@ -65,6 +65,9 @@ async def create_cv(
     temperature: Optional[float] = Form(
         None, description="Sampling temperature override for the CV model only"
     ),
+    presence_penalty: Optional[float] = Form(
+        None, description="Presence penalty override for the CV model only"
+    ),
     pages: Optional[int] = Form(None, description="Page limit the CV must fit (default: 2)"),
 ) -> dict:
     """Accept one CV job. The id in the envelope is the handle for the rest."""
@@ -94,15 +97,13 @@ async def create_cv(
     )
     candidate = CandidateInputs(profile=profile, data=data)
 
-    cv_model = state.models["cv"]
-    if temperature is not None:
-        cv_model = cv_model.with_(temperature=temperature)
+    llm = state.llm.with_overrides(
+        "cv", temperature=temperature, presence_penalty=presence_penalty
+    )
 
     def build(work: Path, progress) -> Tuple[Dict[str, Any], str, bytes, str]:
         return CVGenerator(
-            cv_model=cv_model,
-            review_model=state.models["review"],
-            highlight_model=state.models.get("highlight"),
+            llm=llm,
             bundle=bundle,
             candidate=candidate,
             work_dir=work,

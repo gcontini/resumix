@@ -60,16 +60,12 @@ def test_an_id_is_generated_when_the_client_sends_none(client):
     assert len(response.json()["request_id"]) == 12
 
 
-def test_a_provider_failure_is_a_gateway_error_not_a_bug(client, fake_models, monkeypatch):
+def test_a_provider_failure_is_a_gateway_error_not_a_bug(client, fake_llm):
     """The server is fine; the thing behind it is not. That is a 502, and the
     provider's own message never reaches the caller."""
-    from openai import APIConnectionError
     import httpx
 
-    def explode(**kwargs):
-        raise APIConnectionError(request=httpx.Request("POST", "http://provider.invalid"))
-
-    monkeypatch.setattr(fake_models["detect"].llm.chat.completions, "create", explode)
+    fake_llm["detect"].error = httpx.ConnectError("http://provider.invalid is down")
 
     response = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120})
 

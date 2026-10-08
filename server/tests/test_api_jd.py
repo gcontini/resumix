@@ -7,6 +7,8 @@ import json
 import pytest
 from resumix_contracts import JDAnalysis, static_jd_guess
 
+from resumix_server.models import ATTEMPTS
+
 ANALYSIS = {
     "match_percentage": 82, "match_rationale": "Strong overlap.",
     "job_title": "Head of IT", "work_location": "Milan, Italy", "work_mode": "hybrid",
@@ -27,26 +29,26 @@ def jd_parts(candidate, **extra):
     }
 
 
-def test_detect_rejects_short_text_without_calling_the_model(client, fake_models):
+def test_detect_rejects_short_text_without_calling_the_model(client, fake_llm):
     body = client.post("/v1/jd/detect", data={"jd_text": "too short"}).json()
 
     assert body["data"] == {"is_job_description": False}
-    assert fake_models["detect"].calls == [], "the free check must come first"
+    assert fake_llm["detect"].calls == [], "the free check must come first"
 
 
-def test_detect_asks_the_model_when_the_text_is_plausible(client, fake_models):
-    fake_models["detect"].replies = ["YES"]
+def test_detect_asks_the_model_when_the_text_is_plausible(client, fake_llm):
+    fake_llm["detect"].replies = ["YES"]
     text = "Job posting. " * 120
     assert static_jd_guess(text)
 
     body = client.post("/v1/jd/detect", data={"jd_text": text}).json()
 
     assert body["data"]["is_job_description"] is True
-    assert len(fake_models["detect"].calls) == 1
+    assert len(fake_llm["detect"].calls) == 1
 
 
-def test_detect_takes_the_model_at_its_word_when_it_says_no(client, fake_models):
-    fake_models["detect"].replies = ["NO, this is a privacy policy"]
+def test_detect_takes_the_model_at_its_word_when_it_says_no(client, fake_llm):
+    fake_llm["detect"].replies = ["NO, this is a privacy policy"]
     body = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120}).json()
     assert body["data"]["is_job_description"] is False
 
@@ -57,46 +59,52 @@ def test_detect_takes_the_model_at_its_word_when_it_says_no(client, fake_models)
         ("**YES**", True),
         ("'YES'", True),
         ("Yes.", True),
-        ("", False),
-        ("Not a posting, YES it names a role", False),
+        ("No.", False),
     ],
 )
-def test_detect_reads_the_first_word_of_the_reply(client, fake_models, reply, expected):
-    fake_models["detect"].replies = [reply]
+def test_detect_reads_the_first_word_of_the_reply(client, fake_llm, reply, expected):
+    fake_llm["detect"].replies = [reply]
     body = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120}).json()
     assert body["data"]["is_job_description"] is expected
 
 
-def test_detect_sends_the_posting_apart_from_the_instructions(client, fake_models):
-    fake_models["detect"].replies = ["YES"]
+def test_detect_without_a_yes_or_no_is_retried_then_reported(client, fake_llm):
+    fake_llm["detect"].replies = ["Not a posting, YES it names a role"]
+    response = client.post("/v1/jd/detect", data={"jd_text": "Job posting. " * 120})
+    assert response.status_code == 502
+    assert len(fake_llm["detect"].calls) == ATTEMPTS
+
+
+def test_detect_sends_the_posting_apart_from_the_instructions(client, fake_llm):
+    fake_llm["detect"].replies = ["YES"]
     text = "Job posting. " * 120
     client.post("/v1/jd/detect", data={"jd_text": text})
 
-    system, user = fake_models["detect"].calls[-1]["messages"]
-    assert system["role"] == "system" and "YES or NO" in system["content"]
+    system, user = fake_llm["detect"].calls[-1]["messages"]
+    assert system["role"] == "system" and "exactly 'YES'" in system["content"]
     assert user == {"role": "user", "content": text}
 
 
-def test_detect_ignores_a_temperature_sent_by_the_client(client, fake_models):
+def test_detect_ignores_a_temperature_sent_by_the_client(client, fake_llm):
     """The client's temperature is for writing; detection keeps its own."""
-    fake_models["detect"].temperature = 0.0
-    fake_models["detect"].replies = ["YES"]
+    fake_llm._chat["detect"].temperature = 0.0
+    fake_llm["detect"].replies = ["YES"]
     client.post("/v1/jd/detect",
                 data={"jd_text": "Job posting. " * 120, "temperature": "1.5"})
-    assert fake_models["detect"].calls[-1]["temperature"] == 0.0
+    assert fake_llm["detect"].calls[-1]["temperature"] == 0.0
 
 
-def test_analysis_ignores_a_temperature_sent_by_the_client(client, fake_models, candidate):
+def test_analysis_ignores_a_temperature_sent_by_the_client(client, fake_llm, candidate):
     """The client's temperature is for the CV; analysis keeps its own."""
-    fake_models["summary"].temperature = 0.4
-    fake_models["summary"].replies = [json.dumps(ANALYSIS)]
+    fake_llm._chat["analysis"].temperature = 0.4
+    fake_llm["analysis"].replies = [json.dumps(ANALYSIS)]
     client.post("/v1/jd/analysis", data={"jd_text": "a jd", "temperature": "1.5"},
                 files=jd_parts(candidate))
-    assert fake_models["summary"].calls[-1]["temperature"] == 0.4
+    assert fake_llm["analysis"].calls[-1]["temperature"] == 0.4
 
 
-def test_analysis_returns_a_validated_analysis(client, fake_models, candidate):
-    fake_models["summary"].replies = [json.dumps(ANALYSIS)]
+def test_analysis_returns_a_validated_analysis(client, fake_llm, candidate):
+    fake_llm["analysis"].replies = [json.dumps(ANALYSIS)]
 
     body = client.post("/v1/jd/analysis", data={"jd_text": "a jd"},
                        files=jd_parts(candidate)).json()
@@ -106,11 +114,11 @@ def test_analysis_returns_a_validated_analysis(client, fake_models, candidate):
     assert len(analysis.hard_skills) == 5, "the list is passed through unclamped"
 
 
-def test_analysis_prompt_carries_the_profile_and_the_preferences(client, fake_models, candidate):
-    fake_models["summary"].replies = [json.dumps(ANALYSIS)]
+def test_analysis_prompt_carries_the_profile_and_the_preferences(client, fake_llm, candidate):
+    fake_llm["analysis"].replies = [json.dumps(ANALYSIS)]
     client.post("/v1/jd/analysis", data={"jd_text": "SENTINEL"}, files=jd_parts(candidate))
 
-    prompt = fake_models["summary"].last_prompt
+    prompt = fake_llm["analysis"].last_prompt
     assert "SENTINEL" in prompt
     assert candidate.profile["skills"][0] in prompt
     assert candidate.preferences[:40] in prompt
@@ -134,11 +142,11 @@ def test_analysis_requires_the_preferences(client, candidate):
     assert "pers_preferences" in response.json()["error"]
 
 
-def test_a_bad_analysis_is_retried_then_reported(client, fake_models, candidate):
-    fake_models["summary"].replies = ["{}"]
+def test_a_bad_analysis_is_retried_then_reported(client, fake_llm, candidate):
+    fake_llm["analysis"].replies = ["{}"]
     response = client.post("/v1/jd/analysis", data={"jd_text": "a jd"},
                            files=jd_parts(candidate))
     body = response.json()
     assert response.status_code == 502
     assert "jd.analysis" in body["error"]
-    assert len(fake_models["summary"].calls) == 2, "it retried once before giving up"
+    assert len(fake_llm["analysis"].calls) == ATTEMPTS, "it retried before giving up"

@@ -58,16 +58,19 @@ the renderer and nowhere else — but the renderer cannot measure without it.
 **The review runs until it passes once.** After that, later attempts only
 shorten a CV the reviewer has already accepted, so re-reviewing would spend a
 large-model call to re-confirm what it already said. When it does reject, the
-reviewer's own words are what the generator is given next.
+reviewer's own words are what the generator is given next. A review that gets
+no usable answer at all — empty or cut off, every call — leaves the CV
+unreviewed, not passed: the next round reviews the same CV again instead of
+writing a new one, and only the last round delivers it unreviewed.
 
 ## Retries, budgets and what each failure costs
 
 | Guard | Limit | Set by | On exhaustion |
 |---|---|---|---|
 | Generate → validate rounds | 4 | `RESUMIX_MAX_ATTEMPTS` | the last render is kept, with whatever is still open named in the log |
-| Schema-validation retries inside one round | 3 | `max_validation_attempts` | `502 model_output` |
-| Review retries (reply cut off) | 2 | fixed | a warning; the CV proceeds as if the review passed |
-| Highlight attempts | 2 | fixed | a warning; the un-highlighted CV is returned |
+| Calls per model request (empty, cut off or invalid reply) | 3 | `ATTEMPTS` in `models/selector.py` | `502 model_output` for the CV; see the next two rows |
+| Review calls | 3 | the same | the round does not pass; the next one reviews the same CV again |
+| Highlight calls | 3 | the same | a warning; the un-highlighted CV is returned |
 | Wall clock for the whole run | 1200 s | `RESUMIX_REQUEST_BUDGET_SECONDS` | `504`, checked between rounds |
 | One `pdflatex` compile | 120 s | `RESUMIX_LATEX_TIMEOUT` | `504 latex_timeout` |
 
@@ -136,8 +139,9 @@ produces.
 ## The schema is a prompt
 
 `TailoredCVData` (`pipeline/cv_schema.py`) is what the `cv` model is asked to
-write, and every `Field(description=...)` in it is restated to the model
-inside three prompts — generation, review and highlighting.
+write, and every `Field(description=...)` in it reaches the model — in the
+request's strict schema (`json_schema`), or in the system prompt's format
+instructions (`json_mode`).
 
 | Field | Shape | Notes |
 |---|---|---|
@@ -183,15 +187,14 @@ it. One `pdflatex` pass, not two: the shipped template has no `\ref`,
 
 ## The other two pipelines
 
-None has a loop. Detection runs on the `detect` model, the rest on `summary`:
+None has a loop. Each runs on its own model: `detect`, `analysis` and `letter`.
 
 - **`jd_validator.detect`** — the free structural checks first (length band,
   no binary payload: `static_jd_guess`, shared with the client), and only if
   they pass does it cost one small model call.
 - **`jd_validator.analyze`** — extracts the posting's facts and scores it
-  against your profile and your stated preferences. Two attempts, the
+  against your profile and your stated preferences. Up to three calls, the
   validation error fed back between them.
 - **`letter_generator.generate`** — prose in, prose out; 180–450 words,
-  validated. When the analysis names the employer *and* the endpoint supports server-side web search, the model is
-  told to research the company; an endpoint that rejects the flag falls back
-  to writing without it.
+  validated. The prompt asks the model to look the employer up when it can
+  search the web; whether it can is the `letter` role's `extra_body`.

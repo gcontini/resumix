@@ -92,11 +92,13 @@ def _pipeline_message(exc: PipelineError) -> str:
 
 
 def _provider_message(exc: APIError) -> str:
-    # Never echo the body: it can carry the endpoint and the key.
-    kind = {
-        APITimeoutError: "provider_timeout",
-        APIConnectionError: "provider_unreachable",
-    }.get(type(exc), "provider_error")
+    # Never echo the body: it can carry the endpoint and the key. LangChain
+    # raises its own subclasses, and a timeout is a connection error too.
+    kind = (
+        "provider_timeout" if isinstance(exc, APITimeoutError)
+        else "provider_unreachable" if isinstance(exc, APIConnectionError)
+        else "provider_error"
+    )
     return f"{kind}: the model endpoint failed: {type(exc).__name__}"
 
 

@@ -46,6 +46,7 @@ def write_cv(
             template=read_text(config.path("resume.tex.jinja")),
             images=config.image_parts(),
             temperature=config.temperature,
+            presence_penalty=config.presence_penalty,
             pages=config.pages,
         ).request_id
         if config.verbose:

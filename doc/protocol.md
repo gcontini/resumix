@@ -71,8 +71,9 @@ No auth. What this server is and whether it can do its job.
   "status": "ok",                 // "degraded" when pdflatex is missing
   "version": "0.2.0",
   "pdflatex": true,
-  "models": {"detect": "qwen3.8-flash", "summary": "qwen3.8-flash",
-             "cv": "qwen3.8-max", "highlight": "qwen3.8-flash"},
+  "models": {"detect": "qwen3.8-flash", "analysis": "qwen3.8-flash",
+             "letter": "qwen3.8-flash", "cv": "qwen3.8-max", "review": "qwen3.8-max",
+             "highlight": "qwen3.8-flash"},
   "auth_required": false
 }}
 ```
@@ -201,6 +202,7 @@ curl -s localhost:8080/v1/cv/$ID > cv.json # once it says END
 | `template` | optional | Replace `resume.tex.jinja`, page checks included |
 | `images` | optional | Repeatable, ≤10. Each part's file name is the name the template includes it under. |
 | `temperature` | optional | Sampling temperature for the CV model only; the review and highlight models keep theirs |
+| `presence_penalty` | optional | Presence penalty for the CV model only, likewise |
 | `pages` | optional | Page limit the CV must fit. Default 2, minimum 1. |
 
 Answers `202` with `{"request_id": "…", "ok": true}` and no `data`. The id is
@@ -293,6 +295,7 @@ curl -F jd=@JD.txt -F candidate_profile=@candidate_profile.json \
 | `analysis` | optional | A `JDAnalysis` — makes the letter more targeted, and enables the web research |
 | `sys_prompt_letter` | optional | Replace the letter prompt |
 | `temperature` | optional | Sampling temperature for the letter |
+| `presence_penalty` | optional | Presence penalty for the letter |
 
 Returns `{"text": "…", "words": 312}`, validated between 180 and 450 words.
 When the analysis names the employer *and* the

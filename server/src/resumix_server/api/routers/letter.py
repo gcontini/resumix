@@ -32,6 +32,7 @@ async def create_letter(
         None, description="Override the letter prompt"
     ),
     temperature: Optional[float] = Form(None, description="Sampling temperature override"),
+    presence_penalty: Optional[float] = Form(None, description="Presence penalty override"),
 ) -> dict:
     """Write a cover letter for one job description."""
     state = get_state(request)
@@ -51,12 +52,12 @@ async def create_letter(
         )
     )
 
-    model = state.models["summary"]
-    if temperature is not None:
-        model = model.with_(temperature=temperature)
+    llm = state.llm.with_overrides(
+        "letter", temperature=temperature, presence_penalty=presence_penalty
+    )
 
     def job() -> CoverLetter:
-        letter = LetterGenerator(model, system_prompt=bundle.sys_prompt_letter).generate(
+        letter = LetterGenerator(llm, system_prompt=bundle.sys_prompt_letter).generate(
             text, profile=profile, candidate_data=data, analysis=jd_analysis
         )
         return CoverLetter(text=letter, words=len(letter.split()))

@@ -285,6 +285,7 @@ copying a folder you drop back into `watch`.
 | `--server URL` | The resumix server. Default `http://localhost:8080`. |
 | `--token TOKEN` | Bearer token, if the server requires one. |
 | `--temperature F` | Sampling temperature for the CV and the cover letter, passed to the server. The analysis, the review and the highlight pass keep the server's. |
+| `--presence-penalty F` | Presence penalty for the CV and the cover letter, passed to the server the same way. |
 | `--pages N` | Page limit the CV must fit. Default: the server's, which is 2. |
 | `--config FILE` | Use this `resumix.toml` instead of searching for one. |
 | `--data-dir DIR` | Look for your files here before the current folder. |
@@ -326,6 +327,7 @@ server_url   = "https://resumix.example.run.app"
 token        = "the-bearer-token"   # only if the server requires one
 cover_letter = "no"                 # no | yes | letter_only
 # temperature = 0.4                 # CV and cover letter, passed to the server
+# presence_penalty = 0.5            # CV and cover letter, passed to the server
 # pages       = 2                   # page limit the CV must fit
 # timeout     = 1800                # seconds to keep polling one CV job
 # debug       = true                # same as -d on every run

@@ -97,32 +97,33 @@ MODEL_API_KEY=sk-...
 MODEL_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 ```
 
-Any OpenAI-compatible `/chat/completions` endpoint works — OpenAI, DeepSeek, a
-local Ollama. Switching providers is replacing those two values; `models.toml`
+Any OpenAI-compatible endpoint works — OpenAI, OpenRouter, DeepSeek, a local
+Ollama. Switching providers is replacing those two values; `models.toml`
 names the same two variables and does not need to change.
 
 A model that sets `use_alternate_provider = 2` calls a second endpoint,
 from `MODEL_API_KEY2` / `MODEL_BASE_URL2`, instead; `3` uses
 `MODEL_API_KEY3` / `MODEL_BASE_URL3`, and so on.
 
-Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>` for
-`DETECT`, `SUMMARY`, `CV`, `REVIEW` and `HIGHLIGHT`:
+Per-role overrides need no rebuild either — `RESUMIX_<ROLE>_<FIELD>`, for any
+key of a role, for `DETECT`, `ANALYSIS`, `LETTER`, `CV`, `REVIEW` and
+`HIGHLIGHT`:
 
 ```bash
 RESUMIX_CV_MODEL=qwen-max
 RESUMIX_CV_TEMPERATURE=0.2
 RESUMIX_CV_THINKING=off            # auto | on | off
 RESUMIX_CV_REASONING_EFFORT=high   # any string the provider accepts
-RESUMIX_CV_THINKING_BUDGET=        # empty unsets a budget declared in models.toml
-RESUMIX_CV_STRUCTURED_OUTPUT=json_object
+RESUMIX_CV_API=responses           # chat_completions | responses
+RESUMIX_CV_MODEL_PROVIDER=deepseek # standard | deepseek
+RESUMIX_CV_EXTRA_BODY={"thinking_budget": 4000}   # JSON; replaces the whole table
 RESUMIX_CV_USE_ALTERNATE_PROVIDER=2  # MODEL_API_KEY2 / MODEL_BASE_URL2
-RESUMIX_SUMMARY_TEMPERATURE=       # empty sends no temperature (OpenAI's reasoning models reject one)
-RESUMIX_SUMMARY_WEB_SEARCH=false   # true | false; off for an endpoint without DashScope's enable_search
+RESUMIX_LETTER_TEMPERATURE=        # empty sends no temperature (OpenAI's reasoning models reject one)
+RESUMIX_LETTER_EXTRA_BODY={}       # no enable_search, for an endpoint without DashScope's
 ```
 
-`thinking_budget` and `reasoning_effort` are mutually exclusive: a declared
-budget always wins, so unsetting it (empty value) is what lets
-`REASONING_EFFORT` take effect for a role that has a budget in `models.toml`.
+Nothing checks a combination against what the endpoint supports: what a role
+declares is what is sent. The comments in `models.toml` list the known traps.
 
 ### Environment
 
@@ -170,8 +171,8 @@ uv run pytest                   # every package, plus the integration test
 
 The LaTeX-dependent tests skip themselves when `pdflatex` is absent. Nothing
 in the suite calls a model: `server/tests/server_helpers.py` wires a real
-`ModelSelector` to a fake HTTP client, so request assembly, structured-output
-negotiation and usage logging are all the production code paths.
+`ModelSelector` to a fake HTTP transport, so request assembly, structured
+output, retries and usage logging are all the production code paths.
 `server/tests/golden/cv_golden.tex` pins the whole render — an escaping
 regression is otherwise invisible until someone reads a bad PDF.
 

@@ -33,7 +33,7 @@ from resumix_server.api.deps import AppState                    # noqa: E402
 from resumix_server.api.settings import Settings                # noqa: E402
 from resumix_server.bundle import default_bundle                # noqa: E402
 
-from server_helpers import FakeSelector, sample_cv_data           # noqa: E402
+from server_helpers import FakeLLM, sample_cv_data                # noqa: E402
 
 needs_latex = pytest.mark.skipif(shutil.which("pdflatex") is None, reason="pdflatex not installed")
 EXAMPLE = REPO_ROOT / "examples" / "candidate"
@@ -62,17 +62,15 @@ class Scripted:
 
 @pytest.fixture
 def models():
-    return {
-        # YES to the detection call; the analysis and the CV model follow.
-        "detect": FakeSelector("YES", profile="detect", model="fake-detect"),
-        "summary": FakeSelector(json.dumps(ANALYSIS), profile="summary", model="fake-summary"),
-        "cv": FakeSelector(sample_cv_data().model_dump_json(),
-                           profile="cv", model="fake-cv"),
-        # An empty reply: the reviewer finds nothing to fix.
-        "review": FakeSelector("", profile="review", model="fake-review"),
-        "highlight": FakeSelector(sample_cv_data(summary="**Bold** summary.").model_dump_json(),
-                                  profile="highlight", model="fake-highlight"),
-    }
+    llm = FakeLLM()
+    # YES to the detection call; the analysis and the CV model follow.
+    llm["detect"].replies = ["YES"]
+    llm["analysis"].replies = [json.dumps(ANALYSIS)]
+    llm["cv"].replies = [sample_cv_data().model_dump_json()]
+    # "OK": the reviewer finds nothing to fix.
+    llm["review"].replies = ["OK"]
+    llm["highlight"].replies = [sample_cv_data(summary="**Bold** summary.").model_dump_json()]
+    return llm
 
 
 @pytest.fixture
@@ -82,7 +80,7 @@ def api(models, tmp_path):
     settings = Settings(work_root=tmp_path / "work", request_budget_seconds=120.0)
     settings.work_root.mkdir(parents=True, exist_ok=True)
     state = AppState(
-        settings=settings, models=models, bundle=default_bundle(),
+        settings=settings, llm=models, bundle=default_bundle(),
         job_slots=BoundedSemaphore(settings.max_concurrent_jobs),
         pdflatex=shutil.which("pdflatex") is not None,
     )
@@ -171,7 +169,7 @@ def test_debug_pulls_every_request_s_log_off_the_server(make_submit):
 
     log = (folder / "log.log").read_text()
     assert "jd.analysis" in log and "cv.generate" in log
-    assert "prompt=" in log, "each model call logs what it spent"
+    assert "input=" in log, "each model call logs what it spent"
 
 
 @needs_latex
@@ -187,7 +185,7 @@ def test_the_rendered_pdf_can_be_re_rendered_from_its_document(run, api):
 
 
 def test_a_server_error_reaches_the_client_as_a_typed_failure(run, api, models, capsys):
-    models["summary"].replies = ["not an analysis"]
+    models["analysis"].replies = ["not an analysis"]
 
     run.intake.take(JD_TEXT, "posting.txt")
 

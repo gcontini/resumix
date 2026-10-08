@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from resumix_server.pipeline.cv_schema import TailoredCVData, prompt_schema
+from resumix_server.pipeline.cv_schema import TailoredCVData
 
 from server_helpers import sample_cv_data
 
@@ -46,5 +46,6 @@ def test_the_schema_the_model_is_asked_for_is_closed():
     """Accepting an extra field and inviting one are different things: an
     open schema is ``additionalProperties: true``, which a strict json_schema
     endpoint refuses outright."""
-    assert prompt_schema()["additionalProperties"] is False
-    assert TailoredCVData.model_json_schema()["additionalProperties"] is True
+    schema = TailoredCVData.model_json_schema()
+    assert schema["additionalProperties"] is False
+    assert all(d["additionalProperties"] is False for d in schema["$defs"].values())

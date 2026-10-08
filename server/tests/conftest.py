@@ -1,8 +1,8 @@
 """Fixtures shared by the server tests.
 
 Nothing here needs an API key, a network or a real model: the pipeline talks
-to a :class:`FakeSelector` that replays canned replies and records what it was
-asked, which is how the prompt-assembly assertions stay honest.
+to a :class:`FakeLLM` — a real selector over a fake transport — that replays
+canned replies and records what it was asked, which is how the prompt-assembly assertions stay honest.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import pytest
 
 from resumix_server.bundle import CandidateInputs, ResourceBundle, default_bundle
 
-from server_helpers import FakeSelector, sample_cv_data
+from server_helpers import FakeLLM, sample_cv_data
 
 from server_helpers import EXAMPLE_CANDIDATE, GOLDEN
 
@@ -55,14 +55,13 @@ def sample_document(candidate_data) -> dict:
 
 
 @pytest.fixture
-def fake_models() -> dict:
-    """The five roles, all fake. Replace ``replies`` per test."""
-    return {role: FakeSelector(profile=role, model=f"fake-{role}")
-            for role in ("detect", "summary", "cv", "review", "highlight")}
+def fake_llm() -> FakeLLM:
+    """Every role, fake. Set ``fake_llm[role].replies`` per test."""
+    return FakeLLM()
 
 
 @pytest.fixture
-def app_state(fake_models, tmp_path, bundle):
+def app_state(fake_llm, tmp_path, bundle):
     from threading import BoundedSemaphore
 
     from resumix_server.api.deps import AppState
@@ -71,7 +70,7 @@ def app_state(fake_models, tmp_path, bundle):
     settings = Settings(work_root=tmp_path, request_budget_seconds=60.0)
     return AppState(
         settings=settings,
-        models=fake_models,
+        llm=fake_llm,
         bundle=bundle,
         job_slots=BoundedSemaphore(settings.max_concurrent_jobs),
         pdflatex=shutil.which("pdflatex") is not None,

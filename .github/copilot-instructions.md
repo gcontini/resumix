@@ -72,16 +72,20 @@ dropped when it ends; a request's own directory is the only thing kept
 - `pipeline/jd_validator.py`, `pipeline/letter_generator.py` — the other two
   LLM pipelines; same shape as `cv_generator.py`.
 - `pipeline/cv_schema.py` — `TailoredCVData`, the CV model's output schema and
-  the response model of `POST /v1/cv`. Every `Field(description=...)` is
-  restated in a prompt — editing one changes model behaviour. `extra="allow"`,
-  so an undeclared field survives validation and reaches the template;
-  `prompt_schema()` is the closed variant that goes into the request, because
-  strict `json_schema` endpoints refuse `additionalProperties: true`.
-- `model_selector.py` — `ModelSelector`, one OpenAI-compatible endpoint per
-  role (`detect`/`summary`/`cv`/`review`/`highlight`) from `resources/models.toml`. Every LLM
-  call ends with one `logger.info` line carrying model, duration and token
-  counts — this is the entire token-accounting story; there is no per-request
-  total anywhere.
+  the response model of `POST /v1/cv`. Every `Field(description=...)` reaches
+  the model in its schema — editing one changes model behaviour.
+  `extra="allow"`, so an undeclared field survives validation and reaches the
+  template; the schema the model is shown is still closed
+  (`additionalProperties: false`), because strict `json_schema` endpoints
+  refuse `additionalProperties: true`.
+- `models/` — `ModelSelector`: one LangChain chat model per role
+  (`detect`/`analysis`/`letter`/`cv`/`review`/`highlight`) from
+  `resources/models.toml`, built by the role's `model_provider`
+  (`standard.py` on `ChatOpenAI`, `deepseek.py` on `ChatDeepSeek`), and one
+  method, `call_llm(role, type, system_prompt, messages)`, which returns a
+  pydantic model, `bool` or `str` and retries empty, cut-off or invalid
+  replies (3 calls). Every call logs one line with model, duration and
+  input/thinking/output tokens, and adds them to the `Usage` it is handed.
 - `bundle.py` — `ResourceBundle` (impersonal: prompts, template, image assets
   keyed by file name — built once at startup, `with_overrides()` per request) vs.
   `CandidateInputs` (personal: profile and preferences — always per-request,
@@ -158,9 +162,9 @@ required to run it (PyInstaller `--onefile`)
   (`jobstore.py`, newest 200 kept); an id that was pruned, that failed before
   any work started, or that landed on a different instance, is a `404`. The
   client fetches it after every call with `--debug`, and always on failure.
-- **Token spend is per model call, not per request.** `model_selector.py`
-  logs one line per call (model, duration, prompt/completion tokens); there
-  is no aggregate anywhere in the envelope or the contracts.
+- **Token spend is per model call, not per request.** `models/selector.py`
+  logs one line per call (model, duration, input/thinking/output tokens);
+  there is no aggregate anywhere in the envelope or the contracts.
 - **The CV document is one flat dict with no schema** — whatever your LaTeX
   template reads, put it in `candidate_data.json` and it flows through
   untouched. It is `{**what the model wrote, **your candidate_data}`, so your
@@ -194,19 +198,17 @@ required to run it (PyInstaller `--onefile`)
 - Python 3.12, `uv` workspace (`pyproject.toml` at the root plus one per
   package); `uv sync` installs all three in editable mode. Console scripts:
   `resumix-api` (server), `resumix` (client).
-- LLM access via any OpenAI-compatible endpoint — one provider, one API key
+- LLM access via LangChain, to any OpenAI-compatible endpoint — one provider, one API key
   (`MODEL_API_KEY`/`MODEL_BASE_URL`; see `.env.example`), declared once in
   the `[provider]` table of
   `server/resources/models.toml`. A role with `use_alternate_provider = N`
   (N ≥ 2) calls provider N instead (`MODEL_API_KEY<N>`/`MODEL_BASE_URL<N>`).
-  The five roles
-  (`detect`/`summary`/`cv`/`review`/`highlight`) each declare only model name and generation
-  settings, which can also be overridden per role via
-  `RESUMIX_<ROLE>_<FIELD>` env vars (model/temperature/thinking/
-  reasoning_effort/thinking_budget/structured_output/use_alternate_provider/
-  web_search; an empty thinking_budget unsets a budget declared in
-  models.toml, which is how reasoning_effort wins back the request, and an
-  empty temperature sends none).
+  The six roles
+  (`detect`/`analysis`/`letter`/`cv`/`review`/`highlight`) each declare only
+  model name and generation settings; provider-specific fields go in
+  `extra_body`, sent as given, and nothing checks them. Any key can be
+  overridden per role via `RESUMIX_<ROLE>_<FIELD>` env vars (an empty value
+  drops the key; `EXTRA_BODY` is JSON).
 - `%`-style lazy logging args, never f-strings inside `logger.*` — sanitized
   LaTeX can reach a log line and a literal `%` would break the formatter.
 - LaTeX templates use Jinja delimiters `\VAR{}`/`\BLOCK{}`; escaping is done
@@ -248,8 +250,8 @@ uv run --with pyinstaller pyinstaller client/packaging/resumix.spec
 
 `pdflatex`-dependent tests skip themselves when it is not on `PATH`.
 `server/tests/server_helpers.py` wires a real `ModelSelector` to a fake HTTP
-client, so request assembly and structured-output negotiation stay under
-test with no network call.
+transport (`FakeLLM`), so request assembly, structured output and retries
+stay under test with no network call.
 
 ## Testing guidance
 

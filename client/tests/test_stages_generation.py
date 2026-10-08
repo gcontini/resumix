@@ -86,14 +86,17 @@ def test_cover_letter_modes_decide_what_runs(api, config, workspace, console, mo
         assert cv_path.endswith("cv_jordan_rivera_head_of_it.pdf")
 
 
-def test_the_temperature_goes_to_the_cv_and_the_letter(api, config, workspace, console):
-    # FakeApi.analyze takes no temperature, so sending one to it would raise.
-    writer = CvWriter(Calls(api), replace(config, cover_letter="yes", temperature=0.7))
+def test_the_sampling_overrides_go_to_the_cv_and_the_letter(api, config, workspace, console):
+    # FakeApi.analyze takes neither, so sending one to it would raise.
+    writer = CvWriter(Calls(api), replace(config, cover_letter="yes", temperature=0.7,
+                                          presence_penalty=0.3))
     processor = WorkingProcessor(workspace, writer, build_tracker(workspace.root, True), console)
     run_one(processor, writer, yes_posting(processor))
 
     assert api.seen_temperature == 0.7
     assert api.seen_letter_temperature == 0.7
+    assert api.seen_presence_penalty == 0.3
+    assert api.seen_letter_presence_penalty == 0.3
 
 
 def test_a_failure_keeps_every_file_under_error_with_the_server_log(

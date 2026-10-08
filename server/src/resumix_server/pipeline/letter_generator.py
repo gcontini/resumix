@@ -1,9 +1,8 @@
 """Writing the cover letter: prose in, prose out.
 
 Much simpler than the CV pipeline — no schema, no renderer, no highlighter,
-no content review. The one piece of machinery is the optional web research:
-when the analysis names the employer and the endpoint can search, the model is told to look the company up, and a provider that rejects
-the flag falls back to writing without it.
+no content review. Whether the model can look the employer up is the
+``letter`` role's own configuration (its ``extra_body``), not this code's.
 """
 
 from __future__ import annotations
@@ -13,7 +12,7 @@ import logging
 from datetime import date
 from typing import Any, Dict, List, Mapping, Optional
 
-from ..model_selector import ModelSelector
+from ..models import ModelSelector
 from ..observability import LOGGER_ROOT, stage
 from .errors import ModelOutputError
 from .parsing import strip_fences
@@ -34,28 +33,20 @@ class LetterGenerator:
 
     Parameters
     ----------
-    summary_model:
-        The ``summary`` model — the only role allowed to run web search.
+    llm:
+        The selector; the letter is written by its ``letter`` role.
     system_prompt:
         The letter prompt for this run (default, or the request's override).
     """
 
     def __init__(
         self,
-        summary_model: ModelSelector,
+        llm: ModelSelector,
         *,
         system_prompt: str,
     ) -> None:
-        self.summary_model = summary_model
-        self._system_message = {"role": "system", "content": system_prompt}
-
-    def _should_research(self, analysis: Mapping[str, Any]) -> bool:
-        """Web research is worth doing only for a named employer, and only
-        when the endpoint can actually run it.
-        """
-        if not self.summary_model.supports_web_search:
-            return False
-        return bool(analysis.get("company_name"))
+        self.llm = llm
+        self.system_prompt = system_prompt
 
     def _build_user_message(
         self,
@@ -63,7 +54,6 @@ class LetterGenerator:
         profile: Mapping[str, Any],
         candidate_data: Mapping[str, Any],
         analysis: Mapping[str, Any],
-        research: bool,
     ) -> str:
         """Assemble the single user turn: today's date, the master profile,
         the candidate's contact details (the letter's header block, unlike
@@ -71,9 +61,7 @@ class LetterGenerator:
         the real name, email, phone and LinkedIn, not what the profile
         happens to contain), a trimmed JD-analysis subset (only the fields
         relevant to a letter — the full JDAnalysis carries scoring fields
-        with no place in one), the raw JD, and — only when ``research`` is
-        true — an explicit instruction to research the named company on the
-        web.
+        with no place in one), and the raw JD.
         """
         analysis_subset = {
             k: analysis.get(k)
@@ -89,7 +77,7 @@ class LetterGenerator:
             if analysis.get(k) is not None
         }
 
-        content = (
+        return (
             "Write my cover letter for this JOB DESCRIPTION. "
             "Output plain text only, starting at the header block.\n"
             "--------------------------------------------\n"
@@ -107,28 +95,6 @@ class LetterGenerator:
             "JOB DESCRIPTION:\n"
             f"{job_description}\n"
         )
-        if research:
-            content += (
-                "--------------------------------------------\n"
-                "COMPANY RESEARCH: search the web for "
-                f"\"{analysis_subset.get('company_name')}\" (the employer "
-                "posting this job) and use what you find for the "
-                "why-this-company paragraph, per the system prompt rules.\n"
-            )
-        return content
-
-    @staticmethod
-    def _extract_letter(response) -> str:
-        """Parse the LLM response content into the letter text.
-
-        Strips Markdown code fences if present (the LLM is asked for plain
-        text but occasionally wraps it anyway). Raises ``ValueError`` when the
-        content is missing.
-        """
-        content = response.choices[0].message.content
-        if not content:
-            raise ValueError("LLM returned empty content")
-        return strip_fences(content)
 
     @staticmethod
     def _validate_letter(text: str) -> None:
@@ -170,47 +136,21 @@ class LetterGenerator:
         ``analysis`` is optional everywhere in resumix: the JD alone is
         enough to write a letter, it just makes for a less targeted one.
         """
-        analysis = dict(analysis or {})
-        research = self._should_research(analysis)
+        logger.info("--- cover letter ---")
+        messages: List[Dict[str, Any]] = [{
+            "role": "user",
+            "content": self._build_user_message(
+                job_description, profile, candidate_data, dict(analysis or {})
+            ),
+        }]
 
-        selector = self.summary_model
-        if research:
-            selector = selector.with_web_search()
-
-        logger.info("--- cover letter (web research: %s) ---", "on" if research else "off")
-
-        messages: List[Dict[str, Any]] = [
-            self._system_message,
-            {
-                "role": "user",
-                "content": self._build_user_message(
-                    job_description, profile, candidate_data, analysis, research
-                ),
-            },
-        ]
-
-        search_fallback_tried = not research
         for attempt in range(MAX_ATTEMPTS):
+            with stage("letter.generate"):
+                # Asked for plain text, a model still wraps it in a fence now and then.
+                text = strip_fences(
+                    self.llm.call_llm("letter", str, self.system_prompt, messages)
+                )
             try:
-                with stage("letter.generate"):
-                    resp = selector.completions_create(messages)
-            except Exception as e:
-                if not search_fallback_tried:
-                    logger.warning(
-                        "  ⚠ web search call failed (%s: %s) — retrying without it",
-                        type(e).__name__, e,
-                    )
-                    search_fallback_tried = True
-                    selector = self.summary_model
-                    continue
-                raise
-
-            messages.append(
-                {"role": "assistant", "content": resp.choices[0].message.content}
-            )
-
-            try:
-                text = self._extract_letter(resp)
                 self._validate_letter(text)
                 logger.info("  ✓ Letter validated (attempt %d)", attempt + 1)
                 return text
@@ -219,6 +159,7 @@ class LetterGenerator:
                     "  ✗ Validation failed (attempt %d): %s: %s",
                     attempt + 1, type(e).__name__, e,
                 )
+                messages.append({"role": "assistant", "content": text})
                 messages.append(
                     {
                         "role": "user",

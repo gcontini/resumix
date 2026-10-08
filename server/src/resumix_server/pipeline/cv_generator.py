@@ -22,22 +22,21 @@ is read from disk and nothing is written outside ``work_dir``.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pydantic import ValidationError
-
 from ..bundle import CandidateInputs, ResourceBundle
-from ..model_selector import ModelSelector
+from ..models import ModelSelector, Usage
 from ..observability import LOGGER_ROOT, stage
 from .cv_renderer import CVRenderer
-from .cv_schema import TailoredCVData, prompt_schema
+from .cv_schema import TailoredCVData
 from .cv_validator import CVValidator
 from .errors import BudgetExceededError, ModelOutputError
-from .parsing import parse_model_json, raw_excerpt, reply_diagnostics
+from .parsing import raw_excerpt
 
 logger = logging.getLogger(f"{LOGGER_ROOT}.cv")
 
@@ -66,6 +65,11 @@ def _retry_prompt(cv_data: TailoredCVData, violations: List[str]) -> str:
     )
 
 
+def _tokens(usage: Usage) -> int:
+    """Every token a call was billed for: input, thinking and reply."""
+    return usage.input_tokens + usage.thinking_tokens + usage.output_tokens
+
+
 #: Called as the run moves on: the step starting now, and one line about the
 #: one that just finished. Both go straight to a client, unread by anything.
 ProgressFn = Callable[[str, str], None]
@@ -76,15 +80,14 @@ class CVGenerator:
 
     Parameters
     ----------
-    cv_model:
-        The ``cv`` model: writes the CV. Built once by the caller and shared
-        across requests — it holds an HTTP client, not per-job state.
-    review_model:
-        The ``review`` model: judges each CV against the master profile and
-        answers in plain text, one violation per line. Shared the same way.
-    highlight_model:
-        The ``highlight`` model, which adds ``**bold**``/``*italics*`` markers
-        to the finished content. ``None`` skips that pass.
+    llm:
+        The selector. Its ``cv`` role writes the CV, ``review`` judges each
+        one against the master profile, and ``highlight`` adds the
+        ``**bold**``/``*italics*`` markers to the finished content. Built once
+        by the caller and shared across requests — it holds HTTP clients, not
+        per-job state.
+    highlight:
+        ``False`` skips the highlight pass.
     bundle:
         Prompts and the LaTeX template for this run (defaults, or whatever the
         request overrode).
@@ -97,8 +100,6 @@ class CVGenerator:
     max_attempts:
         Generate -> validate rounds before giving up and delivering the last
         CV anyway.
-    max_validation_attempts:
-        Schema-validation retries within one round.
     deadline:
         Optional :func:`time.monotonic` value. Checked between rounds so a run
         that cannot finish in time fails with a clear cause instead of being
@@ -111,31 +112,27 @@ class CVGenerator:
     def __init__(
         self,
         *,
-        cv_model: ModelSelector,
-        review_model: ModelSelector,
+        llm: ModelSelector,
         bundle: ResourceBundle,
         candidate: CandidateInputs,
         work_dir: Path,
-        highlight_model: Optional[ModelSelector] = None,
+        highlight: bool = True,
         max_attempts: int = 4,
-        max_validation_attempts: int = 3,
         deadline: Optional[float] = None,
         latex_timeout: Optional[float] = None,
         page_limit: Optional[int] = None,
         progress: Optional[ProgressFn] = None,
     ) -> None:
-        self.cv_model = cv_model
-        self.highlight_model = highlight_model
+        self.llm = llm
+        self.highlight = highlight
         self.bundle = bundle
         self.candidate = candidate
         self.work_dir = Path(work_dir)
         self.max_attempts = max_attempts
-        self.max_validation_attempts = max_validation_attempts
         self.deadline = deadline
         self.progress = progress
-        self._calls = 0
-        self._tokens = 0
-        self._thinking = 0
+        #: Every model call of the run, so a step can say what it cost.
+        self.usage = Usage()
 
         renderer_kwargs: Dict[str, Any] = {}
         if latex_timeout is not None:
@@ -151,50 +148,28 @@ class CVGenerator:
         )
 
         self._master_profile = dict(candidate.profile)
-        self._system_message = {"role": "system", "content": bundle.sys_prompt_cv}
-        self._highlight_message = {"role": "system", "content": bundle.sys_prompt_highlight}
-        self._cached_schema = prompt_schema()
 
         # What is wrong with a CV is its own question, asked by its own class.
-        # It is handed this generator's counted call, so a review's tokens land
-        # on the one ledger the progress lines are costed from.
+        # It is handed this generator's ledger, so a review's tokens land on
+        # the one total the progress lines are costed from.
         self.validator = CVValidator(
-            review_model=review_model,
+            llm=llm,
             renderer=self.renderer,
             master_profile=self._master_profile,
             review_prompt=bundle.sys_prompt_review,
-            call=self._call,
+            usage=self.usage,
         )
 
     # --- helpers ------------------------------------------------------------
-    def _call(self, model: ModelSelector, messages, response_format):
-        """Every model call goes through here, so a step can be costed.
+    def _mark(self) -> Tuple[Usage, float]:
+        """Where the ledger stands now; a step's cost is the difference."""
+        return copy.copy(self.usage), time.monotonic()
 
-        The per-call line in the log is still the ledger. The counters are the
-        same numbers added up, so a step can say what it cost while it is still
-        running; a call that reports no usage adds nothing.
-        """
-        response = model.completions_create(messages, response_format=response_format)
-        self._calls += 1
-        usage = getattr(response, "usage", None)
-        if usage is not None:
-            details = getattr(usage, "completion_tokens_details", None)
-            self._tokens += (getattr(usage, "prompt_tokens", 0) or 0) + (
-                getattr(usage, "completion_tokens", 0) or 0
-            )
-            self._thinking += getattr(details, "reasoning_tokens", 0) or 0
-        return response
-
-    def _mark(self) -> Tuple[int, int, float]:
-        """Where the counters stand now; a step's cost is the difference."""
-        return self._tokens, self._thinking, time.monotonic()
-
-    def _cost(self, mark: Tuple[int, int, float], what: str) -> str:
-        tokens, thinking, started = mark
+    def _cost(self, mark: Tuple[Usage, float], what: str) -> str:
+        spent = self.usage - mark[0]
         return (
-            f"{what}, tokens used={self._tokens - tokens}, "
-            f"thinking={self._thinking - thinking}, "
-            f"elapsed={time.monotonic() - started:.1f}s"
+            f"{what}, tokens used={_tokens(spent)}, thinking={spent.thinking_tokens}, "
+            f"elapsed={time.monotonic() - mark[1]:.1f}s"
         )
 
     def _report(self, status: str, detail: str = "") -> None:
@@ -214,141 +189,34 @@ class CVGenerator:
     ) -> TailoredCVData:
         """Add ``**bold**``/``*italics*`` keyword markers to validated CV data.
 
-        Uses the separate ``highlight_model`` (when configured) on the
-        already schema-validated ``cv_data``. The highlighter only inserts
-        Markdown markers inside existing string values — content, structure
-        and order are preserved — following the rules in the highlight prompt.
-        The ``response_format`` is whatever the highlighter's endpoint
-        declares it supports (see
-        :meth:`~resumix.model_selector.ModelSelector.response_format`); the
-        ``TailoredCVData`` JSON schema is also restated in the prompt, which
-        substitutes for the structural guarantee strict ``json_schema`` mode
-        would otherwise give on endpoints that lack it.
-        Up to 2 attempts: on any failure (empty/invalid output) a warning
-        (including ``finish_reason`` and any reasoning-token usage, for
-        diagnosing truncation) is printed and, after the last attempt, the
-        un-highlighted ``cv_data`` is returned so the job still succeeds.
-        Returns the highlighted data re-validated as :class:`TailoredCVData`.
+        The highlighter only inserts Markdown markers inside existing string
+        values — content, structure and order are preserved — following the
+        rules in the highlight prompt. When it gets no usable reply a warning
+        is logged and the un-highlighted ``cv_data`` is returned, so the job
+        still succeeds.
         """
-        if self.highlight_model is None:
+        if not self.highlight:
             return cv_data
-
-        messages = [
-            self._highlight_message,
-            {
-                "role": "user",
-                "content": (
-                    "Highlight the keywords in the CV_DATA below.\n"
-                    "Output the SAME JSON object (CV_DATA), unchanged except for the "
-                    "added **bold**/*italics* markers inside string values. The "
-                    "output MUST be a single JSON object valid against this JSON "
-                    "Schema:\n"
-                    "--------------------------------------------\n"
-                    "JSON_SCHEMA:\n"
-                    f"{json.dumps(self._cached_schema)}\n"
-                    "--------------------------------------------\n"
-                    "CV_DATA:\n"
-                    f"{cv_data.model_dump_json(indent=2)}\n"
-                    "--------------------------------------------\n"
-                    "JOB_DESCRIPTION:\n"
-                    f"{job_description}\n"
-                    "--------------------------------------------\n"
-                ),
-            },
-        ]
-
-        max_attempts = 2
-        for attempt in range(max_attempts):
-            resp = self._call(
-                self.highlight_model,
-                messages,
-                self.highlight_model.response_format("cv_data", self._cached_schema),
-            )
-            try:
-                return parse_model_json(resp.choices[0].message.content, TailoredCVData)
-            except (ValueError, ValidationError) as e:
-                diag = reply_diagnostics(resp)
-                if attempt + 1 < max_attempts:
-                    logger.warning(
-                        "  ↻ highlighting attempt %d failed (%s: %s; %s) — retrying",
-                        attempt + 1, type(e).__name__, e, diag,
-                    )
-                    continue
-                logger.warning(
-                    "  ⚠ highlighting failed (%s: %s; %s) — continuing with the "
-                    "un-highlighted CV\n    payload: %s",
-                    type(e).__name__, e, diag,
-                    raw_excerpt(resp.choices[0].message.content),
-                )
-                return cv_data
-
-        return cv_data  # unreachable: loop always returns on its last iteration
-
-    def _generate_valid_cv_data(self, prompt: str) -> TailoredCVData:
-        """Generate and schema-validate :class:`TailoredCVData` for one prompt.
-
-        Runs up to ``max_validation_attempts`` calls against ``cv_model``
-        (json_schema ``response_format``), feeding the validation errors back
-        to the LLM until the output is valid. Raises ``ModelOutputError`` when
-        no valid payload is produced.
-
-        The conversation is built here and dropped on return, so only the
-        schema-correction turns ever accumulate — one round's CV never becomes
-        context for the next.
-        """
-        messages: List[Dict[str, Any]] = [
-            self._system_message,
-            {"role": "user", "content": prompt},
-        ]
-        for val_attempt in range(self.max_validation_attempts):
-            cv = self._call(
-                self.cv_model,
-                messages,
-                self.cv_model.response_format("cv_data", self._cached_schema),
-            )
-
-            messages.append(
-                {"role": "assistant", "content": cv.choices[0].message.content}
-            )
-
-            try:
-                cv_data = parse_model_json(cv.choices[0].message.content, TailoredCVData)
-                # The payload is logged on the way through, not only when it
-                # is rejected: a CV can be schema-valid and still garbled, and
-                # then this is the only record of what the model actually wrote.
-                logger.info(
-                    "  ✓ Output validated against TailoredCVData "
-                    "(validation attempt %d)\n    payload: %s",
-                    val_attempt + 1, raw_excerpt(cv.choices[0].message.content),
-                )
-                return cv_data
-            except (ValueError, ValidationError) as e:
-                logger.error(
-                    "  ✗ Validation failed (attempt %d): %s: %s\n"
-                    "    reply: %s\n"
-                    "    payload: %s",
-                    val_attempt + 1, type(e).__name__, e,
-                    reply_diagnostics(cv),
-                    raw_excerpt(cv.choices[0].message.content),
-                )
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            "Your previous response was NOT valid against the "
-                            "TailoredCVData schema.\n"
-                            f"Validation error: {type(e).__name__}: {e}\n\n"
-                            "Fix the errors above and output a single valid JSON "
-                            "object strictly matching the TailoredCVData schema."
-                        ),
-                    }
-                )
-
-        raise ModelOutputError(
-            "Could not obtain valid TailoredCVData after "
-            f"{self.max_validation_attempts} validation attempts.",
-            stage="cv.generate",
+        request = (
+            "Highlight the keywords in the CV_DATA below.\n"
+            "Output the SAME JSON object (CV_DATA), unchanged except for the "
+            "added **bold**/*italics* markers inside string values.\n"
+            "--------------------------------------------\n"
+            "CV_DATA:\n"
+            f"{cv_data.model_dump_json(indent=2)}\n"
+            "--------------------------------------------\n"
+            "JOB_DESCRIPTION:\n"
+            f"{job_description}\n"
+            "--------------------------------------------\n"
         )
+        try:
+            return self.llm.call_llm(
+                "highlight", TailoredCVData, self.bundle.sys_prompt_highlight,
+                [{"role": "user", "content": request}], usage=self.usage,
+            )
+        except ModelOutputError as e:
+            logger.warning("  ⚠ highlighting failed (%s) — continuing with the un-highlighted CV", e)
+            return cv_data
 
     def generate(
         self, job_description: str
@@ -377,12 +245,6 @@ class CVGenerator:
             "JOB DESCRIPTION:\n"
             f"{job_description}\n\n"
         )
-        if not self.cv_model.sends_schema():
-            user_prompt += (
-                "--------------------------------------------\n"
-                "JSON_SCHEMA (TailoredCVData) the output must satisfy:\n"
-                f"{json.dumps(self._cached_schema)}\n"
-            )
 
         final_cv_data = None
         # What the last round got wrong, appended to the task prompt for the
@@ -390,6 +252,9 @@ class CVGenerator:
         # to accumulate, and a model shown three of its own near-identical
         # replies stops writing and starts copying them.
         retry = ""
+        # False only after a round whose review got no answer: nothing is known
+        # to be wrong with that CV, so the next round reviews it again as it is.
+        regenerate = True
         # Each report names the step starting now and what the one before it
         # cost, so one call is one complete answer to "where is my CV".
         self._report("generate")
@@ -404,29 +269,36 @@ class CVGenerator:
                 )
             logger.info("--- attempt %d ---", attempt + 1)
 
-            # Generate -> validate against TailoredCVData, feeding the
-            # validation errors back to the LLM until the output is
-            # schema-valid.
             mark = self._mark()
-            with stage("cv.generate"):
-                cv_data = self._generate_valid_cv_data(user_prompt + retry)
-            # The content review is the long half of the check and runs only
-            # until it passes; after that the step is named for the render.
-            self._report(
-                "review" if not self.validator.content_reviewed else "page_check",
-                self._cost(mark, "generation finished"),
-            )
+            if regenerate:
+                with stage("cv.generate"):
+                    cv_data = self.llm.call_llm(
+                        "cv", TailoredCVData, self.bundle.sys_prompt_cv,
+                        [{"role": "user", "content": user_prompt + retry}], usage=self.usage,
+                    )
+                # Logged on the way through, not only when it is rejected: a
+                # CV can be schema-valid and still garbled, and then this is
+                # the only record of what the model actually wrote.
+                logger.info("  ✓ CV validated\n    payload: %s",
+                            raw_excerpt(cv_data.model_dump_json()))
+                # The content review is the long half of the check and runs
+                # only until it passes; after that the step is named for the
+                # render.
+                self._report(
+                    "review" if not self.validator.content_reviewed else "page_check",
+                    self._cost(mark, "generation finished"),
+                )
+                mark = self._mark()
 
             # Review, render, measure. Every attempt is rendered, rejected or
             # not, so there is always a CV to fall back on and both kinds of
             # complaint are found in the same round.
-            mark = self._mark()
             result = self.validator.validate(
                 cv_data, self._document(cv_data), attempt=attempt
             )
             final_cv_data = cv_data
 
-            if not result.violations:
+            if not result.violations and result.reviewed:
                 self._report(
                     "highlight",
                     self._cost(mark, f"page check passed: {result.pages} page(s)"),
@@ -438,9 +310,11 @@ class CVGenerator:
                 # than fail a job that has a usable CV in hand. What is still
                 # wrong with it is on the record.
                 logger.warning(
-                    "  ⚠ %d violation(s) still open after %d attempt(s) — "
+                    "  ⚠ %d violation(s) still open%s after %d attempt(s) — "
                     "delivering the last CV",
-                    len(result.violations), self.max_attempts,
+                    len(result.violations),
+                    "" if result.reviewed else ", content not reviewed",
+                    self.max_attempts,
                 )
                 for violation in result.violations:
                     logger.info("      - %s", violation)
@@ -455,6 +329,14 @@ class CVGenerator:
                     ),
                 )
                 break
+
+            regenerate = bool(result.violations)
+            if not regenerate:
+                self._report(
+                    "review",
+                    self._cost(mark, "review got no usable answer — reviewing the same CV again"),
+                )
+                continue
 
             logger.info("CV rejected — regenerating...")
             # The violations are the instruction, verbatim: the client sees the
@@ -494,8 +376,8 @@ class CVGenerator:
         with stage("render"):
             result = self.renderer.render_document(document, stem="cv")
         summary = (
-            f"done, {self._calls} model calls, tokens used={self._tokens}, "
-            f"thinking={self._thinking}, "
+            f"done, {self.usage.calls} model calls, tokens used={_tokens(self.usage)}, "
+            f"thinking={self.usage.thinking_tokens}, "
             f"elapsed={time.monotonic() - started:.1f}s, {result.pages} page(s)"
         )
         return document, result.tex, result.pdf, summary

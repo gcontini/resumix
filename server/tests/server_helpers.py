@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import os
 import threading
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
-from resumix_server.model_selector import ModelSelector
+import httpx
+
+from resumix_server.models import MODEL_ROLES, ModelConfig, ModelSelector, ModelSpec
 from resumix_server.pipeline.cv_schema import TailoredCVData
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_CANDIDATE = REPO_ROOT / "examples" / "candidate"
 GOLDEN = Path(__file__).parent / "golden"
+
+os.environ.setdefault("RESUMIX_FAKE_KEY", "test-key")
 
 
 def sample_cv_data(**overrides) -> TailoredCVData:
@@ -56,56 +61,80 @@ def sample_cv_data(**overrides) -> TailoredCVData:
     return TailoredCVData(**data)
 
 
-class FakeSelector(ModelSelector):
-    """A real :class:`ModelSelector` with a fake HTTP client underneath.
+class FakeRole:
+    """How one role answers, and what it was asked.
 
-    Only ``llm`` is replaced, so everything the server actually relies on —
-    request assembly, ``response_format`` negotiation, usage recording — is
-    the production code path. ``replies`` is consumed in order and the last
-    one repeats, so a retry loop can be handed one failure then a success.
-    ``finish_reason`` is reported on every reply — ``"length"`` plays a reply
-    the token limit cut off.
+    ``replies`` is consumed in order and the last one repeats, so a retry loop
+    can be handed one failure then a success. ``finish_reason`` is reported on
+    every reply — ``"length"`` plays a reply the token cap cut off. A reply
+    that is a dict is sent as the whole response body. ``error``,
+    when set, is raised instead of answering; ``gate`` holds the reply until it
+    is opened. ``calls`` are the request bodies, as JSON, plus the URL ``path``.
     """
 
-    def __init__(
-        self,
-        *replies: str,
-        profile: str = "fake",
-        model: str = "fake-model",
-        structured_output: str = "json_object",
-        finish_reason: str = "stop",
-    ):
-        super().__init__(
-            profile=profile, api_key="test-key", base_url="http://fake.invalid/v1",
-            model=model, structured_output=structured_output,
-        )
-        self.replies = list(replies) or ["{}"]
-        self.finish_reason = finish_reason
-        self.calls: list[dict] = []
+    def __init__(self) -> None:
+        self.replies = ["{}"]
+        self.finish_reason = "stop"
+        self.error: Exception | None = None
         self.gate: threading.Event | None = None
-        self.llm = SimpleNamespace(
-            chat=SimpleNamespace(completions=SimpleNamespace(create=self._create))
-        )
-
-    def _create(self, **kwargs):
-        if self.gate is not None:
-            assert self.gate.wait(timeout=10), "the gate was never opened"
-        # Snapshot the messages: the pipeline appends to the same list
-        # across retries, so a reference would show only the final state.
-        self.calls.append({**kwargs, "messages": [dict(m) for m in kwargs["messages"]]})
-        content = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
-        return SimpleNamespace(
-            choices=[SimpleNamespace(
-                message=SimpleNamespace(content=content, reasoning_content=None),
-                finish_reason=self.finish_reason,
-            )],
-            usage=SimpleNamespace(prompt_tokens=11, completion_tokens=22, total_tokens=33,
-                                  completion_tokens_details=None),
-        )
+        self.calls: list[dict] = []
 
     @property
     def last_prompt(self) -> str:
         return "\n".join(m["content"] or "" for m in self.calls[-1]["messages"])
+
+
+class FakeLLM(ModelSelector):
+    """A real :class:`ModelSelector` with a fake HTTP transport underneath.
+
+    Only the transport is replaced, so everything the server relies on —
+    request assembly, structured output, retries, usage — is the production
+    code path. Role ``r`` calls model ``fake-r``; ``llm[r]`` is its
+    :class:`FakeRole`. ``specs`` sets a role's ``ModelSpec`` fields.
+    """
+
+    def __init__(self, **specs: dict) -> None:
+        self.roles = {role: FakeRole() for role in MODEL_ROLES}
+        config = ModelConfig(
+            provider={"api_key_env": "RESUMIX_FAKE_KEY", "base_url": "http://fake.invalid/v1"},
+            defaults={},
+            models={
+                role: ModelSpec(model=f"fake-{role}", **specs.get(role, {})) for role in MODEL_ROLES
+            },
+        )
+        transport = httpx.MockTransport(self._answer)
+        super().__init__(config, http_client=httpx.Client(transport=transport))
+
+    def __getitem__(self, role: str) -> FakeRole:
+        return self.roles[role]
+
+    def _answer(self, request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        role = self.roles[body["model"].removeprefix("fake-")]
+        if role.gate is not None:
+            assert role.gate.wait(timeout=10), "the gate was never opened"
+        role.calls.append({**body, "path": request.url.path})
+        if role.error is not None:
+            raise role.error
+        content = role.replies.pop(0) if len(role.replies) > 1 else role.replies[0]
+        if isinstance(content, dict):
+            return httpx.Response(200, json=content)
+        return httpx.Response(200, json=completion(body["model"], content, role.finish_reason))
+
+
+def completion(model: str, content: str, finish_reason: str = "stop") -> dict:
+    """A chat.completion body: 11 tokens in, 22 out, 2 of them thinking."""
+    return {
+        "id": "fake", "object": "chat.completion", "created": 0, "model": model,
+        "choices": [{
+            "index": 0, "finish_reason": finish_reason,
+            "message": {"role": "assistant", "content": content},
+        }],
+        "usage": {
+            "prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33,
+            "completion_tokens_details": {"reasoning_tokens": 2},
+        },
+    }
 
 
 def wait_for_job(client, request_id: str, *, timeout: float = 10.0):

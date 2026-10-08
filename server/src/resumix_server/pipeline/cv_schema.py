@@ -1,8 +1,8 @@
 """What the CV model is asked to write — a schema that is also a prompt.
 
-Every ``Field(description=...)`` below is restated to the model inside three
-prompts (generation, review, highlighting) via :func:`prompt_schema`, so
-editing one of them changes what the model produces. Treat these classes as
+Every ``Field(description=...)`` below reaches the model — in the request's
+strict JSON schema, or in the format instructions of a ``json_mode`` prompt —
+so editing one of them changes what the model produces. Treat these classes as
 prompts, not just as types.
 
 They live here rather than in ``resumix_contracts`` because no client reads
@@ -12,17 +12,24 @@ shape is this server's business — which is also why it is open: a reply with
 a field beyond the ones declared here is kept, not dropped, so a request that
 brings its own prompt and its own template can put something new on the page
 without the schema in the middle having to learn about it first.
+
+Accepting an unexpected field and inviting one are different things, though:
+the schema the model is *shown* is closed (:data:`CLOSED`), because a strict
+``json_schema`` endpoint refuses ``additionalProperties: true`` outright.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+#: Open on the way in, closed in the schema the model is shown.
+CLOSED = ConfigDict(extra="allow", json_schema_extra={"additionalProperties": False})
+
 
 class WorkExperienceItem(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = CLOSED
 
     id: Optional[int] = Field(
         None,
@@ -51,7 +58,7 @@ class WorkExperienceItem(BaseModel):
 
 
 class CertificationItem(BaseModel):
-    model_config = ConfigDict(extra="allow")
+    model_config = CLOSED
     date: str = Field(description="When the certification was earned, e.g., 'July 2023'")
     name: str = Field(description="Certification name")
 
@@ -65,7 +72,7 @@ class TailoredCVData(BaseModel):
     template both depend on them.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = CLOSED
 
     job_title: str = Field(description="Target job title extracted from job description")
     summary: str = Field(
@@ -85,22 +92,8 @@ class TailoredCVData(BaseModel):
     )
 
 
-def prompt_schema() -> Dict[str, Any]:
-    """The JSON Schema the model is *asked* for: the declared fields, closed.
-
-    Accepting an unexpected field and inviting one are different things.
-    ``extra="allow"`` makes Pydantic emit ``additionalProperties: true``,
-    which a strict ``json_schema`` endpoint — what the shipped ``cv`` role
-    uses — refuses outright, so the schema that goes into the request and
-    into the prompt is closed. Whatever comes back is still validated by the
-    open model above.
-    """
-    return {**TailoredCVData.model_json_schema(), "additionalProperties": False}
-
-
 __all__ = [
     "WorkExperienceItem",
     "CertificationItem",
     "TailoredCVData",
-    "prompt_schema",
 ]

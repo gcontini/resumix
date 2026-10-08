@@ -27,7 +27,7 @@ async def detect_jd(
         jd, jd_text, name="jd", max_bytes=state.settings.max_part_bytes, required=True
     )
     validator = JDValidator(
-        state.models["detect"],
+        state.llm,
         min_chars=state.settings.jd_min_chars,
         max_chars=state.settings.jd_max_chars,
     )
@@ -65,7 +65,7 @@ async def analyze_jd(
     )
     candidate = CandidateInputs(profile=profile, preferences=preferences)
 
-    validator = JDValidator(state.models["summary"])
+    validator = JDValidator(state.llm)
 
     def job() -> JDAnalysis:
         return validator.analyze(text, candidate)

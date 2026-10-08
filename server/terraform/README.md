@@ -32,10 +32,10 @@ Commit first — the tag names the commit, so `git status --short` must print
 nothing. Then, from the repository root:
 
 ```bash
-tag=$(git rev-parse --short HEAD)
-image=$(terraform -chdir=server/terraform output -raw push_repository):$tag
-DOCKER_BUILDKIT=0 docker build -t "$image" .
-docker push "$image"
+tag=$(git rev-parse --short HEAD) &&
+image=$(terraform -chdir=server/terraform output -raw push_repository):$tag && DOCKER_BUILDKIT=0 docker build -t "$image" . &&
+docker push "$image" && cd server/terraform &&
+echo "yes" | terraform apply
 ```
 
 Then `terraform apply`. It deploys the newest image in the repository tagged

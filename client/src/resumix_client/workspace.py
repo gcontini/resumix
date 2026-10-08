@@ -50,6 +50,40 @@ def sanitize_name(text: str, max_len: int = 40) -> str:
     return clean[:max_len].strip("_") or "unknown"
 
 
+def job_name(company: str, title: str) -> str:
+    """What a job folder is called: ``<Company>_<Title>``."""
+    return f"{sanitize_name(company)}_{sanitize_name(title)}"
+
+
+def staged_job(parent: Path, company: str, title: str) -> Path:
+    """An empty ``<parent>/.<Company>_<Title>``, to be filled before it is shown.
+
+    The dot keeps ``watch`` away from it while it is being written: hidden
+    entries are skipped. :func:`unstage` gives it its real name. A leftover
+    from a run that died half-way is emptied first.
+    """
+    staged = Path(parent) / f".{job_name(company, title)}"
+    _clear(staged)
+    staged.mkdir(parents=True)
+    return staged
+
+
+def unstage(staged: Path) -> Path:
+    """``.<name>`` becomes ``<name>``, replacing whatever already has that name."""
+    target = staged.with_name(staged.name[1:])
+    _clear(target)
+    staged.rename(target)
+    return target
+
+
+def _clear(path: Path) -> None:
+    """Whatever is at ``path``, gone."""
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
 @dataclass(frozen=True)
 class Artifacts:
     """What a finished job folder is called: your name and the job title."""
@@ -96,7 +130,7 @@ class Workspace:
         A folder of the same name is left alone and this one gets a ``_2``
         suffix: that name can belong to a job whose CV is still being written.
         """
-        job = self._free(self.working / f"{sanitize_name(company)}_{sanitize_name(title)}")
+        job = self._free(self.working / job_name(company, title))
         job.mkdir(parents=True)
         return job
 
@@ -120,10 +154,7 @@ class Workspace:
         name = entry.name if _TS_PREFIX.match(entry.name) else f"{timestamp()}_{entry.name}"
         target = self.error / day() / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        if target.is_dir():
-            shutil.rmtree(target)
-        else:
-            target.unlink(missing_ok=True)
+        _clear(target)
         shutil.move(str(entry), str(target))
         return target
 
@@ -180,6 +211,7 @@ class Workspace:
 
 
 __all__ = [
-    "Workspace", "Artifacts", "sanitize_name", "timestamp", "day",
+    "Workspace", "Artifacts", "sanitize_name", "job_name", "staged_job", "unstage",
+    "timestamp", "day",
     "JD_FILENAME", "ANALYSIS_FILENAME", "LOG_FILENAME", "LETTER_FILENAME",
 ]

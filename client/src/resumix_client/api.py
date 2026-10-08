@@ -213,7 +213,8 @@ class HttpApi:
         last_error: Optional[ResumixError] = None
         for attempt in range(1, HEALTH_ATTEMPTS + 1):
             if self.verbose:
-                print(f"spinning up the server attempt {attempt}/{HEALTH_ATTEMPTS}")
+                print(f"spinning up the server attempt {attempt}/{HEALTH_ATTEMPTS}",
+                      file=sys.stderr)
             try:
                 envelope = self._get("/healthz", ServerStatus)
             except ResumixError as exc:

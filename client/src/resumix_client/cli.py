@@ -8,11 +8,13 @@ mode. It contains no logic of its own beyond that.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 from typing import List, Optional
 
 from . import __version__
 from .config import COVER_LETTER_MODES, ConfigError, load_config
+from .modes import analysis as analysis_mode
 from .modes import clipboard as clipboard_mode
 from .modes import logs as logs_mode
 from .modes import render as render_mode
@@ -30,7 +32,8 @@ files:
   its own file name — the name your template includes it under.
 
   --out defaults to the current folder, and watch's --in defaults to
-  ./incoming (created if missing).
+  ./incoming (created if missing). analysis --out defaults to
+  <data-dir>/incoming, where watch picks its folders up.
 
 examples:
   resumix clipboard --out ~/applications
@@ -38,6 +41,7 @@ examples:
   resumix submit posting.txt --out ~/applications --yes
   resumix submit posting.txt analysis.json --out ~/applications
   resumix submit-raw posting.txt -o cv.pdf -o cv.json
+  resumix analysis --in posting.txt --output-format folder
   resumix render ~/applications/cv/26-01-15/Acme_Head_of_IT/cv_jordan_rivera_head_of_it.json
   resumix logs 0f9c1a7b-2f4e-4f2a-9a31-5c0d2f1e8b44
 """
@@ -132,6 +136,19 @@ def build_parser() -> argparse.ArgumentParser:
                      help="Pick up a CV job already in progress instead of "
                           "submitting a new one (starts from its /status).")
 
+    analysis = modes.add_parser("analysis", help="Analyse one job description. Nothing else.",
+                                parents=[common])
+    analysis.add_argument("--in", dest="jd_file", type=Path, required=True,
+                          help="The job description to analyse.")
+    analysis.add_argument("--output-format", choices=analysis_mode.OUTPUT_FORMATS,
+                          default="json",
+                          help="json: print the analysis on stdout. folder: write "
+                               "<Company>_<Title>/ with jd.txt and analysis.json into "
+                               "--out, replacing one of the same name. Default: json.")
+    analysis.add_argument("--out", type=Path,
+                          help="Where --output-format folder writes. "
+                               "Default: <data-dir>/incoming (created if missing).")
+
     render = modes.add_parser("render", help="Compile a cv_*.json or cv_*.tex into a PDF.",
                               parents=[common])
     render.add_argument("source", type=Path, help="The .json document or .tex source.")
@@ -175,7 +192,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         fail(str(exc))
 
     if config.verbose:
-        print(f"version {__version__}")
+        # stderr: analysis prints its JSON on stdout, and nothing else may.
+        print(f"version {__version__}", file=sys.stderr)
 
     try:
         if args.mode == "logs":
@@ -184,6 +202,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             return render_mode.run(config, args.source, output=args.output)
         if args.mode == "submit-raw":
             return submit_raw_mode.run(config, args.jd_file, args.output, resume=args.resume)
+        if args.mode == "analysis":
+            out = args.out or (flag("data_dir") or Path.cwd()) / "incoming"
+            return analysis_mode.run(config, args.jd_file, out,
+                                     output_format=args.output_format)
 
         common = {"assume_yes": args.yes, "track": not args.no_xlsx}
         out = args.out or Path.cwd()

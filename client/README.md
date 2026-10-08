@@ -133,6 +133,25 @@ without asking. With no `-o` you get one PDF named after the posting
 (`posting.txt` → `posting.pdf`), and a second run counts up to `posting_1.pdf`
 rather than replacing it.
 
+### `analysis` — just the analysis
+
+```bash
+resumix analysis --in posting.txt
+resumix analysis --in posting.txt --output-format folder
+```
+
+The analysis and nothing else: no detection, no question, no CV. It needs
+`candidate_profile.json` and `candidate_preferences.md`, and costs one model
+call. With `--output-format json` (the default) the analysis is printed on
+stdout — nothing else is, so it pipes straight into `jq`. With `folder` it
+writes `<Company>_<Title>/` holding `jd.txt` and `analysis.json` into `--out`,
+which defaults to `incoming/` under `--data-dir` (or the current folder): the
+shape `watch` takes from its input folder, and the folder it watches by
+default. A folder of the same name is replaced. It is written as
+`.<Company>_<Title>/` and renamed once both files are in, so a `watch` running
+on it never picks up half a job. Failures, and the server's log with `-d`, go
+to stderr.
+
 ### `render` — compile an edited CV
 
 ```bash
@@ -174,6 +193,9 @@ when `resumix.toml` is wrong. Every `-v` run prints the same line at startup.
 | `--out DIR` | clipboard, watch, submit | The output folder. Default: the current folder. |
 | `-o FILE` | submit-raw | Where to write one output: `.pdf`, `.json` or `.tex`. Repeatable. |
 | `--in DIR` | watch | The folder to watch. Default: `./incoming` (created if missing). |
+| `--in FILE` | analysis | The posting to analyse. Required. |
+| `--output-format json\|folder` | analysis | Print the analysis as JSON (default), or write `<Company>_<Title>/` with `jd.txt` and `analysis.json` into `--out`. |
+| `--out DIR` | analysis | Where `folder` writes. Default: `<data-dir>/incoming`. |
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
 | `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. In `watch`: never ask, and CHECK postings wait in `working/`. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |

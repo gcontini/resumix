@@ -133,10 +133,10 @@ required to run it (PyInstaller `--onefile`)
   table for new postings, dropped folders and leftovers in `working/`.
   `watcher.py` runs a foreground loop and the background stages: `q`
   finishes what is running, Ctrl-C stops at once.
-- `modes/{clipboard,watch,submit,submit_raw,render,logs}.py` — thin: build the
-  stages and run them (`clipboard` asks r/c/q about leftovers first; `submit`
-  writes its CV on the main thread and returns when it is filed), or (for
-  `submit-raw`/`render`/`logs`) call the API directly.
+- `modes/{clipboard,watch,submit,submit_raw,analysis,render,logs}.py` — thin:
+  build the stages and run them (`clipboard` asks r/c/q about leftovers first;
+  `submit` writes its CV on the main thread and returns when it is filed), or
+  (for `submit-raw`/`analysis`/`render`/`logs`) call the API directly.
 - `tracking.py` — `XlsxTracker` (openpyxl, `applications.xlsx`) / `NullTracker`.
 - `ui.py` — `Confirmer` protocol (`PromptConfirmer`, which reads the
   `Keyboard`, / `AutoConfirmer` for `--yes`), the analysis table, the

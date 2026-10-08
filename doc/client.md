@@ -1,6 +1,6 @@
 # The client
 
-One executable, seven modes. It keeps your CV data on your machine and sends it,
+One executable, eight modes. It keeps your CV data on your machine and sends it,
 per request, to a server that holds the model API keys and the LaTeX
 toolchain. No Python, no API key and no LaTeX install of your own.
 
@@ -22,6 +22,7 @@ flowchart TD
     Q1 -->|"one file, right now"| Q2{"do you want the<br/>folders, analysis<br/>and spreadsheet?"}
     Q1 -->|"a CV I have edited"| REND["<b>render</b><br/>.json or .tex → PDF"]
     Q1 -->|"a request id from a failure"| LOGS["<b>logs</b><br/>print the server's log"]
+    Q1 -->|"a posting, and only its analysis"| ANA["<b>analysis</b><br/>JSON or a job folder"]
     Q2 -->|"yes"| SUB["<b>submit</b>"]
     Q2 -->|"no, just the CV"| RAW["<b>submit-raw</b>"]
 ```
@@ -32,6 +33,7 @@ flowchart TD
 | `watch` | CHECK postings only (none with `--yes`) | yes | yes | yes | optional |
 | `submit` | yes (or `--yes`) | yes | yes | yes | optional |
 | `submit-raw` | **no** | no | no | no | no |
+| `analysis` | **no** | analyses only | no | no | no |
 | `render` | no — costs no model call | no | no | no | no |
 | `logs` | no | no | no | no | no |
 
@@ -215,6 +217,25 @@ without asking, because a name you chose is a name you meant. With no `-o` you
 get one PDF named after the posting (`posting.txt` → `posting.pdf`), and a
 second run counts up to `posting_1.pdf` rather than replacing it.
 
+### `analysis` — just the analysis
+
+```bash
+resumix analysis --in posting.txt
+resumix analysis --in posting.txt --output-format folder
+```
+
+The analysis and nothing else: no detection, no question, no CV. It needs
+`candidate_profile.json` and `candidate_preferences.md`, and costs one model
+call. With `--output-format json` (the default) the analysis is printed on
+stdout — nothing else is, so it pipes straight into `jq`. With `folder` it
+writes `<Company>_<Title>/` holding `jd.txt` and `analysis.json` into `--out`,
+which defaults to `incoming/` under `--data-dir` (or the current folder): the
+shape `watch` takes from its input folder, and the folder it watches by
+default. A folder of the same name is replaced. It is written as
+`.<Company>_<Title>/` and renamed once both files are in, so a `watch` running
+on it never picks up half a job. Failures, and the server's log with `-d`, go
+to stderr.
+
 ### `render` — compile an edited CV
 
 ```bash
@@ -298,6 +319,9 @@ copying a folder you drop back into `watch`.
 |---|---|---|
 | `--out DIR` | clipboard, watch, submit | The output folder (`working/`, `error/`, `discarded/`, `cv/`). Default: the current folder. |
 | `--in DIR` | watch | The folder to watch. Default: `./incoming`, created if missing. |
+| `--in FILE` | analysis | The posting to analyse. Required. |
+| `--output-format json\|folder` | analysis | `json`: print the analysis on stdout. `folder`: write `<Company>_<Title>/` with `jd.txt` and `analysis.json` into `--out`, replacing one of the same name. Default `json`. |
+| `--out DIR` | analysis | Where `--output-format folder` writes. Default: `<data-dir>/incoming`, created if missing. |
 | `--cover-letter no\|yes\|letter_only` | clipboard, watch, submit | Also write a cover letter, or write *only* one. Default `no`. |
 | `--yes` | clipboard, watch, submit | Submit every valid posting without asking. Unattended runs spend tokens on their own. A posting already applied to, discarded or in flight is skipped, still without asking. In `watch` it only stops the questions: YES postings get their CV, NO postings are discarded, CHECK postings wait in `working/` for a run without `--yes`. |
 | `--no-xlsx` | clipboard, watch, submit | Do not record delivered CVs in the spreadsheet. |

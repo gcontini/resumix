@@ -179,11 +179,15 @@ def test_a_folder_with_a_bad_analysis_goes_to_error(reader, inbox, workspace):
     assert "analysis.json is not valid" in (filed(workspace, "old_job") / "log.log").read_text()
 
 
-def test_hidden_entries_are_left_alone(reader, inbox, api):
+def test_hidden_entries_are_left_alone(reader, inbox, workspace, api):
+    """A dot folder is one ``resumix analysis`` is still writing."""
     (inbox / ".posting.txt").write_text(JD_TEXT)
+    make_job(inbox, ".Acme_Corp_Head_of_IT")
     scan(reader)
     assert api.calls == []
+    assert workspace.working_jobs() == []
     assert (inbox / ".posting.txt").exists()
+    assert (inbox / ".Acme_Corp_Head_of_IT" / "analysis.json").exists()
 
 
 def test_a_file_still_being_written_waits(reader, inbox, api, monkeypatch):

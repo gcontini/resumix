@@ -139,6 +139,7 @@ curl -F jd=@JD.txt \
 | `jd` / `jd_text` | required | The posting |
 | `candidate_profile` | required | JSON object: everything you have done |
 | `pers_preferences` / `pers_preferences_text` | required | What you want from a job, in prose |
+| `sys_prompt_analysis` | optional | Replace the analysis prompt |
 
 Returns a `JDAnalysis`:
 

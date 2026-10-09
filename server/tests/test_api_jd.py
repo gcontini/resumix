@@ -124,6 +124,14 @@ def test_analysis_prompt_carries_the_profile_and_the_preferences(client, fake_ll
     assert candidate.preferences[:40] in prompt
 
 
+def test_an_overridden_analysis_prompt_is_used(client, fake_llm, candidate):
+    fake_llm["analysis"].replies = [json.dumps(ANALYSIS)]
+    files = jd_parts(candidate, sys_prompt_analysis=("p.txt", "SCORE IT STRICTLY"))
+    client.post("/v1/jd/analysis", data={"jd_text": "a jd"}, files=files)
+    system = fake_llm["analysis"].calls[0]["messages"][0]["content"]
+    assert system.startswith("SCORE IT STRICTLY"), "json_mode appends the schema after it"
+
+
 def test_analysis_requires_the_profile(client, candidate):
     response = client.post(
         "/v1/jd/analysis", data={"jd_text": "a jd"},

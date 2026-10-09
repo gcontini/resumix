@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ..api import HttpApi, ResumixError
+from ..api import HttpApi, ResumixError, read_text
 from ..config import Config
 from ..joblog import JobLog
 from ..stages.calls import Calls
@@ -30,6 +30,7 @@ def run(config: Config, jd_file: Path, out: Path, *, output_format: str = "json"
         fail(f"no such file: {jd_file}")
     profile = config.require("candidate_profile.json").read_bytes()
     preferences = config.require("candidate_preferences.md").read_text(encoding="utf-8")
+    prompt = read_text(config.path("sys_prompt_analysis.txt"))
 
     text = jd_file.read_bytes().decode("utf-8", errors="replace")
     calls = Calls(HttpApi(config.server_url, token=config.token, verbose=config.verbose),
@@ -37,7 +38,7 @@ def run(config: Config, jd_file: Path, out: Path, *, output_format: str = "json"
     log = JobLog()
     try:
         analysis = calls.make(log, lambda: calls.api.analyze(
-            text, profile=profile, preferences=preferences))
+            text, profile=profile, preferences=preferences, prompt=prompt))
     except ResumixError as exc:
         calls.failed(log, exc)
         _report(log)

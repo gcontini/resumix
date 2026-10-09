@@ -73,8 +73,8 @@ def length_advice(pages: int, limit: int, overflow_lines: int, earlier: int) -> 
         f"CV in previous attempt is rejected: too long. It is {pages} pages, "
         f"{overflow_lines} line(s) past the mandatory {limit}-page limit. "
         + escalation
-        + f"DELETE {duties} whole duty bullet(s): fewer bullets, not shorter "
-        "ones - shortening sentences frees no line. Copy the rest of the CV as is."
+        + f"DELETE {duties} whole duty(s): fewer duties, not shorter "
+        "ones - shortening sentences frees no line.\n Copy the rest of the CV as is."
     )
 
 
@@ -205,10 +205,6 @@ class CVValidator:
 
         review_request = ("Review the GENERATED CV below against the candidate MASTER "
             "PROFILE. Attempt %d\n") % (attempt + 1)
-        if attempt > 0:
-            review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
-                               " times, it should be ok by now. "
-            "Flag only outstanding syntax and logic issues this turn, if there are any.")
         review_request += (
             "--------------------------------------------\n"
             "MASTER PROFILE:\n"
@@ -217,9 +213,13 @@ class CVValidator:
             "GENERATED CV:\n"
             f"{cv_data.model_dump_json(indent=2)}\n"
             "--------------------------------------------\n"
-            "Reply with the violations, one per line and nothing else — or "
+            "Reply with the violations, one per line and nothing else - or "
             "OK if the CV is acceptable."
         )
+        if attempt > 0:
+            review_request += ("The GENERATED CV has already been reviewed "+str(attempt +1)+
+                               " times, it should be ok by now. "
+            "Flag only outstanding syntax and logic issues this turn, if there are any.")
 
         try:
             reply = self.llm.call_llm(

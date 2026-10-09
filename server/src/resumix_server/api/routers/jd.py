@@ -50,6 +50,9 @@ async def analyze_jd(
         None, description="candidate_preferences.md — scored into pers_preference_score"
     ),
     pers_preferences_text: Optional[str] = Form(None, description="…or the same as a field"),
+    sys_prompt_analysis: Optional[UploadFile] = File(
+        None, description="Override the analysis prompt"
+    ),
 ) -> dict:
     """Score a posting against the profile and extract its facts."""
     state = get_state(request)
@@ -64,10 +67,11 @@ async def analyze_jd(
         max_bytes=limit, required=True,
     )
     candidate = CandidateInputs(profile=profile, preferences=preferences)
+    prompt = await text_part(sys_prompt_analysis, name="sys_prompt_analysis", max_bytes=limit)
 
     validator = JDValidator(state.llm)
 
     def job() -> JDAnalysis:
-        return validator.analyze(text, candidate)
+        return validator.analyze(text, candidate, prompt)
 
     return envelope_of(await execute(state, job))

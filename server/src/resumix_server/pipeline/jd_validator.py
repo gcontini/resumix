@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Optional
 
 from resumix_contracts import (
     MAX_JD_CHARS,
@@ -86,8 +87,15 @@ class JDValidator:
         logger.info("  🔎 job description check: %s", "YES" if verdict else "NO")
         return JDDetection(is_job_description=verdict)
 
-    def analyze(self, job_description: str, candidate: CandidateInputs) -> JDAnalysis:
-        """Compare a job description against the profile and extract key facts."""
+    def analyze(
+        self, job_description: str, candidate: CandidateInputs,
+        system_prompt: Optional[str] = None,
+    ) -> JDAnalysis:
+        """Compare a job description against the profile and extract key facts.
+
+        ``system_prompt`` replaces the shipped one for this call; ``None``
+        keeps it.
+        """
         content = (
             "CANDIDATE_PROFILE:\n"
             f"{json.dumps(dict(candidate.profile), indent=2)}\n\n"
@@ -100,7 +108,8 @@ class JDValidator:
         )
         with stage("jd.analysis"):
             return self.llm.call_llm(
-                "analysis", JDAnalysis, JD_SYSTEM_PROMPT, [{"role": "user", "content": content}]
+                "analysis", JDAnalysis, system_prompt or JD_SYSTEM_PROMPT,
+                [{"role": "user", "content": content}],
             )
 
 

@@ -70,7 +70,7 @@ class ResumixApi(Protocol):
     def detect(self, text: str) -> Envelope[JDDetection]: ...
 
     def analyze(
-        self, text: str, *, profile: bytes, preferences: str,
+        self, text: str, *, profile: bytes, preferences: str, prompt: Optional[str] = None,
     ) -> Envelope[JDAnalysis]: ...
 
     def create_cv(
@@ -132,13 +132,17 @@ class HttpApi:
         self._ensure_healthy()
         return self._post("/v1/jd/detect", JDDetection, data={"jd_text": text})
 
-    def analyze(self, text, *, profile, preferences):
+    def analyze(self, text, *, profile, preferences, prompt=None):
+        files: List[Part] = [
+            ("candidate_profile", ("candidate_profile.json", profile, "application/json")),
+        ]
+        if prompt is not None:
+            files.append(("sys_prompt_analysis", ("sys_prompt_analysis.txt", prompt, "text/plain")))
         self._ensure_healthy()
         return self._post(
             "/v1/jd/analysis", JDAnalysis,
             data={"jd_text": text, "pers_preferences_text": preferences},
-            files=[("candidate_profile", ("candidate_profile.json", profile,
-                                          "application/json"))],
+            files=files,
         )
 
     def create_cv(self, text, *, profile, candidate_data, prompts=None, template=None,

@@ -11,6 +11,7 @@ from typing import Optional
 
 from resumix_contracts import JDAnalysis, static_jd_guess
 
+from ..api import read_text
 from ..config import Config
 from ..joblog import JobLog
 from .calls import Calls
@@ -35,6 +36,7 @@ def analyse(calls: Calls, config: Config, text: str, log: JobLog) -> Optional[JD
         text,
         profile=config.require("candidate_profile.json").read_bytes(),
         preferences=config.require("candidate_preferences.md").read_text(encoding="utf-8"),
+        prompt=read_text(config.path("sys_prompt_analysis.txt")),
     ))
 
 

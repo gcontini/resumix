@@ -109,10 +109,11 @@ class FakeApi:
         self._record("detect")
         return envelope(JDDetection(is_job_description=self.is_jd))
 
-    def analyze(self, text, *, profile, preferences):
+    def analyze(self, text, *, profile, preferences, prompt=None):
         self._record("analyze")
         self.seen_profile = profile
         self.seen_preferences = preferences
+        self.seen_analysis_prompt = prompt
         return envelope(self.analysis)
 
     def create_cv(self, text, *, profile, candidate_data, prompts=None, template=None,

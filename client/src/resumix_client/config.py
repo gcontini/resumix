@@ -37,6 +37,7 @@ CONFIG_KEYS = {
     "prompt_highlight": "sys_prompt_highlight.txt",
     "prompt_review": "sys_prompt_review.txt",
     "prompt_letter": "sys_prompt_letter.txt",
+    "prompt_analysis": "sys_prompt_analysis.txt",
 }
 
 #: Prompt files, mapped to the multipart part name the server expects.

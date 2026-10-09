@@ -26,6 +26,7 @@ KNOWN_FILES = (
     "sys_prompt_highlight.txt",
     "sys_prompt_review.txt",
     "sys_prompt_letter.txt",
+    "sys_prompt_analysis.txt",
 )
 
 #: Images are picked up by extension, not by name.

@@ -366,6 +366,7 @@ cover_letter = "no"                 # no | yes | letter_only
 # prompt_highlight = "~/cv/sys_prompt_highlight.txt"
 # prompt_review    = "~/cv/sys_prompt_review.txt"
 # prompt_letter    = "~/cv/sys_prompt_letter.txt"
+# prompt_analysis  = "~/cv/sys_prompt_analysis.txt"
 ```
 
 A relative path under `[files]` is resolved against the config file's own
@@ -393,7 +394,7 @@ up by name:
 | `candidate_data.json` | Name, email, phone, LinkedIn, languages, location, education. Printed by the template as-is; no model is shown it. | **yes** |
 | `candidate_preferences.md` | What you want from a job, in prose. Scored against each posting. | for analysis |
 | `resume.tex.jinja` | Your own LaTeX template. | no — the server's is used |
-| `sys_prompt_cv.txt`, `sys_prompt_highlight.txt`, `sys_prompt_review.txt`, `sys_prompt_letter.txt` | Your own prompts. | no — same |
+| `sys_prompt_cv.txt`, `sys_prompt_highlight.txt`, `sys_prompt_review.txt`, `sys_prompt_letter.txt`, `sys_prompt_analysis.txt` | Your own prompts. | no — same |
 
 Every `.png`, `.jpg` and `.jpeg` in those folders is sent too, under its own
 file name — and that name is the whole contract: the server writes each one

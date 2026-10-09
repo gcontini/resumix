@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import replace
 
 import pytest
 from resumix_contracts import JDAnalysis
@@ -35,6 +36,15 @@ def test_json_goes_to_stdout_and_nothing_is_detected(posting, config, api, tmp_p
     assert JDAnalysis.model_validate_json(capsys.readouterr().out) == analysis()
     assert api.calls == ["analyze"]
     assert not (tmp_path / "out").exists(), "json writes no folder"
+
+
+def test_your_own_analysis_prompt_is_sent(posting, config, api, tmp_path):
+    prompt = tmp_path / "sys_prompt_analysis.txt"
+    prompt.write_text("MY PROMPT")
+    config = replace(config, files={**config.files, "sys_prompt_analysis.txt": prompt})
+    analysis_mode.run(config, posting, tmp_path / "out")
+
+    assert api.seen_analysis_prompt == "MY PROMPT"
 
 
 def test_folder_holds_the_posting_and_its_analysis_as_watch_takes_them(posting, config,

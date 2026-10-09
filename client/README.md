@@ -24,7 +24,7 @@ your own and no LaTeX install (for the client).
    | `candidate_data.json` | Name, email, phone, LinkedIn, languages, location, education. Merged into the CV here and printed as-is; **Required.** |
    | `candidate_preferences.md` | What you want from a job, in prose. Scored against each posting. **Required** for analysis. |
    | `resume.tex.jinja` | Your own LaTeX template. Optional — the server's is used otherwise. |
-   | `sys_prompt_cv.txt`, `sys_prompt_highlight.txt`, `sys_prompt_review.txt`, `sys_prompt_letter.txt` | Your own prompts. Optional, same. |
+   | `sys_prompt_cv.txt`, `sys_prompt_highlight.txt`, `sys_prompt_review.txt`, `sys_prompt_letter.txt`, `sys_prompt_analysis.txt` | Your own prompts. Optional, same. |
 
    Every `.png`, `.jpg` and `.jpeg` in the folder is sent along too, under its
    own file name — that is the name your template includes it under, so
